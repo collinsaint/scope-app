@@ -1,0 +1,662 @@
+import { useState, useRef, useEffect } from 'react'
+import type { ScopeItem, Subcontractor } from '../types'
+import { useStore } from '../store/useStore'
+import { PhotoUploader } from './PhotoUploader'
+
+const COL_COUNT = 12
+
+type RenderRow = ScopeItem | { _roomHeader: true; room: string; id: string }
+
+function roomLabel(r: string) {
+  return r.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
+function withRoomHeaders(items: ScopeItem[], roomFilter: string): RenderRow[] {
+  if (roomFilter !== 'all') return items
+  const result: RenderRow[] = []
+  let lastRoom: string | null = null
+  for (const item of items) {
+    if (!item.isHeader && item.room !== lastRoom) {
+      result.push({ _roomHeader: true, room: item.room, id: `__room_${item.room}` })
+      lastRoom = item.room
+    }
+    result.push(item)
+  }
+  return result
+}
+
+function fmt(n: number) {
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function activityLabel(a: string): string {
+  if (!a) return ''
+  const map: Record<string, string> = {
+    'Remove and Replace': 'R&R',
+    'Remove': 'Remove',
+    'Replace': 'Replace',
+  }
+  return map[a] ?? a
+}
+
+function pruneOrphanedHeaders(items: ScopeItem[]): ScopeItem[] {
+  const result: ScopeItem[] = []
+  for (let i = 0; i < items.length; i++) {
+    if (!items[i].isHeader) { result.push(items[i]); continue }
+    const header = items[i]
+    let hasItems = false
+    for (let j = i + 1; j < items.length; j++) {
+      if (items[j].room !== header.room) continue
+      if (items[j].isHeader) break
+      hasItems = true
+      break
+    }
+    if (hasItems) result.push(header)
+  }
+  return result
+}
+
+interface Props {
+  projectId: string
+  items: ScopeItem[]
+  subcontractors: Subcontractor[]
+  roomFilter: string
+  onOpenComment: (itemId: string) => void
+}
+
+export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment }: Props) {
+  const { toggleItem, assignSubcontractor, bulkComplete, bulkUncomplete } = useStore()
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
+  const [search, setSearch] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkSubId, setBulkSubId] = useState('')
+  const [confirmComplete, setConfirmComplete] = useState(false)
+  const [confirmUncomplete, setConfirmUncomplete] = useState(false)
+  const masterRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { setSelectedIds(new Set()) }, [roomFilter])
+
+  const roomFiltered = items.filter(item => roomFilter === 'all' || item.room === roomFilter)
+  const dataItems = roomFiltered.filter(i => !i.isHeader)
+  const completedCount = dataItems.filter(i => i.completed).length
+  const pendingCount = dataItems.length - completedCount
+  const totalCount = dataItems.length
+
+  const afterFilter = roomFiltered.filter(item => {
+    if (item.isHeader) return true
+    if (statusFilter === 'pending' && item.completed) return false
+    if (statusFilter === 'complete' && !item.completed) return false
+    if (search && !item.description.toLowerCase().includes(search.toLowerCase())) return false
+    return true
+  })
+
+  const visible = pruneOrphanedHeaders(afterFilter)
+  const visibleData = visible.filter(i => !i.isHeader)
+
+  const visibleDataIds = new Set(visibleData.map(i => i.id))
+  const effectiveSelected = new Set([...selectedIds].filter(id => visibleDataIds.has(id)))
+
+  const allSelected = visibleData.length > 0 && visibleData.every(i => effectiveSelected.has(i.id))
+  const someSelected = !allSelected && visibleData.some(i => effectiveSelected.has(i.id))
+
+  useEffect(() => {
+    if (masterRef.current) masterRef.current.indeterminate = someSelected
+  }, [someSelected])
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        visibleData.forEach(i => next.delete(i.id))
+        return next
+      })
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        visibleData.forEach(i => next.add(i.id))
+        return next
+      })
+    }
+  }
+
+  function handleBulkAssign() {
+    if (!effectiveSelected.size) return
+    assignSubcontractor(projectId, [...effectiveSelected], bulkSubId || null)
+    setSelectedIds(new Set())
+    setBulkSubId('')
+  }
+
+  function handleBulkComplete() {
+    bulkComplete(projectId, [...effectiveSelected])
+    setSelectedIds(new Set())
+    setConfirmComplete(false)
+  }
+
+  function handleBulkUncomplete() {
+    bulkUncomplete(projectId, [...effectiveSelected])
+    setSelectedIds(new Set())
+    setConfirmUncomplete(false)
+  }
+
+  return (
+    <div className="flex flex-col flex-1 overflow-hidden">
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 px-6 py-3 border-b border-slate-100">
+        <div className="relative flex-1 max-w-xs">
+          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Search items…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          {(['all', 'pending', 'complete'] as const).map(f => {
+            const label =
+              f === 'all' ? `All (${totalCount})` :
+              f === 'complete' ? `Complete (${completedCount})` :
+              `Pending (${pendingCount})`
+            return (
+              <button
+                key={f}
+                onClick={() => setStatusFilter(f)}
+                className={`px-3 py-1.5 rounded-lg text-xs transition-colors capitalize ${
+                  statusFilter === f ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100'
+                }`}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Bulk action bar */}
+      {effectiveSelected.size > 0 && (
+        <div className="flex items-center gap-3 px-6 py-2.5 bg-blue-50 border-b border-blue-100">
+          <span className="text-xs font-medium text-blue-700">
+            {effectiveSelected.size} item{effectiveSelected.size !== 1 ? 's' : ''} selected
+          </span>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs text-blue-500 hover:text-blue-700 underline"
+          >
+            Clear
+          </button>
+          <div className="flex-1" />
+          <button
+            onClick={() => setConfirmComplete(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Mark complete
+          </button>
+          <button
+            onClick={() => setConfirmUncomplete(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>
+            </svg>
+            Mark incomplete
+          </button>
+          <div className="w-px h-4 bg-blue-200" />
+          <span className="text-xs text-slate-500">Assign to:</span>
+          <select
+            value={bulkSubId}
+            onChange={e => setBulkSubId(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            <option value="">— None —</option>
+            {subcontractors.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+          <button
+            onClick={handleBulkAssign}
+            className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Assign
+          </button>
+        </div>
+      )}
+
+      {/* Confirmation modal */}
+      {confirmComplete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmComplete(false)} />
+          <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+              <h3 className="text-sm font-semibold text-slate-900">Mark items as complete</h3>
+            </div>
+            <p className="text-sm text-slate-500 mb-5 pl-12">
+              Mark <span className="font-semibold text-slate-700">{effectiveSelected.size} item{effectiveSelected.size !== 1 ? 's' : ''}</span> as complete? Today's date will be recorded as the completion date.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmComplete(false)}
+                className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkComplete}
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm incomplete modal */}
+      {confirmUncomplete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmUncomplete(false)} />
+          <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>
+                </svg>
+              </div>
+              <h3 className="text-sm font-semibold text-slate-900">Reverse completion status</h3>
+            </div>
+            <p className="text-sm text-slate-500 mb-5 pl-12">
+              Mark <span className="font-semibold text-slate-700">{effectiveSelected.size} item{effectiveSelected.size !== 1 ? 's' : ''}</span> as incomplete? Their completion dates will be cleared.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmUncomplete(false)}
+                className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkUncomplete}
+                className="px-4 py-2 text-sm bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors font-medium"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="overflow-auto flex-1">
+        <table className="w-full text-sm border-collapse">
+          <thead className="sticky top-0 z-10 bg-white">
+            <tr className="border-b border-slate-100">
+              <th className="w-8 px-3 py-3 text-left">
+                <input
+                  ref={masterRef}
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                  className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 cursor-pointer"
+                />
+              </th>
+              <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400 whitespace-nowrap">#</th>
+              <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Description</th>
+              <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Activity</th>
+              <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400 whitespace-nowrap">Qty / Unit</th>
+              <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Amount</th>
+              <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Note</th>
+              <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400 whitespace-nowrap">Coverage</th>
+              <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Photos</th>
+              <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Subcontractor</th>
+              <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Status</th>
+              <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Comment</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleData.length === 0 ? (
+              <tr>
+                <td colSpan={COL_COUNT} className="px-6 py-12 text-center text-sm text-slate-400">
+                  No items match your filters.
+                </td>
+              </tr>
+            ) : (
+              withRoomHeaders(visible, roomFilter).map(row =>
+                '_roomHeader' in row ? (
+                  <RoomHeaderRow key={row.id} room={row.room} />
+                ) : row.isHeader ? (
+                  <HeaderRow key={row.id} label={row.description} />
+                ) : (
+                  <ScopeRow
+                    key={row.id}
+                    item={row}
+                    projectId={projectId}
+                    subcontractors={subcontractors}
+                    selected={effectiveSelected.has(row.id)}
+                    onSelect={() => toggleSelect(row.id)}
+                    onToggle={() => toggleItem(projectId, row.id)}
+                    onOpenComment={() => onOpenComment(row.id)}
+                  />
+                )
+              )
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function RoomHeaderRow({ room }: { room: string }) {
+  return (
+    <tr>
+      <td colSpan={COL_COUNT} className="sticky top-10 z-[5] px-4 pt-5 pb-2 bg-white">
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest whitespace-nowrap">
+            {roomLabel(room)}
+          </span>
+          <div className="flex-1 h-px bg-slate-200" />
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+function HeaderRow({ label }: { label: string }) {
+  return (
+    <tr className="border-b border-slate-100 bg-slate-50">
+      <td colSpan={COL_COUNT} className="px-4 py-2">
+        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">
+          {label}
+        </span>
+      </td>
+    </tr>
+  )
+}
+
+interface RowProps {
+  item: ScopeItem
+  projectId: string
+  subcontractors: Subcontractor[]
+  selected: boolean
+  onSelect: () => void
+  onToggle: () => void
+  onOpenComment: () => void
+}
+
+function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onOpenComment }: RowProps) {
+  const [expanded, setExpanded] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+
+  function handleConfirm() {
+    onToggle()
+    setShowConfirm(false)
+  }
+
+  return (
+    <>
+      <tr className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${selected ? 'bg-blue-50/50' : ''}`} style={item.completed ? { backgroundColor: '#CCE7C9' } : undefined}>
+        {/* Select checkbox */}
+        <td className="px-3 py-3">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onSelect}
+            className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 cursor-pointer"
+          />
+        </td>
+
+        {/* # */}
+        <td className="px-3 py-3 text-xs text-slate-400">{item.rowNum}</td>
+
+        {/* Description */}
+        <td className="px-3 py-3">
+          <span className={`text-[13px] ${item.completed ? 'text-slate-800 font-semibold' : 'text-slate-800'}`}>
+            {item.description}
+          </span>
+          {item.completed && item.completedAt && (
+            <p className="text-[10.5px] text-green-600 mt-0.5">
+              Completed {new Date(item.completedAt).toLocaleDateString()}
+            </p>
+          )}
+        </td>
+
+        {/* Activity */}
+        <td className="px-3 py-3">
+          {item.activity ? (
+            <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[11px] font-medium whitespace-nowrap">
+              {activityLabel(item.activity)}
+            </span>
+          ) : '—'}
+        </td>
+
+        {/* Qty / Unit */}
+        <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">
+          {item.qty ? `${Number(item.qty).toLocaleString('en-US', { maximumFractionDigits: 2 })} ${item.unit}` : '—'}
+        </td>
+
+        {/* Amount */}
+        <td className="px-3 py-3 text-[13px] font-medium whitespace-nowrap">
+          <span className={item.completed ? 'text-green-600' : 'text-slate-800'}>
+            {item.rcv > 0 ? fmt(item.rcv) : '—'}
+          </span>
+        </td>
+
+        {/* Note */}
+        <td className="px-3 py-3 text-xs text-slate-400 max-w-[220px] whitespace-normal break-words align-top">
+          {item.note || '—'}
+        </td>
+
+        {/* Coverage */}
+        <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">
+          {item.coverage || '—'}
+        </td>
+
+        {/* Photos */}
+        <td className="px-3 py-3">
+          <button
+            onClick={() => setExpanded(e => !e)}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11.5px] border transition-colors ${
+              item.photos.length > 0
+                ? 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100'
+                : 'border-slate-200 bg-white text-slate-400 hover:text-slate-600 hover:border-slate-300 border-dashed'
+            }`}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+            </svg>
+            {item.photos.length > 0 ? `${item.photos.length} photo${item.photos.length !== 1 ? 's' : ''}` : 'Add'}
+          </button>
+        </td>
+
+        {/* Subcontractor */}
+        <td className="px-3 py-3">
+          <SubDropdown item={item} projectId={projectId} subcontractors={subcontractors} />
+        </td>
+
+        {/* Status */}
+        <td className="px-3 py-3">
+          <button
+            onClick={() => setShowConfirm(true)}
+            className={`px-2.5 py-1 text-[11px] font-semibold rounded-md whitespace-nowrap transition-colors ${
+              item.completed
+                ? 'bg-green-500 hover:bg-green-600 text-black'
+                : 'bg-red-500 hover:bg-red-600 text-white'
+            }`}
+          >
+            {item.completed ? 'Completed' : 'Incomplete'}
+          </button>
+        </td>
+
+        {/* Comment */}
+        <td className="px-3 py-3">
+          <button
+            onClick={onOpenComment}
+            title={item.comment ? item.comment : 'Add comment'}
+            className={`relative flex items-center justify-center w-7 h-7 rounded-md transition-colors ${
+              item.comment
+                ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100'
+            }`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+            </svg>
+            {item.comment && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-blue-500 rounded-full" />
+            )}
+          </button>
+        </td>
+      </tr>
+
+      {expanded && (
+        <tr className="border-b border-slate-100 bg-slate-50/50">
+          <td colSpan={COL_COUNT} className="px-16 py-3">
+            <PhotoUploader projectId={projectId} itemId={item.id} photos={item.photos} />
+          </td>
+        </tr>
+      )}
+
+      {showConfirm && (
+        <tr>
+          <td colSpan={COL_COUNT} className="p-0">
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/40" onClick={() => setShowConfirm(false)} />
+              <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${item.completed ? 'bg-slate-100' : 'bg-green-100'}`}>
+                    {item.completed ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    )}
+                  </div>
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    {item.completed ? 'Mark as incomplete?' : 'Mark as complete?'}
+                  </h3>
+                </div>
+                <p className="text-sm text-slate-500 mb-5 pl-12 leading-relaxed">
+                  <span className="font-medium text-slate-700">{item.description}</span>
+                  {item.completed
+                    ? ' will be reverted to incomplete and the completion date will be cleared.'
+                    : ' will be marked as complete with today\'s date recorded.'}
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setShowConfirm(false)}
+                    className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirm}
+                    className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
+                      item.completed ? 'bg-slate-700 hover:bg-slate-800' : 'bg-green-600 hover:bg-green-700'
+                    }`}
+                  >
+                    Confirm
+                  </button>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+function SubDropdown({ item, projectId, subcontractors }: { item: ScopeItem; projectId: string; subcontractors: Subcontractor[] }) {
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const { assignSubcontractor } = useStore()
+
+  const current = subcontractors.find(s => s.id === item.subcontractorId)
+
+  function handleOpen() {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, left: rect.left })
+    }
+    setOpen(true)
+  }
+
+  function handlePick(subId: string | null) {
+    assignSubcontractor(projectId, [item.id], subId)
+    setOpen(false)
+  }
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={handleOpen}
+        className={`text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap transition-colors ${
+          current
+            ? 'text-white'
+            : 'text-slate-400 hover:text-slate-600 border border-dashed border-slate-200 bg-white hover:border-slate-300'
+        }`}
+        style={current ? { backgroundColor: current.color } : {}}
+      >
+        {current ? current.name : subcontractors.length > 0 ? 'Assign' : '—'}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div
+            className="fixed z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[160px]"
+            style={{ top: pos.top, left: pos.left }}
+          >
+            <button
+              className="w-full text-left px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-50"
+              onClick={() => handlePick(null)}
+            >
+              None
+            </button>
+            {subcontractors.length > 0 && (
+              <div className="border-t border-slate-100 mt-1 pt-1">
+                {subcontractors.map(s => (
+                  <button
+                    key={s.id}
+                    className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-slate-50"
+                    onClick={() => handlePick(s.id)}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
+                    <span className="text-slate-700 flex-1">{s.name}</span>
+                    {item.subcontractorId === s.id && (
+                      <svg className="text-slate-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </>
+  )
+}
