@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useViewMode } from '../hooks/useViewMode'
 import { useDropzone } from 'react-dropzone'
 import { useStore } from '../store/useStore'
 import { SKETCH_LABELS } from '../types'
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props) {
+  const { isMobile } = useViewMode()
   const { projects, updateProjectItems, setComment, globalSubcontractors, addWalk, addSketch, removeSketch, addWalkCustomRoom } = useStore()
   const project = projects.find(p => p.id === projectId)
   const [roomFilter, setRoomFilter] = useState('all')
@@ -50,6 +52,15 @@ export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props)
     }
     prevStatusRef.current = project?.projectStatus
   }, [project?.projectStatus])
+
+  // Auto-switch to walk view when walks are added to a Site Visit project after initial render
+  const walksLen = project?.walks?.length ?? 0
+  useEffect(() => {
+    if (project?.projectStatus === 'Site Visit' && walksLen > 0 && activeWalkId === null) {
+      setActiveWalkId(project!.walks![0].id)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walksLen, project?.projectStatus])
 
   function openComment(itemId: string) {
     const item = project?.items.find(i => i.id === itemId)
@@ -117,8 +128,9 @@ export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props)
       <input {...getInputProps()} />
 
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-100 flex-shrink-0 sticky top-0 z-20">
-        <div className="flex items-center gap-3">
+      <div className={`flex-shrink-0 sticky top-0 z-20 ${isMobile ? 'bg-slate-900 border-b border-slate-700/60' : 'bg-white border-b border-slate-100'}`}>
+        {/* Row 1: back + name + actions */}
+        <div className="flex items-center gap-2 px-4 py-3">
           <button
             onClick={() => {
               if (activeView === 'details' && initialView !== 'details') {
@@ -127,130 +139,119 @@ export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props)
                 onBack()
               }
             }}
-            className="text-slate-400 hover:text-slate-600 transition-colors"
+            className={`transition-colors flex-shrink-0 p-1 ${isMobile ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
             </svg>
           </button>
-          <div className="flex items-center gap-2">
-            <div>
-              <h1 className="text-base font-semibold text-slate-900">{project.name}</h1>
-              <p className="text-xs text-slate-400">
-                {project.address || 'No address'} &nbsp;·&nbsp; {dataItems.length} items &nbsp;·&nbsp; {project.fileName}
-              </p>
-            </div>
-            <button
-              onClick={() => { setActiveView(v => v === 'details' ? 'scope' : 'details') }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-lg transition-colors flex-shrink-0 ${
-                activeView === 'details'
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'border-slate-200 text-slate-500 hover:bg-slate-50'
-              }`}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-              Project Info
-            </button>
 
-            {/* Scope / Walk switcher */}
+          <div className="flex-1 min-w-0">
+            {isMobile ? (
+              <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                <h1 className="text-sm font-semibold text-white truncate min-w-0">{project.name}</h1>
+                <button
+                  onClick={() => { (project.sketches?.length ?? 0) > 0 ? setShowSketchViewer(true) : (setSketchLabel(SKETCH_LABELS[0]), setShowSketchUpload(true)) }}
+                  className="flex-shrink-0 relative flex items-center gap-1 px-2 py-1.5 rounded-lg border border-slate-700 text-slate-300 text-xs font-medium"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  Project Sketch
+                  {(project.sketches?.length ?? 0) > 0 && (
+                    <span className="ml-0.5 bg-blue-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">{project.sketches!.length}</span>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <>
+                <h1 className="text-sm font-semibold text-slate-900 truncate">{project.name}</h1>
+                <p className="text-xs text-slate-400 truncate">
+                  {project.address || 'No address'} &nbsp;·&nbsp; {dataItems.length} items &nbsp;·&nbsp; {project.fileName}
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* Desktop actions */}
+          {!isMobile && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {reuploadError && <span className="text-xs text-red-500">{reuploadError}</span>}
+              <button
+                onClick={() => { setActiveView(v => v === 'details' ? 'scope' : 'details') }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-lg transition-colors ${activeView === 'details' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                Project Info
+              </button>
+              <select
+                value={activeWalkId ?? ''}
+                onChange={e => { setActiveWalkId(e.target.value || null); setActiveView('scope') }}
+                className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              >
+                <option value="">Main Scope</option>
+                {(project.walks ?? []).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+              <button onClick={() => setShowNewWalk(true)} className="flex items-center gap-1 px-2 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors" title="New Walk">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <button
+                onClick={() => { (project.sketches?.length ?? 0) > 0 ? setShowSketchViewer(true) : (setSketchLabel(SKETCH_LABELS[0]), setShowSketchUpload(true)) }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                View Sketch{(project.sketches?.length ?? 0) > 0 && <span className="ml-0.5 bg-slate-200 text-slate-600 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">{project.sketches!.length}</span>}
+              </button>
+              <button
+                onClick={() => setActiveView(v => v === 'comments' ? 'scope' : 'comments')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-lg transition-colors ${activeView === 'comments' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                Comments{project.items.some(i => i.comment) && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${activeView === 'comments' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600'}`}>{project.items.filter(i => i.comment).length}</span>}
+              </button>
+              <label className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 cursor-pointer transition-colors">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Re-upload scope
+                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; await onDrop([f]); e.target.value = '' }} />
+              </label>
+              <button onClick={() => generateReport(project)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export report
+              </button>
+            </div>
+          )}
+
+          {/* Mobile compact actions — comments + export only */}
+          {isMobile && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => setActiveView(v => v === 'comments' ? 'scope' : 'comments')}
+                className={`p-2 rounded-lg border transition-colors ${activeView === 'comments' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-700 text-slate-400'}`}
+                title="Comments"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+              </button>
+              <button onClick={() => generateReport(project)} className="p-2 rounded-lg bg-blue-600 text-white" title="Export">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile: walk + scope switcher row */}
+        {isMobile && (
+          <div className="flex items-center gap-2 px-4 pb-2.5">
             <select
               value={activeWalkId ?? ''}
-              onChange={e => {
-                const val = e.target.value
-                setActiveWalkId(val || null)
-                setActiveView('scope')
-              }}
-              className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              onChange={e => { setActiveWalkId(e.target.value || null); setActiveView('scope') }}
+              className="flex-1 px-2.5 py-1.5 text-xs border border-slate-700 rounded-lg text-slate-200 bg-slate-800 focus:outline-none"
             >
               <option value="">Main Scope</option>
-              {(project.walks ?? []).map(w => (
-                <option key={w.id} value={w.id}>{w.name}</option>
-              ))}
+              {(project.walks ?? []).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
-            <button
-              onClick={() => setShowNewWalk(true)}
-              className="flex items-center gap-1 px-2 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors"
-              title="New Walk"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
+            <button onClick={() => setShowNewWalk(true)} className="p-2 border border-slate-700 rounded-lg text-slate-400" title="New Walk">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {reuploadError && <span className="text-xs text-red-500">{reuploadError}</span>}
-
-          <button
-            onClick={() => {
-              if ((project.sketches?.length ?? 0) > 0) {
-                setShowSketchViewer(true)
-              } else {
-                setSketchLabel(SKETCH_LABELS[0])
-                setShowSketchUpload(true)
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-            </svg>
-            View Sketch
-            {(project.sketches?.length ?? 0) > 0 && (
-              <span className="ml-0.5 bg-slate-200 text-slate-600 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
-                {project.sketches!.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveView(v => v === 'comments' ? 'scope' : 'comments')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-lg transition-colors ${
-              activeView === 'comments'
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'border-slate-200 text-slate-500 hover:bg-slate-50'
-            }`}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-            </svg>
-            Comments
-            {project.items.some(i => i.comment) && (
-              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                activeView === 'comments' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600'
-              }`}>
-                {project.items.filter(i => i.comment).length}
-              </span>
-            )}
-          </button>
-
-
-          <label className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 cursor-pointer transition-colors">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            Re-upload scope
-            <input type="file" accept=".xlsx,.xls" className="hidden" onChange={async e => {
-              const f = e.target.files?.[0]
-              if (!f) return
-              await onDrop([f])
-              e.target.value = ''
-            }} />
-          </label>
-
-          <button
-            onClick={() => generateReport(project)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Export report
-          </button>
-        </div>
+        )}
       </div>
 
       {/* Summary cards — hidden on details view and walk view */}
@@ -262,7 +263,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props)
 
       {/* Room tabs — hidden on details view */}
       {activeView !== 'details' && (
-        <div className="flex flex-wrap gap-2 px-6 py-3 bg-white border-b border-slate-100 flex-shrink-0">
+        <div className={`flex gap-2 bg-white border-b border-slate-100 flex-shrink-0 ${isMobile ? 'px-4 py-2.5 overflow-x-auto scrollbar-hide' : 'flex-wrap px-6 py-3'}`}>
           {rooms.map(r => {
             const { pct, count } = roomProgress(r)
             const isActive = roomFilter === r
@@ -291,7 +292,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props)
               </button>
             )
           })}
-          {activeWalkId && (
+          {activeWalkId && !isMobile && (
             <button
               onClick={() => setAddRoomName('')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-slate-300 text-slate-400 hover:border-violet-400 hover:text-violet-600 transition-colors whitespace-nowrap"
@@ -363,6 +364,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props)
             items={project.items}
             roomFilter={roomFilter}
             onRoomDeleted={() => setRoomFilter('all')}
+            onAddRoom={isMobile ? () => setAddRoomName('') : undefined}
           />
         ) : activeView === 'scope' && project.items.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8">
@@ -547,12 +549,12 @@ export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props)
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
                     </svg>
-                    {sketchUploading ? 'Uploading…' : 'Upload PDF'}
+                    {sketchUploading ? 'Uploading…' : 'Upload File'}
                   </button>
                   <input
                     ref={sketchUploadRef}
                     type="file"
-                    accept=".pdf"
+                    accept=".pdf,image/*"
                     className="hidden"
                     onChange={e => {
                       const file = e.target.files?.[0]

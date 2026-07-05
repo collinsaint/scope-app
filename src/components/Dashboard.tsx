@@ -17,7 +17,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails }: Props) {
   const [showModal, setShowModal] = useState(false)
 
   return (
-    <div className="flex-1 p-8">
+    <div className="flex-1 overflow-y-auto p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Projects</h1>
@@ -93,6 +93,9 @@ function ProjectCard({ project, onOpen, onOpenDetails, onDelete }: { project: Pr
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-medium text-slate-900 truncate">{project.name}</h3>
+            {project.isDemo && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 tracking-wide uppercase">Demo</span>
+            )}
             {project.projectStatus && (
               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColors[project.projectStatus] ?? 'bg-slate-100 text-slate-600'}`}>
                 {project.projectStatus}

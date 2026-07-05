@@ -118,4 +118,5 @@ export interface Project {
   applicantEmail?: string
   sketches?: ProjectSketch[]
   walks?: Walk[]
+  isDemo?: boolean
 }

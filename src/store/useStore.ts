@@ -9,8 +9,10 @@ interface StoreState {
   jobGroups: JobGroup[]
   superintendents: Superintendent[]
   oneDrive: OneDriveSettings
+  viewMode: 'auto' | 'desktop' | 'mobile'
 
   setOneDrive: (settings: Partial<OneDriveSettings>) => void
+  setViewMode: (mode: 'auto' | 'desktop' | 'mobile') => void
 
   addProject: (project: Project) => void
   updateProjectItems: (projectId: string, items: ScopeItem[]) => void
@@ -64,9 +66,12 @@ export const useStore = create<StoreState>()(
         accountEmail: null,
         rootFolderName: 'ProScope',
       },
+      viewMode: 'auto',
 
       setOneDrive: (settings) =>
         set((s) => ({ oneDrive: { ...s.oneDrive, ...settings } })),
+
+      setViewMode: (mode) => set({ viewMode: mode }),
 
       addProject: (project) =>
         set((s) => ({ projects: [...s.projects, project] })),

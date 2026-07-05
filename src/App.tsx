@@ -1,15 +1,21 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useStore } from './store/useStore'
+import { useViewMode } from './hooks/useViewMode'
 import { Sidebar } from './components/Sidebar'
+import { MobileNav } from './components/MobileNav'
 import { Dashboard } from './components/Dashboard'
 import { ProjectView } from './components/ProjectView'
 import { ContractorSettingsView } from './components/ContractorSettingsView'
 import { UserSettingsView } from './components/UserSettingsView'
+import { seedDemoProject } from './lib/seedDemoProject'
 
 type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings'
 
 export default function App() {
   const { setActiveProject, activeProjectId } = useStore()
+
+  useEffect(() => { seedDemoProject() }, [])
+  const { isMobile } = useViewMode()
   const [view, setView] = useState<AppView>('dashboard')
   const [projectInitialView, setProjectInitialView] = useState<'scope' | 'details'>('scope')
 
@@ -31,7 +37,7 @@ export default function App() {
   return (
     <div className="flex h-screen overflow-hidden bg-slate-100">
       <Sidebar view={view} onNavigate={navigate} />
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className={`flex-1 flex flex-col overflow-hidden ${isMobile ? 'pb-[60px]' : ''}`}>
         {view === 'dashboard' ? (
           <Dashboard
             onOpenProject={(id) => openProject(id, 'scope')}
@@ -49,6 +55,7 @@ export default function App() {
           <UserSettingsView />
         )}
       </main>
+      {isMobile && <MobileNav view={view} onNavigate={navigate} onOpenProjectDetails={(id) => openProject(id, 'details')} />}
     </div>
   )
 }

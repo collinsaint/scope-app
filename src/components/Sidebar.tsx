@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
+import { useViewMode } from '../hooks/useViewMode'
 
 type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings'
 
@@ -13,7 +14,10 @@ const STRIP_WIDTH = 16
 
 export function Sidebar({ view, onNavigate }: Props) {
   const { projects, activeProjectId } = useStore()
+  const { isMobile, toggle } = useViewMode()
   const [collapsed, setCollapsed] = useState(false)
+
+  if (isMobile) return null
 
   return (
     <div
@@ -102,7 +106,10 @@ export function Sidebar({ view, onNavigate }: Props) {
                   }`}
                 >
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${pct === 100 ? 'bg-green-400' : pct > 0 ? 'bg-blue-400' : 'bg-slate-500'}`} />
-                  <span className="text-[12.5px] truncate">{p.name}</span>
+                  <span className="text-[12.5px] truncate flex-1 min-w-0">{p.name}</span>
+                  {p.isDemo && (
+                    <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 tracking-wide">DEMO</span>
+                  )}
                 </button>
               )
             })}
@@ -116,6 +123,19 @@ export function Sidebar({ view, onNavigate }: Props) {
               New project
             </button>
           </div>
+        </div>
+
+        {/* Mode toggle */}
+        <div className={`flex-shrink-0 px-2.5 pb-1 transition-opacity duration-300 ${collapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <button
+            onClick={toggle}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+            </svg>
+            Switch to Mobile View
+          </button>
         </div>
 
         {/* Hide button */}

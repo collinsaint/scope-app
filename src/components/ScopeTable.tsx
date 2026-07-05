@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import type { ScopeItem, Subcontractor } from '../types'
 import { useStore } from '../store/useStore'
 import { PhotoUploader } from './PhotoUploader'
+import { MobileScopeList } from './MobileScopeList'
+import { useViewMode } from '../hooks/useViewMode'
 
 const COL_COUNT = 12
 
@@ -65,6 +67,7 @@ interface Props {
 }
 
 export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment }: Props) {
+  const { isMobile } = useViewMode()
   const { toggleItem, assignSubcontractor, bulkComplete, bulkUncomplete } = useStore()
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
   const [search, setSearch] = useState('')
@@ -74,8 +77,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   const [confirmUncomplete, setConfirmUncomplete] = useState(false)
   const masterRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { setSelectedIds(new Set()) }, [roomFilter])
-
+  // Compute filtering unconditionally — must appear before any early return to keep hook order stable
   const roomFiltered = items.filter(item => roomFilter === 'all' || item.room === roomFilter)
   const dataItems = roomFiltered.filter(i => !i.isHeader)
   const completedCount = dataItems.filter(i => i.completed).length
@@ -92,16 +94,19 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
 
   const visible = pruneOrphanedHeaders(afterFilter)
   const visibleData = visible.filter(i => !i.isHeader)
-
   const visibleDataIds = new Set(visibleData.map(i => i.id))
   const effectiveSelected = new Set([...selectedIds].filter(id => visibleDataIds.has(id)))
-
   const allSelected = visibleData.length > 0 && visibleData.every(i => effectiveSelected.has(i.id))
   const someSelected = !allSelected && visibleData.some(i => effectiveSelected.has(i.id))
 
+  useEffect(() => { setSelectedIds(new Set()) }, [roomFilter])
   useEffect(() => {
     if (masterRef.current) masterRef.current.indeterminate = someSelected
   }, [someSelected])
+
+  if (isMobile) {
+    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} onOpenComment={onOpenComment} />
+  }
 
   function toggleSelect(id: string) {
     setSelectedIds(prev => {

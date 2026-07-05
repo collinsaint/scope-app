@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import type { ScopeItem, Walk, WalkNote, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote } from '../types'
+import type { ScopeItem, Walk, WalkNote, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, WalkItemOverride } from '../types'
 import { useStore } from '../store/useStore'
 import { generateWalkReport } from '../lib/exportReport'
 import { downloadWalkPhotos } from '../lib/downloadPhotos'
 import { uploadPhotoToOneDrive } from '../lib/oneDrive'
+import { useViewMode } from '../hooks/useViewMode'
+import { CameraCapture } from './CameraCapture'
 
 const WALK_COL_COUNT = 7
 
@@ -117,18 +119,145 @@ function formatNoteDate(iso: string) {
   })
 }
 
+interface MobileWalkCardProps {
+  item: ScopeItem
+  override: WalkItemOverride | undefined
+  isRemoved: boolean
+  hasQty: boolean
+  hasNotes: boolean
+  notes: WalkNote[]
+  onRemove: () => void
+  onQty: () => void
+  onRevertQty: () => void
+  onNote: () => void
+  onDeleteNote: (idx: number) => void
+}
+
+function MobileWalkCard({ item, override, isRemoved, hasQty, hasNotes, notes, onRemove, onQty, onRevertQty, onNote, onDeleteNote }: MobileWalkCardProps) {
+  const [expanded, setExpanded] = useState(false)
+  const [deleteNoteConfirm, setDeleteNoteConfirm] = useState<number | null>(null)
+
+  return (
+    <div className={`border-b border-slate-100 ${isRemoved ? 'bg-red-50/50' : hasQty || hasNotes ? 'bg-amber-50/30' : 'bg-white'}`}>
+      <div className="px-4 py-3">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-2 mb-1.5">
+          <div className="flex items-start gap-2 flex-1 min-w-0">
+            {(isRemoved || hasQty || hasNotes) && (
+              <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded mt-0.5 ${isRemoved ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                {isRemoved ? 'Removed' : 'Modified'}
+              </span>
+            )}
+            <p className={`text-sm font-medium leading-snug ${isRemoved ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+              {item.description}
+            </p>
+          </div>
+          <span className="text-[11px] text-slate-400 flex-shrink-0">#{item.rowNum}</span>
+        </div>
+
+        {/* Meta */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-2">
+          {item.activity && <span className="text-[11px] text-slate-400">{activityLabel(item.activity)}</span>}
+          <span className="text-[11px] text-slate-400">
+            {item.qty > 0 ? `${item.qty} ${item.unit}` : '—'}
+            {hasQty && <span className="text-amber-600 font-semibold ml-1">→ {override!.qty} {item.unit}</span>}
+          </span>
+          {item.rcv > 0 && <span className="text-[11px] font-semibold text-slate-600">{fmt(item.rcv)}</span>}
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={onRemove}
+            className={`px-2.5 py-1.5 text-[11px] font-medium border rounded-lg transition-colors ${
+              isRemoved
+                ? 'border-blue-300 text-blue-700 bg-blue-50'
+                : 'border-red-200 text-red-600 bg-red-50'
+            }`}
+          >
+            {isRemoved ? 'Undo Remove' : 'Remove'}
+          </button>
+          <button
+            onClick={onQty}
+            disabled={isRemoved}
+            className="px-2.5 py-1.5 text-[11px] font-medium border border-slate-200 text-slate-600 rounded-lg disabled:opacity-40"
+          >
+            {hasQty ? 'Edit Qty' : 'Update Qty'}
+          </button>
+          {hasQty && (
+            <button
+              onClick={onRevertQty}
+              className="px-2.5 py-1.5 text-[11px] font-medium border border-amber-300 text-amber-700 bg-amber-50 rounded-lg"
+            >
+              Revert Qty
+            </button>
+          )}
+          <button
+            onClick={onNote}
+            className={`px-2.5 py-1.5 text-[11px] font-medium border rounded-lg transition-colors ${
+              hasNotes ? 'border-amber-300 text-amber-700 bg-amber-50' : 'border-slate-200 text-slate-600'
+            }`}
+          >
+            Notes{hasNotes ? ` (${notes.length})` : ''}
+          </button>
+          {hasNotes && (
+            <button
+              onClick={() => setExpanded(v => !v)}
+              className="ml-auto text-slate-400 p-1"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${expanded ? 'rotate-180' : ''}`}>
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded notes */}
+      {expanded && hasNotes && (
+        <div className="px-4 pb-3 pt-1 bg-blue-50/50 border-t border-blue-100 space-y-2">
+          <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">Inspection Notes</p>
+          {notes.map((note, idx) => (
+            <div key={idx} className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-slate-700 leading-relaxed">{note.text}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{formatNoteDate(note.createdAt)}</p>
+              </div>
+              {deleteNoteConfirm === idx ? (
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => setDeleteNoteConfirm(null)} className="px-1.5 py-0.5 text-[10px] border border-slate-200 rounded text-slate-500">Cancel</button>
+                  <button onClick={() => { onDeleteNote(idx); setDeleteNoteConfirm(null) }} className="px-1.5 py-0.5 text-[10px] bg-red-600 text-white rounded">Delete</button>
+                </div>
+              ) : (
+                <button onClick={() => setDeleteNoteConfirm(idx)} className="text-slate-300 hover:text-red-400 flex-shrink-0 p-1">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                  </svg>
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface Props {
   projectId: string
   walk: Walk
   items: ScopeItem[]
   roomFilter: string
   onRoomDeleted?: () => void
+  onAddRoom?: () => void
 }
 
-export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted }: Props) {
+export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, onAddRoom }: Props) {
   const { updateWalkItem, addWalkGroupNote, deleteWalkGroupNote, addWalkRoomPhoto, deleteWalkRoomPhoto, addWalkGeneralNote, deleteWalkGeneralNote, deleteWalkCustomRoom, projects, oneDrive } = useStore()
+  const { isMobile } = useViewMode()
   const project = projects.find(p => p.id === projectId)
   const [search, setSearch] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
   const [qtyPrompt, setQtyPrompt] = useState<{ itemId: string; value: string } | null>(null)
   const [notePrompt, setNotePrompt] = useState<{ itemId: string; value: string } | null>(null)
   const [confirmDeleteIdx, setConfirmDeleteIdx] = useState<number | null>(null)
@@ -141,8 +270,8 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted }: 
   const [photoModal, setPhotoModal] = useState<{ room: string } | null>(null)
   const [photoDeleteConfirm, setPhotoDeleteConfirm] = useState<string | null>(null)
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
+  const [showCamera, setShowCamera] = useState(false)
   const galleryRef = useRef<HTMLInputElement>(null)
-  const cameraRef = useRef<HTMLInputElement>(null)
 
   function getOverride(itemId: string) {
     return (walk.itemOverrides ?? []).find(o => o.itemId === itemId)
@@ -273,113 +402,267 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted }: 
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 px-6 py-3 border-b border-slate-100 bg-white flex-shrink-0">
-        <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input
-            type="text"
-            placeholder="Search items..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-9 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-52"
-          />
-        </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-xs text-slate-400">{walk.name}</span>
-          {roomFilter !== 'all' && (() => {
-            const cnt = roomPhotos.filter(p => p.room === roomFilter).length
-            return (
-              <>
-                <button
-                  onClick={() => openPhotoModal(roomFilter)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-lg transition-colors ${cnt > 0 ? 'border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>
-                  </svg>
-                  Photos{cnt > 0 ? ` (${cnt})` : ''}
-                </button>
-                <button
-                  onClick={() => openGroupNotePrompt(roomFilter)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-teal-300 text-teal-700 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                  </svg>
-                  Add Group Note
-                </button>
-              </>
-            )
-          })()}
-          {roomPhotos.length > 0 && (
+      {/* Mobile Toolbar */}
+      {isMobile && (
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100 bg-white flex-shrink-0">
+          <button
+            onClick={() => setShowSearch(true)}
+            className={`p-2 rounded-lg border transition-colors ${search ? 'border-blue-400 text-blue-600 bg-blue-50' : 'border-slate-200 text-slate-500'}`}
+            title="Search"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </button>
+          <div className="flex items-center gap-2 ml-auto">
+            {onAddRoom && (
+              <button
+                onClick={onAddRoom}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-dashed border-slate-300 text-slate-500 rounded-lg hover:border-violet-400 hover:text-violet-600 transition-colors"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Add Room
+              </button>
+            )}
             <button
-              onClick={() => project && downloadWalkPhotos(walk, project.name)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-violet-300 text-violet-700 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors"
+              onClick={() => setGeneralNotePrompt({ text: '', qty: '' })}
+              className={`flex items-center gap-1 px-2.5 py-1.5 text-xs border rounded-lg transition-colors ${generalNotes.length > 0 ? 'border-amber-300 text-amber-700 bg-amber-50' : 'border-slate-200 text-slate-600'}`}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+              General Notes{generalNotes.length > 0 ? ` (${generalNotes.length})` : ''}
+            </button>
+            <button
+              onClick={() => project && generateWalkReport(project, walk, items)}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-blue-600 text-white rounded-lg"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              Download Photos ({roomPhotos.length})
+              Export Report
             </button>
-          )}
-          {isCustomRoom && (
-            removeRoomConfirm ? (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg">
-                <span className="text-xs text-red-700 font-medium whitespace-nowrap">Remove "{roomLabel(roomFilter)}"?</span>
-                <button
-                  onClick={() => setRemoveRoomConfirm(false)}
-                  className="px-2 py-0.5 text-[11px] border border-slate-200 rounded text-slate-600 hover:bg-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    deleteWalkCustomRoom(projectId, walk.id, roomFilter)
-                    setRemoveRoomConfirm(false)
-                    onRoomDeleted?.()
-                  }}
-                  className="px-2 py-0.5 text-[11px] bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium"
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
+          </div>
+        </div>
+      )}
+
+      {/* Mobile search popup */}
+      {isMobile && showSearch && (
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'rgba(0,0,0,0.4)' }}>
+          <div className="bg-white border-b border-slate-200 px-3 py-3 flex items-center gap-2">
+            <svg className="text-slate-400 flex-shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              placeholder="Search items..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="flex-1 text-sm border-none outline-none bg-transparent"
+              autoFocus
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="text-slate-400 hover:text-slate-600 p-1">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            )}
+            <button onClick={() => setShowSearch(false)} className="text-sm font-medium text-blue-600 px-1">Done</button>
+          </div>
+          <div className="flex-1" onClick={() => setShowSearch(false)} />
+        </div>
+      )}
+
+      {/* Desktop Toolbar */}
+      {!isMobile && (
+        <div className="flex flex-wrap items-center gap-3 px-6 py-3 border-b border-slate-100 bg-white flex-shrink-0">
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              placeholder="Search items..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-52"
+            />
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-xs text-slate-400">{walk.name}</span>
+            {roomFilter !== 'all' && (() => {
+              const cnt = roomPhotos.filter(p => p.room === roomFilter).length
+              return (
+                <>
+                  <button
+                    onClick={() => openPhotoModal(roomFilter)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-lg transition-colors ${cnt > 0 ? 'border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>
+                    </svg>
+                    Photos{cnt > 0 ? ` (${cnt})` : ''}
+                  </button>
+                  <button
+                    onClick={() => openGroupNotePrompt(roomFilter)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-teal-300 text-teal-700 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    Add Group Note
+                  </button>
+                </>
+              )
+            })()}
+            {roomPhotos.length > 0 && (
               <button
-                onClick={() => setRemoveRoomConfirm(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-red-200 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                onClick={() => project && downloadWalkPhotos(walk, project.name)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-violet-300 text-violet-700 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
                 </svg>
-                Remove Room
+                Download Photos ({roomPhotos.length})
               </button>
-            )
-          )}
-          <button
-            onClick={() => setGeneralNotePrompt({ text: '', qty: '' })}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-lg transition-colors ${generalNotes.length > 0 ? 'border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-            </svg>
-            General Note{generalNotes.length > 0 ? `s (${generalNotes.length})` : '(s)'}
-          </button>
-          <button
-            onClick={() => project && generateWalkReport(project, walk, items)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Export Report
-          </button>
+            )}
+            {isCustomRoom && (
+              removeRoomConfirm ? (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg">
+                  <span className="text-xs text-red-700 font-medium whitespace-nowrap">Remove "{roomLabel(roomFilter)}"?</span>
+                  <button onClick={() => setRemoveRoomConfirm(false)} className="px-2 py-0.5 text-[11px] border border-slate-200 rounded text-slate-600 hover:bg-white transition-colors">Cancel</button>
+                  <button
+                    onClick={() => { deleteWalkCustomRoom(projectId, walk.id, roomFilter); setRemoveRoomConfirm(false); onRoomDeleted?.() }}
+                    className="px-2 py-0.5 text-[11px] bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium"
+                  >Remove</button>
+                </div>
+              ) : (
+                <button onClick={() => setRemoveRoomConfirm(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-red-200 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                  </svg>
+                  Remove Room
+                </button>
+              )
+            )}
+            <button
+              onClick={() => setGeneralNotePrompt({ text: '', qty: '' })}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-lg transition-colors ${generalNotes.length > 0 ? 'border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+              General Note{generalNotes.length > 0 ? `s (${generalNotes.length})` : '(s)'}
+            </button>
+            <button
+              onClick={() => project && generateWalkReport(project, walk, items)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Export Report
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Table */}
+      {/* Mobile card list */}
+      {isMobile && (
+        <div className="flex-1 overflow-y-auto">
+          {renderRows.length === 0 ? (
+            <div className="flex items-center justify-center py-20 text-sm text-slate-400">No items match your search.</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {renderRows.map(row => {
+                if ('_roomHeader' in row) {
+                  const photoCnt = roomPhotos.filter(p => p.room === row.room).length
+                  return (
+                    <div key={row.id} className="sticky top-0 z-10 px-3 py-2 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex-1 min-w-0 truncate">{roomLabel(row.room)}</span>
+                      <button
+                        onClick={() => openPhotoModal(row.room)}
+                        className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 text-[10px] font-medium border rounded-md transition-colors ${
+                          photoCnt > 0 ? 'border-violet-300 text-violet-700 bg-violet-50' : 'border-slate-300 text-slate-500 bg-white'
+                        }`}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>
+                        </svg>
+                        Photos{photoCnt > 0 ? ` (${photoCnt})` : ''}
+                      </button>
+                      <button
+                        onClick={() => openGroupNotePrompt(row.room)}
+                        className="flex-shrink-0 flex items-center gap-1 px-2 py-1 text-[10px] font-medium border border-teal-300 text-teal-700 bg-teal-50 rounded-md"
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Group Note
+                      </button>
+                    </div>
+                  )
+                }
+                if ('_groupNote' in row) {
+                  const gn = row.note
+                  return (
+                    <div key={row.id} className="px-4 py-3 bg-teal-50 border-l-4 border-teal-400 flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold text-teal-600 uppercase tracking-wide mb-0.5">Group Note</p>
+                        <p className="text-sm text-slate-800 leading-snug">{gn.text}</p>
+                        {gn.qty !== undefined && <p className="text-xs text-teal-700 font-medium mt-0.5">Qty: {gn.qty}</p>}
+                        <p className="text-[10px] text-slate-400 mt-0.5">{formatNoteDate(gn.createdAt)}</p>
+                      </div>
+                      {groupNoteDeleteConfirm === gn.id ? (
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => setGroupNoteDeleteConfirm(null)} className="px-2 py-1 text-[11px] border border-slate-200 rounded text-slate-600">Cancel</button>
+                          <button onClick={() => { deleteWalkGroupNote(projectId, walk.id, gn.id); setGroupNoteDeleteConfirm(null) }} className="px-2 py-1 text-[11px] bg-red-600 text-white rounded font-medium">Delete</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setGroupNoteDeleteConfirm(gn.id)} className="text-slate-300 hover:text-red-400 p-1">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )
+                }
+                // Regular scope item
+                const item = row as ScopeItem
+                if (item.isHeader) return null
+                const override = getOverride(item.id)
+                const isRemoved = override?.removed === true
+                const hasQty = override?.qty !== undefined
+                const hasNotes = (override?.notes?.length ?? 0) > 0
+                const notes = override?.notes ?? []
+                return (
+                  <MobileWalkCard
+                    key={item.id}
+                    item={item}
+                    override={override}
+                    isRemoved={isRemoved}
+                    hasQty={hasQty}
+                    hasNotes={hasNotes}
+                    notes={notes}
+                    onRemove={() => handleRemove(item.id)}
+                    onQty={() => openQtyPrompt(item.id)}
+                    onRevertQty={() => updateWalkItem(projectId, walk.id, item.id, { qty: undefined })}
+                    onNote={() => openNotePrompt(item.id)}
+                    onDeleteNote={(idx) => deleteNote(item.id, idx)}
+                  />
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Desktop Table */}
+      {!isMobile && (
       <div className="flex-1 overflow-auto">
         <table className="w-full border-collapse text-left">
           <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
@@ -559,8 +842,16 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted }: 
                           disabled={isRemoved}
                           className="px-2.5 py-1 text-[11px] font-medium border border-slate-200 text-slate-600 rounded hover:bg-slate-50 transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                          Update Qty
+                          {override?.qty !== undefined ? 'Edit Qty' : 'Update Qty'}
                         </button>
+                        {override?.qty !== undefined && !isRemoved && (
+                          <button
+                            onClick={() => updateWalkItem(projectId, walk.id, item.id, { qty: undefined })}
+                            className="px-2.5 py-1 text-[11px] font-medium border border-amber-300 text-amber-700 bg-amber-50 rounded hover:bg-amber-100 transition-colors whitespace-nowrap"
+                          >
+                            Revert Qty
+                          </button>
+                        )}
                         <button
                           onClick={() => openNotePrompt(item.id)}
                           className={`px-2.5 py-1 text-[11px] font-medium border rounded transition-colors whitespace-nowrap ${
@@ -580,6 +871,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted }: 
           </tbody>
         </table>
       </div>
+      )}
 
       {/* Update Qty modal */}
       {qtyPrompt && qtyItem && (
@@ -720,7 +1012,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted }: 
         </div>
       )}
 
-      {/* Hidden file inputs */}
+      {/* Hidden gallery input */}
       <input
         ref={galleryRef}
         type="file"
@@ -729,14 +1021,24 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted }: 
         className="hidden"
         onChange={e => { if (photoModal) handlePhotoFiles(e.target.files, photoModal.room); e.target.value = '' }}
       />
-      <input
-        ref={cameraRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={e => { if (photoModal) handlePhotoFiles(e.target.files, photoModal.room); e.target.value = '' }}
-      />
+
+      {/* Multi-shot camera */}
+      {showCamera && photoModal && (
+        <CameraCapture
+          onCapture={async (dataUrls) => {
+            for (const dataUrl of dataUrls) {
+              const res = await fetch(dataUrl)
+              const blob = await res.blob()
+              const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' })
+              await handlePhotoFiles(
+                (() => { const dt = new DataTransfer(); dt.items.add(file); return dt.files })(),
+                photoModal.room
+              )
+            }
+          }}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
 
       {/* Photos modal */}
       {photoModal && (() => {
@@ -804,13 +1106,13 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted }: 
                   Upload Photos
                 </button>
                 <button
-                  onClick={() => cameraRef.current?.click()}
+                  onClick={() => setShowCamera(true)}
                   className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>
                   </svg>
-                  Take Photo
+                  Take Photos
                 </button>
                 <button
                   onClick={() => { setPhotoModal(null); setPhotoDeleteConfirm(null) }}
