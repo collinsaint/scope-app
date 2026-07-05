@@ -15,13 +15,31 @@ import { SketchViewer } from './SketchViewer'
 import { WalkView } from './WalkView'
 import { NewWalkModal } from './NewWalkModal'
 
+const ROOM_SUGGESTIONS = [
+  'Bedroom 1','Bedroom 2','Bedroom 3','Bedroom 4','Bedroom 5',
+  'Bathroom 1','Bathroom 2','Bathroom 3','Bathroom 4',
+  'Kitchen','Living Room','Dining Room','Family Room','Great Room',
+  'Foyer','Entry','Laundry Room','Mud Room','Utility Room',
+  'HVAC','HVAC Closet','Storage Room',
+  'Closet 1','Closet 2','Closet 3','Closet 4',
+  'Pantry','Hallway','Hallway 2','Hallway 3',
+  'Stairway','Staircase','Loft','Office','Den','Study','Library',
+  'Sunroom','Florida Room','Breakfast Nook',
+  'Game Room','Playroom','Nursery','Guest Room',
+  'Basement','Attic','Roof','Garage','Carport','Driveway',
+  'Front Porch','Rear Porch','Lanai','Deck','Patio','Balcony',
+  'Front Elevation','Rear Elevation','Right Elevation','Left Elevation',
+  'Pool Area',
+]
+
 interface Props {
   projectId: string
   onBack: () => void
   initialView?: 'scope' | 'comments' | 'details'
+  onSubViewChange?: (view: 'scope' | 'details' | 'comments') => void
 }
 
-export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props) {
+export function ProjectView({ projectId, onBack, initialView = 'scope', onSubViewChange }: Props) {
   const { isMobile } = useViewMode()
   const { projects, updateProjectItems, setComment, globalSubcontractors, addWalk, addSketch, removeSketch, addWalkCustomRoom } = useStore()
   const project = projects.find(p => p.id === projectId)
@@ -47,6 +65,8 @@ export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props)
   })
   // Sync activeView when the parent requests a specific view (e.g. mobile nav buttons)
   useEffect(() => { setActiveView(initialView) }, [initialView])
+  // Notify parent whenever subview changes (used by MobileNav for active state)
+  useEffect(() => { onSubViewChange?.(activeView) }, [activeView, onSubViewChange])
 
   const prevStatusRef = useRef(project?.projectStatus)
   useEffect(() => {
@@ -310,53 +330,100 @@ export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props)
       )}
 
       {/* Add Room modal */}
-      {addRoomName !== null && activeWalkId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setAddRoomName(null)} />
-          <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4 flex flex-col gap-4">
-            <h3 className="text-sm font-semibold text-slate-900">Add Room</h3>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Room name</label>
-              <input
-                type="text"
-                placeholder="e.g. Garage, Basement, Hallway"
-                value={addRoomName}
-                onChange={e => setAddRoomName(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && addRoomName.trim()) {
-                    const name = addRoomName.trim()
-                    addWalkCustomRoom(projectId, activeWalkId, name)
-                    setRoomFilter(name)
-                    setActiveView('scope')
-                    setAddRoomName(null)
-                  }
-                  if (e.key === 'Escape') setAddRoomName(null)
-                }}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
-                autoFocus
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setAddRoomName(null)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
-                Cancel
-              </button>
-              <button
-                disabled={!addRoomName.trim()}
-                onClick={() => {
-                  const name = addRoomName.trim()
-                  addWalkCustomRoom(projectId, activeWalkId, name)
-                  setRoomFilter(name)
-                  setActiveView('scope')
-                  setAddRoomName(null)
-                }}
-                className="px-4 py-2 text-sm bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Add Room
-              </button>
+      {addRoomName !== null && activeWalkId && (() => {
+        const existingRoomsLower = [...baseRooms, ...walkCustomRooms].map(r => r.toLowerCase())
+        const trimmed = addRoomName.trim()
+        const alreadyExists = trimmed.length > 0 && existingRoomsLower.includes(trimmed.toLowerCase())
+        const suggestions = trimmed.length > 0 && !alreadyExists
+          ? ROOM_SUGGESTIONS.filter(s =>
+              s.toLowerCase().includes(trimmed.toLowerCase()) &&
+              !existingRoomsLower.includes(s.toLowerCase())
+            ).slice(0, 8)
+          : []
+
+        function commitRoom(name: string) {
+          if (!name.trim() || alreadyExists) return
+          addWalkCustomRoom(projectId, activeWalkId!, name.trim())
+          setRoomFilter(name.trim())
+          setActiveView('scope')
+          setAddRoomName(null)
+        }
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setAddRoomName(null)} />
+            <div
+              className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm sm:mx-4 flex flex-col"
+              style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+            >
+              {/* Handle bar (mobile) */}
+              <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                <div className="w-10 h-1 rounded-full bg-slate-300" />
+              </div>
+
+              <div className="px-6 pt-4 pb-6 sm:pt-6 flex flex-col gap-4">
+                <h3 className="text-base font-semibold text-slate-900">Add Room</h3>
+
+                <div className="relative">
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Room name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Garage, Basement, Hallway"
+                    value={addRoomName}
+                    onChange={e => setAddRoomName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') commitRoom(addRoomName)
+                      if (e.key === 'Escape') setAddRoomName(null)
+                    }}
+                    className={`w-full px-4 py-3.5 text-sm border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-1 transition-colors ${
+                      alreadyExists
+                        ? 'border-red-400 focus:ring-red-400'
+                        : 'border-slate-200 focus:border-violet-400 focus:ring-violet-400'
+                    }`}
+                    autoFocus
+                  />
+                  {alreadyExists && (
+                    <p className="mt-1.5 text-xs text-red-500 font-medium">
+                      "{trimmed}" already exists in this project. Please choose a different name.
+                    </p>
+                  )}
+
+                  {/* Autocomplete suggestions */}
+                  {suggestions.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
+                      {suggestions.map(s => (
+                        <button
+                          key={s}
+                          onMouseDown={e => { e.preventDefault(); commitRoom(s) }}
+                          className="w-full text-left px-4 py-3.5 text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700 transition-colors border-b border-slate-100 last:border-b-0 active:bg-violet-100"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setAddRoomName(null)}
+                    className="flex-1 py-3.5 text-sm border-2 border-slate-200 rounded-xl text-slate-600 font-medium hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={!trimmed || alreadyExists}
+                    onClick={() => commitRoom(addRoomName)}
+                    className="flex-1 py-3.5 text-sm bg-violet-600 text-white rounded-xl font-semibold hover:bg-violet-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Add Room
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Main content */}
       <div className="flex-1 overflow-y-auto bg-white flex flex-col">

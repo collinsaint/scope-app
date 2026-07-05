@@ -807,10 +807,16 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                 const isDrvMobile = item.coverage?.toUpperCase() === 'DRV'
                 if (isDrvMobile) {
                   return (
-                    <div key={item.id} className="border-b border-slate-100 bg-slate-50 px-4 py-2.5 flex items-center gap-2 opacity-60">
-                      <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">DRV</span>
-                      <p className="text-xs text-slate-400 line-through leading-snug flex-1 min-w-0">{item.description}</p>
-                      <span className="text-[10px] text-slate-300 flex-shrink-0">#{item.rowNum}</span>
+                    <div key={item.id} className="border-b border-slate-100 bg-slate-50/80 px-4 py-2.5 opacity-60">
+                      <div className="flex items-start gap-2 mb-1">
+                        <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-500 mt-0.5">DRV</span>
+                        <p className="text-xs text-slate-400 line-through leading-snug flex-1 min-w-0">{item.description}</p>
+                        <span className="text-[10px] text-slate-300 flex-shrink-0">#{item.rowNum}</span>
+                      </div>
+                      <div className="flex items-center gap-3 pl-7">
+                        {item.activity && <span className="text-[11px] text-slate-400">{activityLabel(item.activity)}</span>}
+                        {item.qty > 0 && <span className="text-[11px] text-slate-400">{Number(item.qty).toLocaleString('en-US', { maximumFractionDigits: 2 })} {item.unit}</span>}
+                      </div>
                     </div>
                   )
                 }
@@ -1721,55 +1727,95 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
       {pendingPhotoAction && (
         <div className="fixed inset-0 z-[55] flex items-end sm:items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setPendingPhotoAction(null)} />
-          <div className="relative bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full max-w-sm mx-0 sm:mx-4 flex flex-col gap-4 p-6">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900">Assign to Room</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Choose which room grouping this photo belongs to.</p>
+          <div
+            className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md mx-0 sm:mx-4 flex flex-col"
+            style={{ maxHeight: '82vh', paddingBottom: 'env(safe-area-inset-bottom)' }}
+          >
+            {/* Handle bar (mobile) */}
+            <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
+              <div className="w-10 h-1 rounded-full bg-slate-300" />
             </div>
-            <div className="flex flex-col gap-2">
-              {availableRooms.map(r => (
-                <button
-                  key={r}
-                  onClick={() => setPhotoRoomPickerRoom(r)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm text-left transition-colors ${photoRoomPickerRoom === r ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'}`}
-                >
-                  <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${photoRoomPickerRoom === r ? 'border-blue-500 bg-blue-500' : 'border-slate-300'}`}>
-                    {photoRoomPickerRoom === r && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </span>
-                  {r === '_general_' ? 'General Photos' : roomLabel(r)}
-                </button>
-              ))}
-              {addingRoomInPicker ? (
-                <div className="flex items-center gap-2 mt-1">
-                  <input
-                    type="text"
-                    placeholder="New room name…"
-                    value={newRoomInPicker}
-                    onChange={e => setNewRoomInPicker(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') addRoomFromPicker(); if (e.key === 'Escape') setAddingRoomInPicker(false) }}
-                    className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
-                    autoFocus
-                  />
-                  <button onClick={addRoomFromPicker} disabled={!newRoomInPicker.trim()} className="px-3 py-2 text-sm bg-violet-600 text-white rounded-lg disabled:opacity-40">Add</button>
-                  <button onClick={() => setAddingRoomInPicker(false)} className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-600">Cancel</button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setAddingRoomInPicker(true)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-violet-300 text-violet-600 text-sm hover:bg-violet-50 transition-colors mt-1"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                  </svg>
-                  Add New Room
-                </button>
-              )}
+
+            {/* Header */}
+            <div className="px-6 pt-4 pb-3 flex-shrink-0 sm:pt-6">
+              <h3 className="text-base font-semibold text-slate-900">Assign to Room</h3>
+              <p className="text-sm text-slate-500 mt-0.5">Which room does this photo belong to?</p>
             </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setPendingPhotoAction(null)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+
+            {/* Room list — scrollable */}
+            <div className="flex-1 overflow-y-auto px-4 pb-2">
+              <div className="flex flex-col gap-2">
+                {availableRooms.map(r => {
+                  const isSelected = photoRoomPickerRoom === r
+                  return (
+                    <button
+                      key={r}
+                      onClick={() => setPhotoRoomPickerRoom(r)}
+                      className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl border-2 text-left transition-all active:scale-[0.98] ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/40'
+                      }`}
+                    >
+                      <span className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-slate-300'}`}>
+                        {isSelected && (
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        )}
+                      </span>
+                      <span className={`text-sm font-medium leading-tight ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
+                        {r === '_general_' ? 'General Photos' : roomLabel(r)}
+                      </span>
+                    </button>
+                  )
+                })}
+
+                {/* Add new room */}
+                {addingRoomInPicker ? (
+                  <div className="flex flex-col gap-2 px-1 pt-1 pb-2">
+                    <input
+                      type="text"
+                      placeholder="New room name…"
+                      value={newRoomInPicker}
+                      onChange={e => setNewRoomInPicker(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') addRoomFromPicker(); if (e.key === 'Escape') setAddingRoomInPicker(false) }}
+                      className="w-full px-4 py-3.5 text-sm border-2 border-violet-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-1"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={() => setAddingRoomInPicker(false)} className="flex-1 py-3 text-sm border-2 border-slate-200 rounded-xl text-slate-600 font-medium">Cancel</button>
+                      <button onClick={addRoomFromPicker} disabled={!newRoomInPicker.trim()} className="flex-1 py-3 text-sm bg-violet-600 text-white rounded-xl font-medium disabled:opacity-40">Add Room</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddingRoomInPicker(true)}
+                    className="w-full flex items-center gap-3 px-4 py-4 rounded-xl border-2 border-dashed border-violet-300 text-violet-600 hover:bg-violet-50 transition-colors"
+                  >
+                    <span className="w-5 h-5 rounded-full border-2 border-violet-400 flex items-center justify-center flex-shrink-0">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                      </svg>
+                    </span>
+                    <span className="text-sm font-medium">Add New Room</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Footer actions */}
+            <div className="px-4 py-4 border-t border-slate-100 flex gap-3 flex-shrink-0">
+              <button
+                onClick={() => setPendingPhotoAction(null)}
+                className="flex-1 py-3.5 text-sm border-2 border-slate-200 rounded-xl text-slate-600 font-medium hover:bg-slate-50 transition-colors"
+              >
                 Cancel
               </button>
-              <button onClick={confirmPhotoRoomPick} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+              <button
+                onClick={confirmPhotoRoomPick}
+                className="flex-1 py-3.5 text-sm bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+              >
                 {pendingPhotoAction === 'camera' ? 'Open Camera' : 'Choose File'}
               </button>
             </div>

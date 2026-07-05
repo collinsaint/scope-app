@@ -18,6 +18,7 @@ export default function App() {
   const { isMobile } = useViewMode()
   const [view, setView] = useState<AppView>('dashboard')
   const [projectInitialView, setProjectInitialView] = useState<'scope' | 'details'>('scope')
+  const [projectSubView, setProjectSubView] = useState<'scope' | 'details' | 'comments'>('scope')
 
   function openProject(id: string, initialView: 'scope' | 'details' = 'scope') {
     setActiveProject(id)
@@ -48,6 +49,7 @@ export default function App() {
             projectId={activeProjectId ?? ''}
             onBack={() => { setView('dashboard'); setActiveProject(null) }}
             initialView={projectInitialView}
+            onSubViewChange={setProjectSubView}
           />
         ) : view === 'contractor-settings' ? (
           <ContractorSettingsView />
@@ -55,7 +57,7 @@ export default function App() {
           <UserSettingsView />
         )}
       </main>
-      {isMobile && <MobileNav view={view} onNavigate={navigate} onOpenProjectDetails={(id) => openProject(id, 'details')} onOpenProjectScope={activeProjectId ? () => openProject(activeProjectId, 'scope') : undefined} />}
+      {isMobile && <MobileNav view={view} onNavigate={navigate} onOpenProjectDetails={(id) => openProject(id, 'details')} onOpenProjectScope={activeProjectId ? () => openProject(activeProjectId, 'scope') : undefined} activeProjectSubView={projectSubView} />}
     </div>
   )
 }

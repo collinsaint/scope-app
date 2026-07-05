@@ -8,14 +8,17 @@ interface Props {
   onNavigate: (view: AppView, projectId?: string) => void
   onOpenProjectDetails: (id: string) => void
   onOpenProjectScope?: () => void
+  activeProjectSubView?: 'scope' | 'details' | 'comments'
 }
 
-export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjectScope }: Props) {
+export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjectScope, activeProjectSubView }: Props) {
   const { projects, activeProjectId } = useStore()
   const { toggle } = useViewMode()
   const activeProject = projects.find(p => p.id === activeProjectId)
 
   const isSettings = view === 'contractor-settings' || view === 'user-settings'
+  const isScopeActive = view === 'project' && activeProjectSubView === 'scope'
+  const isDetailsActive = view === 'project' && activeProjectSubView === 'details'
 
   return (
     <nav
@@ -40,7 +43,7 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
       {view === 'project' && onOpenProjectScope && (
         <button
           onClick={onOpenProjectScope}
-          className="flex-1 flex flex-col items-center justify-center gap-1 py-3 text-blue-400 transition-colors active:text-blue-200"
+          className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${isScopeActive ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'}`}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
@@ -53,9 +56,7 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
       {activeProject && (
         <button
           onClick={() => onOpenProjectDetails(activeProjectId!)}
-          className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${
-            view === 'project' ? 'text-slate-400 active:text-slate-200' : 'text-slate-400 active:text-slate-200'
-          }`}
+          className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${isDetailsActive ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'}`}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
