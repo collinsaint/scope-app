@@ -7,9 +7,10 @@ interface Props {
   view: AppView
   onNavigate: (view: AppView, projectId?: string) => void
   onOpenProjectDetails: (id: string) => void
+  onOpenProjectScope?: () => void
 }
 
-export function MobileNav({ view, onNavigate, onOpenProjectDetails }: Props) {
+export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjectScope }: Props) {
   const { projects, activeProjectId } = useStore()
   const { toggle } = useViewMode()
   const activeProject = projects.find(p => p.id === activeProjectId)
@@ -35,12 +36,25 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails }: Props) {
         <span className="text-[10px] font-medium leading-none">Dashboard</span>
       </button>
 
+      {/* Project Scope shortcut — only visible while in a project */}
+      {view === 'project' && onOpenProjectScope && (
+        <button
+          onClick={onOpenProjectScope}
+          className="flex-1 flex flex-col items-center justify-center gap-1 py-3 text-blue-400 transition-colors active:text-blue-200"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+          </svg>
+          <span className="text-[10px] font-medium leading-none">Project Scope</span>
+        </button>
+      )}
+
       {/* Project Details shortcut */}
       {activeProject && (
         <button
           onClick={() => onOpenProjectDetails(activeProjectId!)}
           className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${
-            view === 'project' ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'
+            view === 'project' ? 'text-slate-400 active:text-slate-200' : 'text-slate-400 active:text-slate-200'
           }`}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

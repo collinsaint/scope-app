@@ -45,6 +45,9 @@ export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props)
     }
     return null
   })
+  // Sync activeView when the parent requests a specific view (e.g. mobile nav buttons)
+  useEffect(() => { setActiveView(initialView) }, [initialView])
+
   const prevStatusRef = useRef(project?.projectStatus)
   useEffect(() => {
     if (prevStatusRef.current === 'Site Visit' && project?.projectStatus !== 'Site Visit') {

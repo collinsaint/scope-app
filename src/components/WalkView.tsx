@@ -253,7 +253,7 @@ interface Props {
 }
 
 export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, onAddRoom }: Props) {
-  const { updateWalkItem, addWalkGroupNote, deleteWalkGroupNote, addWalkRoomPhoto, deleteWalkRoomPhoto, bulkDeleteWalkRoomPhotos, updateWalkRoomPhoto, addWalkGeneralNote, deleteWalkGeneralNote, deleteWalkCustomRoom, projects, oneDrive } = useStore()
+  const { updateWalkItem, addWalkGroupNote, deleteWalkGroupNote, addWalkRoomPhoto, deleteWalkRoomPhoto, bulkDeleteWalkRoomPhotos, updateWalkRoomPhoto, addWalkGeneralNote, deleteWalkGeneralNote, deleteWalkCustomRoom, addWalkCustomRoom, projects, oneDrive } = useStore()
   const { isMobile } = useViewMode()
   const project = projects.find(p => p.id === projectId)
   const [search, setSearch] = useState('')
@@ -277,6 +277,12 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
   const [bulkActive, setBulkActive] = useState(false)
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set())
   const [bulkMoveTarget, setBulkMoveTarget] = useState('')
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
+  const [roomHeaderDeleteConfirm, setRoomHeaderDeleteConfirm] = useState<string | null>(null)
+  const [pendingPhotoAction, setPendingPhotoAction] = useState<'camera' | 'gallery' | null>(null)
+  const [photoRoomPickerRoom, setPhotoRoomPickerRoom] = useState('_general_')
+  const [newRoomInPicker, setNewRoomInPicker] = useState('')
+  const [addingRoomInPicker, setAddingRoomInPicker] = useState(false)
   const galleryRef = useRef<HTMLInputElement>(null)
 
   function getOverride(itemId: string) {
@@ -383,9 +389,41 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
   }
 
   function bulkDeleteSelected() {
+    setBulkDeleteConfirm(true)
+  }
+
+  function confirmBulkDelete() {
     bulkDeleteWalkRoomPhotos(projectId, walk.id, [...bulkSelectedIds])
     setBulkSelectedIds(new Set())
     setBulkActive(false)
+    setBulkDeleteConfirm(false)
+  }
+
+  function openGeneralPhotoAction(action: 'camera' | 'gallery') {
+    setPhotoRoomPickerRoom('_general_')
+    setNewRoomInPicker('')
+    setAddingRoomInPicker(false)
+    setPendingPhotoAction(action)
+  }
+
+  function confirmPhotoRoomPick() {
+    const room = photoRoomPickerRoom
+    setPendingPhotoAction(null)
+    setActivePhotoRoom(room)
+    if (pendingPhotoAction === 'camera') {
+      setShowCamera(true)
+    } else {
+      galleryRef.current?.click()
+    }
+  }
+
+  function addRoomFromPicker() {
+    const name = newRoomInPicker.trim()
+    if (!name) return
+    addWalkCustomRoom(projectId, walk.id, name)
+    setPhotoRoomPickerRoom(name)
+    setNewRoomInPicker('')
+    setAddingRoomInPicker(false)
   }
 
   async function handlePhotoFiles(files: FileList | null, room: string) {
@@ -659,6 +697,27 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                   </svg>
                   Group Note
                 </button>
+                {isCustomRoom && (
+                  roomHeaderDeleteConfirm === roomFilter ? (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button onClick={() => setRoomHeaderDeleteConfirm(null)} className="px-1.5 py-1 text-[10px] border border-slate-300 rounded bg-white text-slate-600">Cancel</button>
+                      <button
+                        onClick={() => { deleteWalkCustomRoom(projectId, walk.id, roomFilter); setRoomHeaderDeleteConfirm(null); onRoomDeleted?.() }}
+                        className="px-1.5 py-1 text-[10px] bg-red-600 text-white rounded font-medium"
+                      >Remove</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setRoomHeaderDeleteConfirm(roomFilter)}
+                      className="flex-shrink-0 p-1 text-slate-400 hover:text-red-500 transition-colors"
+                      title="Remove room"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )
+                )}
               </div>
             )
           })()}
@@ -669,6 +728,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
               {renderRows.map(row => {
                 if ('_roomHeader' in row) {
                   const photoCnt = roomPhotos.filter(p => p.room === row.room).length
+                  const isRowCustom = customRooms.includes(row.room)
                   return (
                     <div key={row.id} className="sticky top-0 z-10 px-3 py-2 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
                       <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex-1 min-w-0 truncate">{roomLabel(row.room)}</span>
@@ -692,6 +752,27 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                         </svg>
                         Group Note
                       </button>
+                      {isRowCustom && (
+                        roomHeaderDeleteConfirm === row.room ? (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button onClick={() => setRoomHeaderDeleteConfirm(null)} className="px-1.5 py-1 text-[10px] border border-slate-300 rounded bg-white text-slate-600">Cancel</button>
+                            <button
+                              onClick={() => { deleteWalkCustomRoom(projectId, walk.id, row.room); setRoomHeaderDeleteConfirm(null); onRoomDeleted?.() }}
+                              className="px-1.5 py-1 text-[10px] bg-red-600 text-white rounded font-medium"
+                            >Remove</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setRoomHeaderDeleteConfirm(row.room)}
+                            className="flex-shrink-0 p-1 text-slate-400 hover:text-red-500 transition-colors"
+                            title="Remove room"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                            </svg>
+                          </button>
+                        )
+                      )}
                     </div>
                   )
                 }
@@ -723,6 +804,16 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                 // Regular scope item
                 const item = row as ScopeItem
                 if (item.isHeader) return null
+                const isDrvMobile = item.coverage?.toUpperCase() === 'DRV'
+                if (isDrvMobile) {
+                  return (
+                    <div key={item.id} className="border-b border-slate-100 bg-slate-50 px-4 py-2.5 flex items-center gap-2 opacity-60">
+                      <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-500">DRV</span>
+                      <p className="text-xs text-slate-400 line-through leading-snug flex-1 min-w-0">{item.description}</p>
+                      <span className="text-[10px] text-slate-300 flex-shrink-0">#{item.rowNum}</span>
+                    </div>
+                  )
+                }
                 const override = getOverride(item.id)
                 const isRemoved = override?.removed === true
                 const hasQty = override?.qty !== undefined
@@ -814,6 +905,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                 )
               }
               if ('_roomHeader' in row) {
+                const isHeaderCustom = customRooms.includes(row.room)
                 return (
                   <tr key={row.id}>
                     <td colSpan={WALK_COL_COUNT} className="sticky top-10 z-[5] px-4 pt-5 pb-2 bg-white">
@@ -845,6 +937,28 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                           </svg>
                           Add Group Note
                         </button>
+                        {isHeaderCustom && (
+                          roomHeaderDeleteConfirm === row.room ? (
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <button onClick={() => setRoomHeaderDeleteConfirm(null)} className="px-2 py-0.5 text-[11px] border border-slate-200 rounded text-slate-600 hover:bg-white transition-colors">Cancel</button>
+                              <button
+                                onClick={() => { deleteWalkCustomRoom(projectId, walk.id, row.room); setRoomHeaderDeleteConfirm(null); onRoomDeleted?.() }}
+                                className="px-2 py-0.5 text-[11px] bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium"
+                              >Remove</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setRoomHeaderDeleteConfirm(row.room)}
+                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium border border-red-200 text-red-500 bg-red-50 rounded hover:bg-red-100 transition-colors whitespace-nowrap flex-shrink-0"
+                              title="Remove room"
+                            >
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                              </svg>
+                              Remove Room
+                            </button>
+                          )
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1231,39 +1345,49 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
               {/* Bulk actions bar */}
               {bulkActive && (
                 <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex-shrink-0 flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-slate-500 font-medium">{bulkSelectedIds.size} selected</span>
-                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                    <select
-                      value={bulkMoveTarget}
-                      onChange={e => setBulkMoveTarget(e.target.value)}
-                      className="text-xs border border-slate-200 rounded px-2 py-1 flex-1 min-w-0 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value="">Move to room…</option>
-                      {availableRooms.map(r => (
-                        <option key={r} value={r}>{r === '_general_' ? 'General Photos' : roomLabel(r)}</option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={bulkMovePhotos}
-                      disabled={!bulkMoveTarget || bulkSelectedIds.size === 0}
-                      className="px-2.5 py-1 text-xs bg-blue-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
-                    >
-                      Move
-                    </button>
-                  </div>
-                  <button
-                    onClick={bulkDeleteSelected}
-                    disabled={bulkSelectedIds.size === 0}
-                    className="px-2.5 py-1 text-xs bg-red-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
-                  >
-                    Delete ({bulkSelectedIds.size})
-                  </button>
+                  {bulkDeleteConfirm ? (
+                    <div className="flex items-center gap-3 w-full">
+                      <span className="text-xs text-slate-700 font-medium flex-1">Delete {bulkSelectedIds.size} photo{bulkSelectedIds.size !== 1 ? 's' : ''}? This cannot be undone.</span>
+                      <button onClick={() => setBulkDeleteConfirm(false)} className="px-3 py-1 text-xs border border-slate-200 rounded text-slate-600 hover:bg-white transition-colors">Cancel</button>
+                      <button onClick={confirmBulkDelete} className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium">Delete</button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="text-xs text-slate-500 font-medium">{bulkSelectedIds.size} selected</span>
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <select
+                          value={bulkMoveTarget}
+                          onChange={e => setBulkMoveTarget(e.target.value)}
+                          className="text-xs border border-slate-200 rounded px-2 py-1 flex-1 min-w-0 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="">Move to room…</option>
+                          {availableRooms.map(r => (
+                            <option key={r} value={r}>{r === '_general_' ? 'General Photos' : roomLabel(r)}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={bulkMovePhotos}
+                          disabled={!bulkMoveTarget || bulkSelectedIds.size === 0}
+                          className="px-2.5 py-1 text-xs bg-blue-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
+                        >
+                          Move
+                        </button>
+                      </div>
+                      <button
+                        onClick={bulkDeleteSelected}
+                        disabled={bulkSelectedIds.size === 0}
+                        className="px-2.5 py-1 text-xs bg-red-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
+                      >
+                        Delete ({bulkSelectedIds.size})
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
 
               <div className="px-6 py-4 border-t border-slate-100 flex items-center gap-2 flex-shrink-0 flex-wrap">
                 <button
-                  onClick={() => { setActivePhotoRoom('_general_'); galleryRef.current?.click() }}
+                  onClick={() => openGeneralPhotoAction('gallery')}
                   className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1272,7 +1396,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                   Upload
                 </button>
                 <button
-                  onClick={() => { setActivePhotoRoom('_general_'); setShowCamera(true) }}
+                  onClick={() => openGeneralPhotoAction('camera')}
                   className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1292,7 +1416,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                   </button>
                 )}
                 <button
-                  onClick={() => { setShowAllPhotos(false); setAllPhotoDeleteConfirm(null); setBulkActive(false); setBulkSelectedIds(new Set()) }}
+                  onClick={() => { setShowAllPhotos(false); setAllPhotoDeleteConfirm(null); setBulkActive(false); setBulkSelectedIds(new Set()); setBulkDeleteConfirm(false) }}
                   className="ml-auto px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   Close
@@ -1405,35 +1529,45 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
               {/* Bulk actions bar */}
               {bulkActive && (
                 <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex-shrink-0 flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-slate-500 font-medium">{bulkSelectedIds.size} selected</span>
-                  {otherRooms.length > 0 && (
-                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                      <select
-                        value={bulkMoveTarget}
-                        onChange={e => setBulkMoveTarget(e.target.value)}
-                        className="text-xs border border-slate-200 rounded px-2 py-1 flex-1 min-w-0 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      >
-                        <option value="">Move to room…</option>
-                        {otherRooms.map(r => (
-                          <option key={r} value={r}>{r === '_general_' ? 'General Photos' : roomLabel(r)}</option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={bulkMovePhotos}
-                        disabled={!bulkMoveTarget || bulkSelectedIds.size === 0}
-                        className="px-2.5 py-1 text-xs bg-blue-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
-                      >
-                        Move
-                      </button>
+                  {bulkDeleteConfirm ? (
+                    <div className="flex items-center gap-3 w-full">
+                      <span className="text-xs text-slate-700 font-medium flex-1">Delete {bulkSelectedIds.size} photo{bulkSelectedIds.size !== 1 ? 's' : ''}? This cannot be undone.</span>
+                      <button onClick={() => setBulkDeleteConfirm(false)} className="px-3 py-1 text-xs border border-slate-200 rounded text-slate-600 hover:bg-white transition-colors">Cancel</button>
+                      <button onClick={confirmBulkDelete} className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium">Delete</button>
                     </div>
+                  ) : (
+                    <>
+                      <span className="text-xs text-slate-500 font-medium">{bulkSelectedIds.size} selected</span>
+                      {otherRooms.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          <select
+                            value={bulkMoveTarget}
+                            onChange={e => setBulkMoveTarget(e.target.value)}
+                            className="text-xs border border-slate-200 rounded px-2 py-1 flex-1 min-w-0 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          >
+                            <option value="">Move to room…</option>
+                            {otherRooms.map(r => (
+                              <option key={r} value={r}>{r === '_general_' ? 'General Photos' : roomLabel(r)}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={bulkMovePhotos}
+                            disabled={!bulkMoveTarget || bulkSelectedIds.size === 0}
+                            className="px-2.5 py-1 text-xs bg-blue-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
+                          >
+                            Move
+                          </button>
+                        </div>
+                      )}
+                      <button
+                        onClick={bulkDeleteSelected}
+                        disabled={bulkSelectedIds.size === 0}
+                        className="px-2.5 py-1 text-xs bg-red-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
+                      >
+                        Delete ({bulkSelectedIds.size})
+                      </button>
+                    </>
                   )}
-                  <button
-                    onClick={bulkDeleteSelected}
-                    disabled={bulkSelectedIds.size === 0}
-                    className="px-2.5 py-1 text-xs bg-red-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
-                  >
-                    Delete ({bulkSelectedIds.size})
-                  </button>
                 </div>
               )}
 
@@ -1577,6 +1711,66 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                 className="px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Add Note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Room picker modal — shown before camera/gallery in Walk Photos */}
+      {pendingPhotoAction && (
+        <div className="fixed inset-0 z-[55] flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setPendingPhotoAction(null)} />
+          <div className="relative bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full max-w-sm mx-0 sm:mx-4 flex flex-col gap-4 p-6">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">Assign to Room</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Choose which room grouping this photo belongs to.</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              {availableRooms.map(r => (
+                <button
+                  key={r}
+                  onClick={() => setPhotoRoomPickerRoom(r)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm text-left transition-colors ${photoRoomPickerRoom === r ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'}`}
+                >
+                  <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${photoRoomPickerRoom === r ? 'border-blue-500 bg-blue-500' : 'border-slate-300'}`}>
+                    {photoRoomPickerRoom === r && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  </span>
+                  {r === '_general_' ? 'General Photos' : roomLabel(r)}
+                </button>
+              ))}
+              {addingRoomInPicker ? (
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="text"
+                    placeholder="New room name…"
+                    value={newRoomInPicker}
+                    onChange={e => setNewRoomInPicker(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') addRoomFromPicker(); if (e.key === 'Escape') setAddingRoomInPicker(false) }}
+                    className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    autoFocus
+                  />
+                  <button onClick={addRoomFromPicker} disabled={!newRoomInPicker.trim()} className="px-3 py-2 text-sm bg-violet-600 text-white rounded-lg disabled:opacity-40">Add</button>
+                  <button onClick={() => setAddingRoomInPicker(false)} className="px-3 py-2 text-sm border border-slate-200 rounded-lg text-slate-600">Cancel</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setAddingRoomInPicker(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-violet-300 text-violet-600 text-sm hover:bg-violet-50 transition-colors mt-1"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                  Add New Room
+                </button>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPendingPhotoAction(null)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+                Cancel
+              </button>
+              <button onClick={confirmPhotoRoomPick} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                {pendingPhotoAction === 'camera' ? 'Open Camera' : 'Choose File'}
               </button>
             </div>
           </div>

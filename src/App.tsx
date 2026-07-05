@@ -55,7 +55,7 @@ export default function App() {
           <UserSettingsView />
         )}
       </main>
-      {isMobile && <MobileNav view={view} onNavigate={navigate} onOpenProjectDetails={(id) => openProject(id, 'details')} />}
+      {isMobile && <MobileNav view={view} onNavigate={navigate} onOpenProjectDetails={(id) => openProject(id, 'details')} onOpenProjectScope={activeProjectId ? () => openProject(activeProjectId, 'scope') : undefined} />}
     </div>
   )
 }
