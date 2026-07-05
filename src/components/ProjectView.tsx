@@ -155,7 +155,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props)
                   className="flex-shrink-0 relative flex items-center gap-1 px-2 py-1.5 rounded-lg border border-slate-700 text-slate-300 text-xs font-medium"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  Project Sketch
+                  Sketch
                   {(project.sketches?.length ?? 0) > 0 && (
                     <span className="ml-0.5 bg-blue-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">{project.sketches!.length}</span>
                   )}
@@ -502,7 +502,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props)
             <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4 flex flex-col gap-5">
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Project Sketches</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Upload up to 3 PDF sketches. Each must have a unique level name.</p>
+                <p className="text-xs text-slate-400 mt-0.5">Upload up to 3 PDF or image files. Each must have a unique level name.</p>
               </div>
 
               {/* Already uploaded */}

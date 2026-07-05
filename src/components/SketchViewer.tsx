@@ -40,6 +40,7 @@ export function SketchViewer({ sketches, onClose }: Props) {
   function next() { setIndex((i) => (i + 1) % sketches.length) }
 
   const blobUrl = getBlobUrl(index)
+  const isImage = current.data.startsWith('data:image/')
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -76,7 +77,7 @@ export function SketchViewer({ sketches, onClose }: Props) {
                 <polyline points="15 3 21 3 21 9"/>
                 <line x1="10" y1="14" x2="21" y2="3"/>
               </svg>
-              {isMobile ? 'Open' : 'Open PDF'}
+              {isMobile ? 'Open' : isImage ? 'Open Image' : 'Open PDF'}
             </a>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors p-1">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -86,16 +87,25 @@ export function SketchViewer({ sketches, onClose }: Props) {
           </div>
         </div>
 
-        {/* PDF viewer */}
+        {/* Viewer */}
         <div className="flex-1 relative overflow-hidden bg-slate-100">
-          <iframe
-            key={blobUrl}
-            src={blobUrl}
-            className="w-full h-full border-0 bg-white"
-            title={current.label}
-          />
+          {isImage ? (
+            <img
+              key={current.data}
+              src={current.data}
+              alt={current.label}
+              className="w-full h-full object-contain bg-slate-100"
+            />
+          ) : (
+            <iframe
+              key={blobUrl}
+              src={blobUrl}
+              className="w-full h-full border-0 bg-white"
+              title={current.label}
+            />
+          )}
 
-          {/* Mobile tap-to-open hint overlay — shown as a subtle banner */}
+          {/* Mobile tap-to-open hint overlay */}
           {isMobile && (
             <a
               href={blobUrl}
@@ -108,7 +118,7 @@ export function SketchViewer({ sketches, onClose }: Props) {
                 <polyline points="15 3 21 3 21 9"/>
                 <line x1="10" y1="14" x2="21" y2="3"/>
               </svg>
-              Tap to open full PDF
+              {isImage ? 'Tap to open full image' : 'Tap to open full PDF'}
             </a>
           )}
 

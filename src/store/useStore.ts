@@ -46,6 +46,8 @@ interface StoreState {
   deleteWalkGroupNote: (projectId: string, walkId: string, noteId: string) => void
   addWalkRoomPhoto: (projectId: string, walkId: string, photo: WalkRoomPhoto) => void
   deleteWalkRoomPhoto: (projectId: string, walkId: string, photoId: string) => void
+  bulkDeleteWalkRoomPhotos: (projectId: string, walkId: string, photoIds: string[]) => void
+  updateWalkRoomPhoto: (projectId: string, walkId: string, photoId: string, updates: Partial<WalkRoomPhoto>) => void
   addWalkCustomRoom: (projectId: string, walkId: string, room: string) => void
   deleteWalkCustomRoom: (projectId: string, walkId: string, room: string) => void
   addWalkGeneralNote: (projectId: string, walkId: string, note: WalkGeneralNote) => void
@@ -344,6 +346,38 @@ export const useStore = create<StoreState>()(
                 w.id !== walkId ? w : {
                   ...w,
                   roomPhotos: (w.roomPhotos ?? []).filter((ph) => ph.id !== photoId),
+                }
+              ),
+            }
+          ),
+        })),
+
+      bulkDeleteWalkRoomPhotos: (projectId, walkId, photoIds) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId ? p : {
+              ...p,
+              walks: (p.walks ?? []).map((w) =>
+                w.id !== walkId ? w : {
+                  ...w,
+                  roomPhotos: (w.roomPhotos ?? []).filter((ph) => !photoIds.includes(ph.id)),
+                }
+              ),
+            }
+          ),
+        })),
+
+      updateWalkRoomPhoto: (projectId, walkId, photoId, updates) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId ? p : {
+              ...p,
+              walks: (p.walks ?? []).map((w) =>
+                w.id !== walkId ? w : {
+                  ...w,
+                  roomPhotos: (w.roomPhotos ?? []).map((ph) =>
+                    ph.id !== photoId ? ph : { ...ph, ...updates }
+                  ),
                 }
               ),
             }

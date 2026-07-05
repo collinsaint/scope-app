@@ -78,7 +78,7 @@ function activityLabel(a: string): string {
   return map[a] ?? a
 }
 
-async function stampPhoto(file: File, projectName: string): Promise<string> {
+async function stampPhoto(file: File, projectName: string, room?: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => {
@@ -93,7 +93,9 @@ async function stampPhoto(file: File, projectName: string): Promise<string> {
           month: 'short', day: 'numeric', year: 'numeric',
           hour: 'numeric', minute: '2-digit', hour12: true,
         })
-        const label = `${projectName}  ·  ${ts}`
+        const label = room && room !== '_general_'
+          ? `${projectName}  ·  ${room}  ·  ${ts}`
+          : `${projectName}  ·  ${ts}`
         const fontSize = Math.max(14, Math.round(img.naturalWidth / 50))
         const pad = Math.round(fontSize * 0.6)
         ctx.font = `600 ${fontSize}px system-ui, sans-serif`
@@ -253,7 +255,7 @@ interface Props {
 }
 
 export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, onAddRoom }: Props) {
-  const { updateWalkItem, addWalkGroupNote, deleteWalkGroupNote, addWalkRoomPhoto, deleteWalkRoomPhoto, addWalkGeneralNote, deleteWalkGeneralNote, deleteWalkCustomRoom, projects, oneDrive } = useStore()
+  const { updateWalkItem, addWalkGroupNote, deleteWalkGroupNote, addWalkRoomPhoto, deleteWalkRoomPhoto, bulkDeleteWalkRoomPhotos, updateWalkRoomPhoto, addWalkGeneralNote, deleteWalkGeneralNote, deleteWalkCustomRoom, projects, oneDrive } = useStore()
   const { isMobile } = useViewMode()
   const project = projects.find(p => p.id === projectId)
   const [search, setSearch] = useState('')
@@ -269,8 +271,14 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
   useEffect(() => { setRemoveRoomConfirm(false) }, [roomFilter])
   const [photoModal, setPhotoModal] = useState<{ room: string } | null>(null)
   const [photoDeleteConfirm, setPhotoDeleteConfirm] = useState<string | null>(null)
+  const [showAllPhotos, setShowAllPhotos] = useState(false)
+  const [allPhotoDeleteConfirm, setAllPhotoDeleteConfirm] = useState<string | null>(null)
+  const [activePhotoRoom, setActivePhotoRoom] = useState<string>('_general_')
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
   const [showCamera, setShowCamera] = useState(false)
+  const [bulkActive, setBulkActive] = useState(false)
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkMoveTarget, setBulkMoveTarget] = useState('')
   const galleryRef = useRef<HTMLInputElement>(null)
 
   function getOverride(itemId: string) {
@@ -342,14 +350,51 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
 
   function openPhotoModal(room: string) {
     setPhotoDeleteConfirm(null)
+    setActivePhotoRoom(room)
     setPhotoModal({ room })
+    setBulkActive(false)
+    setBulkSelectedIds(new Set())
+    setBulkMoveTarget('')
+  }
+
+  function openAllPhotos() {
+    setAllPhotoDeleteConfirm(null)
+    setActivePhotoRoom('_general_')
+    setShowAllPhotos(true)
+    setBulkActive(false)
+    setBulkSelectedIds(new Set())
+    setBulkMoveTarget('')
+  }
+
+  function toggleBulkSelect(id: string) {
+    setBulkSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function bulkMovePhotos() {
+    if (!bulkMoveTarget || bulkSelectedIds.size === 0) return
+    for (const id of bulkSelectedIds) {
+      updateWalkRoomPhoto(projectId, walk.id, id, { room: bulkMoveTarget })
+    }
+    setBulkSelectedIds(new Set())
+    setBulkMoveTarget('')
+  }
+
+  function bulkDeleteSelected() {
+    bulkDeleteWalkRoomPhotos(projectId, walk.id, [...bulkSelectedIds])
+    setBulkSelectedIds(new Set())
+    setBulkActive(false)
   }
 
   async function handlePhotoFiles(files: FileList | null, room: string) {
     if (!files || !project) return
     for (const file of Array.from(files)) {
       try {
-        const data = await stampPhoto(file, project.name)
+        const data = await stampPhoto(file, project.name, room)
         const photo: WalkRoomPhoto = { id: crypto.randomUUID(), room, data, createdAt: new Date().toISOString() }
         addWalkRoomPhoto(projectId, walk.id, photo)
 
@@ -395,6 +440,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
   const generalNotes = walk.generalNotes ?? []
   const customRooms = walk.customRooms ?? []
   const isCustomRoom = roomFilter !== 'all' && customRooms.includes(roomFilter)
+  const availableRooms = [...new Set([...items.filter(i => !i.isHeader).map(i => i.room), ...customRooms, '_general_'])]
   const renderRows = buildRenderRows(pruned, roomFilter, groupNotes, customRooms)
   const qtyItem = qtyPrompt ? items.find(i => i.id === qtyPrompt.itemId) : null
   const noteItem = notePrompt ? items.find(i => i.id === notePrompt.itemId) : null
@@ -427,6 +473,15 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
               </button>
             )}
             <button
+              onClick={openAllPhotos}
+              className={`p-2 rounded-lg border transition-colors ${roomPhotos.length > 0 ? 'border-violet-300 text-violet-600 bg-violet-50' : 'border-slate-200 text-slate-500'}`}
+              title="Walk Photos"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>
+              </svg>
+            </button>
+            <button
               onClick={() => setGeneralNotePrompt({ text: '', qty: '' })}
               className={`flex items-center gap-1 px-2.5 py-1.5 text-xs border rounded-lg transition-colors ${generalNotes.length > 0 ? 'border-amber-300 text-amber-700 bg-amber-50' : 'border-slate-200 text-slate-600'}`}
             >
@@ -437,12 +492,12 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
             </button>
             <button
               onClick={() => project && generateWalkReport(project, walk, items)}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-blue-600 text-white rounded-lg"
+              className="p-2 bg-blue-600 text-white rounded-lg"
+              title="Export Report"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              Export Report
             </button>
           </div>
         </div>
@@ -549,6 +604,15 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
               )
             )}
             <button
+              onClick={openAllPhotos}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-lg transition-colors ${roomPhotos.length > 0 ? 'border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>
+              </svg>
+              Photos{roomPhotos.length > 0 ? ` (${roomPhotos.length})` : ''}
+            </button>
+            <button
               onClick={() => setGeneralNotePrompt({ text: '', qty: '' })}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-lg transition-colors ${generalNotes.length > 0 ? 'border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
             >
@@ -573,6 +637,33 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
       {/* Mobile card list */}
       {isMobile && (
         <div className="flex-1 overflow-y-auto">
+          {/* Sticky header for specific room filter — shows Photos + Group Note buttons */}
+          {roomFilter !== 'all' && (() => {
+            const photoCnt = roomPhotos.filter(p => p.room === roomFilter).length
+            return (
+              <div className="sticky top-0 z-10 px-3 py-2 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex-1 min-w-0 truncate">{roomLabel(roomFilter)}</span>
+                <button
+                  onClick={() => openPhotoModal(roomFilter)}
+                  className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 text-[10px] font-medium border rounded-md transition-colors ${photoCnt > 0 ? 'border-violet-300 text-violet-700 bg-violet-50' : 'border-slate-300 text-slate-500 bg-white'}`}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>
+                  </svg>
+                  Photos{photoCnt > 0 ? ` (${photoCnt})` : ''}
+                </button>
+                <button
+                  onClick={() => openGroupNotePrompt(roomFilter)}
+                  className="flex-shrink-0 flex items-center gap-1 px-2 py-1 text-[10px] font-medium border border-teal-300 text-teal-700 bg-teal-50 rounded-md"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                  Group Note
+                </button>
+              </div>
+            )
+          })()}
           {renderRows.length === 0 ? (
             <div className="flex items-center justify-center py-20 text-sm text-slate-400">No items match your search.</div>
           ) : (
@@ -1019,11 +1110,11 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
         accept="image/*"
         multiple
         className="hidden"
-        onChange={e => { if (photoModal) handlePhotoFiles(e.target.files, photoModal.room); e.target.value = '' }}
+        onChange={e => { handlePhotoFiles(e.target.files, activePhotoRoom); e.target.value = '' }}
       />
 
       {/* Multi-shot camera */}
-      {showCamera && photoModal && (
+      {showCamera && (
         <CameraCapture
           onCapture={async (dataUrls) => {
             for (const dataUrl of dataUrls) {
@@ -1032,7 +1123,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
               const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' })
               await handlePhotoFiles(
                 (() => { const dt = new DataTransfer(); dt.items.add(file); return dt.files })(),
-                photoModal.room
+                activePhotoRoom
               )
             }
           }}
@@ -1040,16 +1131,219 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
         />
       )}
 
-      {/* Photos modal */}
-      {photoModal && (() => {
-        const modalPhotos = roomPhotos.filter(p => p.room === photoModal.room)
+      {/* All Walk Photos modal */}
+      {showAllPhotos && (() => {
+        const allPhotos = roomPhotos.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        const allSelected = allPhotos.length > 0 && allPhotos.every(p => bulkSelectedIds.has(p.id))
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/40" onClick={() => { setPhotoModal(null); setPhotoDeleteConfirm(null) }} />
+            <div className="absolute inset-0 bg-black/40" onClick={() => { if (!bulkActive) { setShowAllPhotos(false); setAllPhotoDeleteConfirm(null) } }} />
             <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col" style={{ maxHeight: '85vh' }}>
-              <div className="px-6 py-4 border-b border-slate-100 flex-shrink-0">
-                <h3 className="text-sm font-semibold text-slate-900">Photos</h3>
-                <p className="text-xs text-slate-400 mt-0.5">{roomLabel(photoModal.room)} &nbsp;·&nbsp; {modalPhotos.length} photo{modalPhotos.length !== 1 ? 's' : ''}</p>
+              <div className="px-6 py-4 border-b border-slate-100 flex-shrink-0 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Walk Photos</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">All rooms &nbsp;·&nbsp; {allPhotos.length} photo{allPhotos.length !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {bulkActive ? (
+                    <>
+                      <button
+                        onClick={() => setBulkSelectedIds(allSelected ? new Set() : new Set(allPhotos.map(p => p.id)))}
+                        className="text-xs text-blue-600 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                      >
+                        {allSelected ? 'Deselect All' : 'Select All'}
+                      </button>
+                      <button
+                        onClick={() => { setBulkActive(false); setBulkSelectedIds(new Set()); setBulkMoveTarget('') }}
+                        className="text-xs font-medium px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600"
+                      >
+                        Done
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setBulkActive(true)}
+                      className="text-xs font-medium px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                    >
+                      Select
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                {allPhotos.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-14 gap-3 text-slate-400">
+                    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>
+                    </svg>
+                    <p className="text-sm">No photos yet. Use the buttons below to add some.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3">
+                    {allPhotos.map(photo => {
+                      const isSelected = bulkSelectedIds.has(photo.id)
+                      return (
+                        <div
+                          key={photo.id}
+                          className={`relative group rounded-lg overflow-hidden ${bulkActive && isSelected ? 'ring-2 ring-blue-500' : ''}`}
+                          onClick={() => bulkActive && toggleBulkSelect(photo.id)}
+                        >
+                          {bulkActive && (
+                            <div className="absolute top-1.5 left-1.5 z-10 pointer-events-none">
+                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${isSelected ? 'bg-blue-500 border-blue-500' : 'bg-white/80 border-slate-400'}`}>
+                                {isSelected && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                              </div>
+                            </div>
+                          )}
+                          <img
+                            src={photo.data}
+                            alt=""
+                            className={`w-full aspect-square object-cover ${bulkActive ? 'cursor-pointer' : 'cursor-zoom-in'}`}
+                            onClick={e => { if (!bulkActive) { e.stopPropagation(); setExpandedPhoto(photo.data) } }}
+                          />
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
+                            <p className="text-[9px] text-white font-medium leading-tight truncate">{photo.room === '_general_' ? 'General' : roomLabel(photo.room)}</p>
+                            <p className="text-[8px] text-white/70 leading-tight">{formatNoteDate(photo.createdAt)}</p>
+                          </div>
+                          {!bulkActive && (allPhotoDeleteConfirm === photo.id ? (
+                            <div className="absolute inset-0 bg-black/65 flex flex-col items-center justify-center gap-2" onClick={e => e.stopPropagation()}>
+                              <p className="text-white text-[11px] font-medium">Delete photo?</p>
+                              <div className="flex gap-2">
+                                <button onClick={() => setAllPhotoDeleteConfirm(null)} className="px-2.5 py-1 text-[11px] bg-white/20 text-white rounded hover:bg-white/30 transition-colors">No</button>
+                                <button onClick={() => { deleteWalkRoomPhoto(projectId, walk.id, photo.id); setAllPhotoDeleteConfirm(null) }} className="px-2.5 py-1 text-[11px] bg-red-500 text-white rounded hover:bg-red-600 transition-colors font-medium">Yes</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={e => { e.stopPropagation(); setAllPhotoDeleteConfirm(photo.id) }}
+                              className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                            >
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                              </svg>
+                            </button>
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Bulk actions bar */}
+              {bulkActive && (
+                <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex-shrink-0 flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-slate-500 font-medium">{bulkSelectedIds.size} selected</span>
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                    <select
+                      value={bulkMoveTarget}
+                      onChange={e => setBulkMoveTarget(e.target.value)}
+                      className="text-xs border border-slate-200 rounded px-2 py-1 flex-1 min-w-0 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">Move to room…</option>
+                      {availableRooms.map(r => (
+                        <option key={r} value={r}>{r === '_general_' ? 'General Photos' : roomLabel(r)}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={bulkMovePhotos}
+                      disabled={!bulkMoveTarget || bulkSelectedIds.size === 0}
+                      className="px-2.5 py-1 text-xs bg-blue-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
+                    >
+                      Move
+                    </button>
+                  </div>
+                  <button
+                    onClick={bulkDeleteSelected}
+                    disabled={bulkSelectedIds.size === 0}
+                    className="px-2.5 py-1 text-xs bg-red-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
+                  >
+                    Delete ({bulkSelectedIds.size})
+                  </button>
+                </div>
+              )}
+
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center gap-2 flex-shrink-0 flex-wrap">
+                <button
+                  onClick={() => { setActivePhotoRoom('_general_'); galleryRef.current?.click() }}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                  Upload
+                </button>
+                <button
+                  onClick={() => { setActivePhotoRoom('_general_'); setShowCamera(true) }}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>
+                  </svg>
+                  Take Photos
+                </button>
+                {roomPhotos.length > 0 && project && (
+                  <button
+                    onClick={() => downloadWalkPhotos(walk, project.name)}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm border border-violet-300 text-violet-700 rounded-lg hover:bg-violet-50 transition-colors"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Download All
+                  </button>
+                )}
+                <button
+                  onClick={() => { setShowAllPhotos(false); setAllPhotoDeleteConfirm(null); setBulkActive(false); setBulkSelectedIds(new Set()) }}
+                  className="ml-auto px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Photos modal (room-specific) */}
+      {photoModal && (() => {
+        const modalPhotos = roomPhotos.filter(p => p.room === photoModal.room)
+        const allSelected = modalPhotos.length > 0 && modalPhotos.every(p => bulkSelectedIds.has(p.id))
+        const otherRooms = availableRooms.filter(r => r !== photoModal.room)
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40" onClick={() => { if (!bulkActive) { setPhotoModal(null); setPhotoDeleteConfirm(null) } }} />
+            <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col" style={{ maxHeight: '85vh' }}>
+              <div className="px-6 py-4 border-b border-slate-100 flex-shrink-0 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Photos</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">{roomLabel(photoModal.room)} &nbsp;·&nbsp; {modalPhotos.length} photo{modalPhotos.length !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {bulkActive ? (
+                    <>
+                      <button
+                        onClick={() => setBulkSelectedIds(allSelected ? new Set() : new Set(modalPhotos.map(p => p.id)))}
+                        className="text-xs text-blue-600 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                      >
+                        {allSelected ? 'Deselect All' : 'Select All'}
+                      </button>
+                      <button
+                        onClick={() => { setBulkActive(false); setBulkSelectedIds(new Set()); setBulkMoveTarget('') }}
+                        className="text-xs font-medium px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600"
+                      >
+                        Done
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setBulkActive(true)}
+                      className="text-xs font-medium px-2.5 py-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                    >
+                      Select
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4">
                 {modalPhotos.length === 0 ? (
@@ -1061,41 +1355,91 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-3">
-                    {modalPhotos.map(photo => (
-                      <div key={photo.id} className="relative group rounded-lg overflow-hidden">
-                        <img
-                          src={photo.data}
-                          alt=""
-                          className="w-full aspect-square object-cover cursor-pointer"
-                          onClick={() => setExpandedPhoto(photo.data)}
-                        />
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
-                          <p className="text-[9px] text-white/80 leading-tight">{formatNoteDate(photo.createdAt)}</p>
-                        </div>
-                        {photoDeleteConfirm === photo.id ? (
-                          <div className="absolute inset-0 bg-black/65 flex flex-col items-center justify-center gap-2">
-                            <p className="text-white text-[11px] font-medium">Delete photo?</p>
-                            <div className="flex gap-2">
-                              <button onClick={() => setPhotoDeleteConfirm(null)} className="px-2.5 py-1 text-[11px] bg-white/20 text-white rounded hover:bg-white/30 transition-colors">No</button>
-                              <button onClick={() => { deleteWalkRoomPhoto(projectId, walk.id, photo.id); setPhotoDeleteConfirm(null) }} className="px-2.5 py-1 text-[11px] bg-red-500 text-white rounded hover:bg-red-600 transition-colors font-medium">Yes</button>
+                    {modalPhotos.map(photo => {
+                      const isSelected = bulkSelectedIds.has(photo.id)
+                      return (
+                        <div
+                          key={photo.id}
+                          className={`relative group rounded-lg overflow-hidden ${bulkActive && isSelected ? 'ring-2 ring-blue-500' : ''}`}
+                          onClick={() => bulkActive && toggleBulkSelect(photo.id)}
+                        >
+                          {bulkActive && (
+                            <div className="absolute top-1.5 left-1.5 z-10 pointer-events-none">
+                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${isSelected ? 'bg-blue-500 border-blue-500' : 'bg-white/80 border-slate-400'}`}>
+                                {isSelected && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                              </div>
                             </div>
+                          )}
+                          <img
+                            src={photo.data}
+                            alt=""
+                            className={`w-full aspect-square object-cover ${bulkActive ? 'cursor-pointer' : 'cursor-zoom-in'}`}
+                            onClick={e => { if (!bulkActive) { e.stopPropagation(); setExpandedPhoto(photo.data) } }}
+                          />
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
+                            <p className="text-[9px] text-white/80 leading-tight">{formatNoteDate(photo.createdAt)}</p>
                           </div>
-                        ) : (
-                          <button
-                            onClick={() => setPhotoDeleteConfirm(photo.id)}
-                            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
-                          >
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                            </svg>
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                          {!bulkActive && (photoDeleteConfirm === photo.id ? (
+                            <div className="absolute inset-0 bg-black/65 flex flex-col items-center justify-center gap-2" onClick={e => e.stopPropagation()}>
+                              <p className="text-white text-[11px] font-medium">Delete photo?</p>
+                              <div className="flex gap-2">
+                                <button onClick={() => setPhotoDeleteConfirm(null)} className="px-2.5 py-1 text-[11px] bg-white/20 text-white rounded hover:bg-white/30 transition-colors">No</button>
+                                <button onClick={() => { deleteWalkRoomPhoto(projectId, walk.id, photo.id); setPhotoDeleteConfirm(null) }} className="px-2.5 py-1 text-[11px] bg-red-500 text-white rounded hover:bg-red-600 transition-colors font-medium">Yes</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={e => { e.stopPropagation(); setPhotoDeleteConfirm(photo.id) }}
+                              className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                            >
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                              </svg>
+                            </button>
+                          ))}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
-              <div className="px-6 py-4 border-t border-slate-100 flex items-center gap-2 flex-shrink-0">
+
+              {/* Bulk actions bar */}
+              {bulkActive && (
+                <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex-shrink-0 flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-slate-500 font-medium">{bulkSelectedIds.size} selected</span>
+                  {otherRooms.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <select
+                        value={bulkMoveTarget}
+                        onChange={e => setBulkMoveTarget(e.target.value)}
+                        className="text-xs border border-slate-200 rounded px-2 py-1 flex-1 min-w-0 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="">Move to room…</option>
+                        {otherRooms.map(r => (
+                          <option key={r} value={r}>{r === '_general_' ? 'General Photos' : roomLabel(r)}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={bulkMovePhotos}
+                        disabled={!bulkMoveTarget || bulkSelectedIds.size === 0}
+                        className="px-2.5 py-1 text-xs bg-blue-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
+                      >
+                        Move
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    onClick={bulkDeleteSelected}
+                    disabled={bulkSelectedIds.size === 0}
+                    className="px-2.5 py-1 text-xs bg-red-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
+                  >
+                    Delete ({bulkSelectedIds.size})
+                  </button>
+                </div>
+              )}
+
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center gap-2 flex-shrink-0 flex-wrap">
                 <button
                   onClick={() => galleryRef.current?.click()}
                   className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
@@ -1103,7 +1447,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
                   </svg>
-                  Upload Photos
+                  Upload
                 </button>
                 <button
                   onClick={() => setShowCamera(true)}
@@ -1114,8 +1458,19 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                   </svg>
                   Take Photos
                 </button>
+                {roomPhotos.length > 0 && project && (
+                  <button
+                    onClick={() => downloadWalkPhotos(walk, project.name)}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm border border-violet-300 text-violet-700 rounded-lg hover:bg-violet-50 transition-colors"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Download All
+                  </button>
+                )}
                 <button
-                  onClick={() => { setPhotoModal(null); setPhotoDeleteConfirm(null) }}
+                  onClick={() => { setPhotoModal(null); setPhotoDeleteConfirm(null); setBulkActive(false); setBulkSelectedIds(new Set()) }}
                   className="ml-auto px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   Close

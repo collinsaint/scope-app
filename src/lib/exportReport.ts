@@ -186,7 +186,7 @@ export function generateWalkReport(project: Project, walk: Walk, items: ScopeIte
           const ext = ph.data.startsWith('data:image/png') ? 'png' : 'jpg'
           const ts = new Date(ph.createdAt).toISOString().replace(/[:.]/g, '-').slice(0, 19)
           const fileName = `photo_${String(i + 1).padStart(2, '0')}_${fmtRoom(ph.room).replace(/\s+/g, '-')}_${ts}.${ext}`
-          return `<div class="photo-item"><img src="${ph.data}" alt=""><div class="photo-footer"><span class="photo-date">${fmtDate(ph.createdAt)}</span><a href="${ph.data}" download="${fileName}" class="photo-dl">↓ Download</a></div></div>`
+          return `<div class="photo-item"><a href="${ph.data}" target="_blank" title="Click to view full size" style="display:block"><img src="${ph.data}" alt="" style="cursor:zoom-in"></a><div class="photo-footer"><span class="photo-date">${fmtDate(ph.createdAt)}</span><a href="${ph.data}" download="${fileName}" class="photo-dl">↓ Download</a></div></div>`
         }).join('')}
       </div>` : ''
 
@@ -225,6 +225,18 @@ export function generateWalkReport(project: Project, walk: Walk, items: ScopeIte
     }).join('')
 
   // General notes section
+  const generalPhotos = allRoomPhotos.filter(p => p.room === '_general_')
+  const generalPhotosSection = generalPhotos.length > 0 ? `
+    <h3 class="room-heading" style="margin-top:0">General Photos</h3>
+    <div class="photo-grid">
+      ${generalPhotos.map((ph, i) => {
+        const ext = ph.data.startsWith('data:image/png') ? 'png' : 'jpg'
+        const ts = new Date(ph.createdAt).toISOString().replace(/[:.]/g, '-').slice(0, 19)
+        const fileName = `photo_general_${String(i + 1).padStart(2, '0')}_${ts}.${ext}`
+        return `<div class="photo-item"><a href="${ph.data}" target="_blank" title="Click to view full size" style="display:block"><img src="${ph.data}" alt="" style="cursor:zoom-in"></a><div class="photo-footer"><span class="photo-date">${fmtDate(ph.createdAt)}</span><a href="${ph.data}" download="${fileName}" class="photo-dl">↓ Download</a></div></div>`
+      }).join('')}
+    </div>` : ''
+
   const generalNotesSection = generalNotes.length > 0 ? `
     <h3 class="room-heading" style="margin-top:36px">General Notes</h3>
     <table>
@@ -327,7 +339,7 @@ export function generateWalkReport(project: Project, walk: Walk, items: ScopeIte
     <div class="card"><div class="card-label">Photos</div><div class="card-value" style="color:#7c3aed">${allRoomPhotos.length}</div></div>
   </div>
 
-  ${generalNotesSection}${fullScope}${customRoomSections}
+  ${generalPhotosSection}${generalNotesSection}${fullScope}${customRoomSections}
 </body>
 </html>`
 
