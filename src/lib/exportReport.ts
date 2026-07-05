@@ -1,5 +1,6 @@
 import type { Project, ScopeItem, Walk, WalkGeneralNote } from '../types'
-import jszipSrc from '../../node_modules/jszip/dist/jszip.min.js?raw'
+
+const JSZIP_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
 
 function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
@@ -279,7 +280,7 @@ export function generateWalkReport(project: Project, walk: Walk, items: ScopeIte
 </style>
 </head>
 <body>
-  <script>${jszipSrc}</script>
+  <script src="${JSZIP_CDN}"></script>
   <script>
     var WALK_PHOTOS = ${JSON.stringify(allRoomPhotos.map((p, i) => {
       const ext = p.data.startsWith('data:image/png') ? 'png' : 'jpg'

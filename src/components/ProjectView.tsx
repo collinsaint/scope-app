@@ -21,7 +21,7 @@ interface Props {
 }
 
 export function ProjectView({ projectId, onBack, initialView = 'scope' }: Props) {
-  const { projects, updateProjectItems, setComment, globalSubcontractors, addWalk, deleteWalk, addSketch, removeSketch, addWalkCustomRoom } = useStore()
+  const { projects, updateProjectItems, setComment, globalSubcontractors, addWalk, addSketch, removeSketch, addWalkCustomRoom } = useStore()
   const project = projects.find(p => p.id === projectId)
   const [roomFilter, setRoomFilter] = useState('all')
   const [reuploadError, setReuploadError] = useState('')

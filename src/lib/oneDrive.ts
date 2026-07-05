@@ -20,17 +20,6 @@ async function getToken(): Promise<string> {
   }
 }
 
-async function graphFetch(method: string, path: string, body?: unknown, isBlob = false): Promise<Response> {
-  const token = await getToken()
-  return fetch(`${GRAPH}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(isBlob ? { 'Content-Type': 'image/jpeg' } : { 'Content-Type': 'application/json' }),
-    },
-    body: body instanceof Blob ? body : body ? JSON.stringify(body) : undefined,
-  })
-}
 
 export async function signInToOneDrive(): Promise<AccountInfo> {
   await ensureMsalInitialized()
