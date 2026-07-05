@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import type { Project, SketchLabel } from '../types'
 import { SKETCH_LABELS } from '../types'
 import { useStore } from '../store/useStore'
+import { resetDemoProject } from '../lib/seedDemoProject'
 
 
 function fmt(n: number) {
@@ -30,6 +31,8 @@ export function ProjectDetailsView({ project }: Props) {
   const [applicantPhone, setApplicantPhone] = useState(project.applicantPhone ?? '')
   const [applicantEmail, setApplicantEmail] = useState(project.applicantEmail ?? '')
   const [saved, setSaved] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [resetConfirm, setResetConfirm] = useState(false)
 
   const dataItems = project.items.filter(i => !i.isHeader)
   const completed = dataItems.filter(i => i.completed)
@@ -69,6 +72,16 @@ export function ProjectDetailsView({ project }: Props) {
     applicantName.trim() !== (project.applicantName ?? '') ||
     applicantPhone.trim() !== (project.applicantPhone ?? '') ||
     applicantEmail.trim() !== (project.applicantEmail ?? '')
+
+  async function handleReset() {
+    setResetting(true)
+    try {
+      await resetDemoProject()
+    } finally {
+      setResetting(false)
+      setResetConfirm(false)
+    }
+  }
 
   return (
     <div className="flex-1 overflow-auto px-6 py-6">
@@ -266,7 +279,7 @@ export function ProjectDetailsView({ project }: Props) {
         {/* Project Sketches */}
         <div className="bg-white border border-slate-200 rounded-xl p-5">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">Project Sketches</h2>
-          <p className="text-xs text-slate-400 mb-4">Upload up to 3 PDF sketches. Each must have a unique level name.</p>
+          <p className="text-xs text-slate-400 mb-4">Upload up to 3 PDF or image files. Each must have a unique level name.</p>
 
           {/* Uploaded sketches */}
           {sketches.length > 0 && (
@@ -315,12 +328,12 @@ export function ProjectDetailsView({ project }: Props) {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
-                {sketchUploading ? 'Uploading…' : 'Upload PDF'}
+                {sketchUploading ? 'Uploading…' : 'Upload File'}
               </button>
               <input
                 ref={sketchInputRef}
                 type="file"
-                accept="application/pdf"
+                accept=".pdf,image/*"
                 className="hidden"
                 onChange={async e => {
                   const file = e.target.files?.[0]
@@ -364,6 +377,44 @@ export function ProjectDetailsView({ project }: Props) {
             })}
           </div>
         </div>
+
+        {/* Demo reset — only shown for the demo project */}
+        {project.isDemo && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+            <h2 className="text-xs font-semibold text-amber-600 uppercase tracking-widest mb-1">Demo Project</h2>
+            <p className="text-xs text-amber-700/70 mb-4">
+              Reset this demo back to its original state. All walk overrides, notes, photos, and custom rooms will be cleared.
+            </p>
+            {resetConfirm ? (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-amber-800 font-medium">All changes will be lost. Continue?</span>
+                <button
+                  onClick={() => setResetConfirm(false)}
+                  className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 hover:bg-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReset}
+                  disabled={resetting}
+                  className="px-3 py-1.5 text-xs bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors disabled:opacity-50"
+                >
+                  {resetting ? 'Resetting…' : 'Yes, Reset Demo'}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setResetConfirm(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
+                </svg>
+                Reset Demo Project
+              </button>
+            )}
+          </div>
+        )}
 
       </div>
     </div>

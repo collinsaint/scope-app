@@ -78,7 +78,7 @@ function activityLabel(a: string): string {
   return map[a] ?? a
 }
 
-async function stampPhoto(file: File, projectName: string, room?: string): Promise<string> {
+async function stampPhoto(file: File, projectName: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => {
@@ -93,9 +93,7 @@ async function stampPhoto(file: File, projectName: string, room?: string): Promi
           month: 'short', day: 'numeric', year: 'numeric',
           hour: 'numeric', minute: '2-digit', hour12: true,
         })
-        const label = room && room !== '_general_'
-          ? `${projectName}  ·  ${room}  ·  ${ts}`
-          : `${projectName}  ·  ${ts}`
+        const label = `${projectName}  ·  ${ts}`
         const fontSize = Math.max(14, Math.round(img.naturalWidth / 50))
         const pad = Math.round(fontSize * 0.6)
         ctx.font = `600 ${fontSize}px system-ui, sans-serif`
@@ -394,7 +392,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
     if (!files || !project) return
     for (const file of Array.from(files)) {
       try {
-        const data = await stampPhoto(file, project.name, room)
+        const data = await stampPhoto(file, project.name)
         const photo: WalkRoomPhoto = { id: crypto.randomUUID(), room, data, createdAt: new Date().toISOString() }
         addWalkRoomPhoto(projectId, walk.id, photo)
 

@@ -15,6 +15,7 @@ interface StoreState {
   setViewMode: (mode: 'auto' | 'desktop' | 'mobile') => void
 
   addProject: (project: Project) => void
+  replaceProject: (project: Project) => void
   updateProjectItems: (projectId: string, items: ScopeItem[]) => void
   setActiveProject: (id: string | null) => void
   toggleItem: (projectId: string, itemId: string) => void
@@ -77,6 +78,9 @@ export const useStore = create<StoreState>()(
 
       addProject: (project) =>
         set((s) => ({ projects: [...s.projects, project] })),
+
+      replaceProject: (project) =>
+        set((s) => ({ projects: s.projects.map((p) => p.id === project.id ? project : p) })),
 
       updateProjectItems: (projectId, items) =>
         set((s) => ({
