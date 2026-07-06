@@ -64,8 +64,8 @@ export async function seedDemoProject(): Promise<void> {
       patches.walks = [DEFAULT_WALK]
     }
 
-    // Patch old PDF sketch → JPG
-    if (existingDemo.sketches?.some(s => s.fileName === 'demo_project_sketch.pdf')) {
+    // Patch missing or old PDF sketch → JPG
+    if (!existingDemo.sketches?.length || existingDemo.sketches.some(s => s.fileName === 'demo_project_sketch.pdf')) {
       try {
         patches.sketches = [await fetchDemoSketch()]
       } catch { /* keep existing */ }
