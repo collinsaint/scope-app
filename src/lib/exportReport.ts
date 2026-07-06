@@ -1,3 +1,5 @@
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import type { Project, ScopeItem, Walk, WalkGeneralNote } from '../types'
 
 const JSZIP_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
@@ -395,4 +397,211 @@ export function generateWalkReport(
   a.download = `walk-report-${walk.name.replace(/\s+/g, '-')}-${project.name.replace(/\s+/g, '-')}.html`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+export function buildWalkReportPdfBlob(
+  project: Project,
+  walk: Walk,
+  items: ScopeItem[],
+  options: { adjustedOnly?: boolean } = {},
+): Blob {
+  const { adjustedOnly = false } = options
+  const overrides = walk.itemOverrides ?? []
+
+  function getOverride(itemId: string) {
+    return overrides.find(o => o.itemId === itemId)
+  }
+
+  const allDataItems = items.filter(i => !i.isHeader && i.coverage?.toUpperCase() !== 'DRV')
+  const dataItems = adjustedOnly
+    ? allDataItems.filter(i => {
+        const ov = getOverride(i.id)
+        return ov?.removed === true || ov?.qty !== undefined || (ov?.notes?.length ?? 0) > 0
+      })
+    : allDataItems
+
+  const removedCount  = dataItems.filter(i => getOverride(i.id)?.removed === true).length
+  const qtyCount      = dataItems.filter(i => getOverride(i.id)?.qty !== undefined).length
+  const noteCount     = dataItems.filter(i => (getOverride(i.id)?.notes?.length ?? 0) > 0).length
+  const groupNotes    = walk.groupNotes ?? []
+  const generalNotes  = walk.generalNotes ?? []
+  const fmtRoom       = (r: string) => r.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+
+  function fmtDate(iso: string) {
+    return new Date(iso).toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true,
+    })
+  }
+
+  const rooms: Record<string, ScopeItem[]> = {}
+  for (const item of dataItems) {
+    ;(rooms[item.room] = rooms[item.room] ?? []).push(item)
+  }
+
+  // Landscape A4: 297 × 210mm, 12mm side margins → 273mm content width
+  const doc = new jsPDF({ orientation: 'landscape', format: 'a4', unit: 'mm' })
+  const ML = 12 // margin left/right
+  const pageW = 297
+
+  // Title
+  doc.setFontSize(14)
+  doc.setTextColor(15, 23, 42)
+  doc.text(`Walk Report — ${walk.name}`, ML, 14)
+
+  doc.setFontSize(8)
+  doc.setTextColor(100, 116, 139)
+  const meta = `${project.name}${project.address ? '  ·  ' + project.address : ''}  ·  Generated ${new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`
+  doc.text(meta, ML, 20)
+
+  // Summary row
+  doc.setFontSize(8)
+  doc.setTextColor(15, 23, 42)
+  const summaryText = [
+    `${adjustedOnly ? 'Adjusted' : 'Total'} Items: ${dataItems.length}${adjustedOnly ? ' / ' + allDataItems.length : ''}`,
+    `Removed: ${removedCount}`,
+    `Qty Updates: ${qtyCount}`,
+    `Notes: ${noteCount}`,
+    `Group Notes: ${groupNotes.length}`,
+    `General Notes: ${generalNotes.length}`,
+  ].join('   |   ')
+  doc.text(summaryText, ML, 27)
+
+  let currentY = 32
+
+  // Per-room tables
+  for (const [room, roomItems] of Object.entries(rooms)) {
+    const roomGroupNotes = groupNotes.filter(n => n.room === room)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const body: any[][] = []
+
+    for (const item of roomItems) {
+      const ov = getOverride(item.id)
+      const isRemoved = ov?.removed === true
+      const hasQty    = ov?.qty !== undefined
+      const hasNotes  = (ov?.notes?.length ?? 0) > 0
+
+      const descLines: string[] = [isRemoved ? `[REMOVED] ${item.description}` : item.description]
+      if (hasNotes) {
+        for (const n of ov!.notes ?? []) {
+          descLines.push(`  Note: ${n.text}`)
+        }
+      }
+
+      const qty = hasQty ? `${item.qty} → ${ov!.qty} ${item.unit}` : item.qty > 0 ? `${item.qty} ${item.unit}` : '—'
+      const status = isRemoved ? 'Removed' : (hasQty || hasNotes) ? 'Modified' : ''
+
+      const fillColor: [number, number, number] | undefined = isRemoved
+        ? [254, 226, 226]
+        : hasQty || hasNotes
+        ? [254, 252, 232]
+        : undefined
+
+      const row = [
+        String(item.rowNum),
+        descLines.join('\n'),
+        item.activity || '—',
+        qty,
+        item.rcv > 0 ? `$${item.rcv.toLocaleString()}` : '—',
+        item.note || '—',
+        status,
+      ]
+
+      if (fillColor) {
+        body.push(row.map(cell => ({ content: cell, styles: { fillColor } })))
+      } else {
+        body.push(row)
+      }
+    }
+
+    // Group note rows
+    for (const gn of roomGroupNotes) {
+      body.push([
+        { content: 'GROUP NOTE', styles: { fillColor: [209, 250, 229], textColor: [6, 95, 70], fontStyle: 'bold' as const } },
+        { content: gn.text + '\n' + fmtDate(gn.createdAt), styles: { fillColor: [209, 250, 229] } },
+        { content: '—', styles: { fillColor: [209, 250, 229] } },
+        { content: gn.qty !== undefined ? String(gn.qty) : '—', styles: { fillColor: [209, 250, 229], textColor: [5, 150, 105] } },
+        { content: '—', styles: { fillColor: [209, 250, 229] } },
+        { content: '—', styles: { fillColor: [209, 250, 229] } },
+        { content: 'Added', styles: { fillColor: [209, 250, 229], textColor: [6, 95, 70] } },
+      ])
+    }
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [[fmtRoom(room), 'Description', 'Activity', 'Qty / Unit', 'Amount', 'Note', 'Status']],
+      body,
+      theme: 'grid',
+      headStyles: { fillColor: [71, 85, 105], textColor: 255, fontSize: 7, fontStyle: 'bold' as const },
+      bodyStyles: { fontSize: 7, valign: 'top' },
+      columnStyles: {
+        0: { cellWidth: 12 },
+        1: { cellWidth: 110 },
+        2: { cellWidth: 22 },
+        3: { cellWidth: 38 },
+        4: { cellWidth: 28 },
+        5: { cellWidth: 42 },
+        6: { cellWidth: 24 },
+      },
+      margin: { left: ML, right: ML },
+    })
+
+    currentY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6
+  }
+
+  // Custom rooms (group notes + no items)
+  for (const cr of walk.customRooms ?? []) {
+    if (rooms[cr]) continue
+    const crNotes = groupNotes.filter(n => n.room === cr)
+    if (!crNotes.length) continue
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const body: any[][] = crNotes.map(gn => [
+      { content: 'GROUP NOTE', styles: { fillColor: [209, 250, 229], textColor: [6, 95, 70], fontStyle: 'bold' as const } },
+      { content: gn.text + '\n' + fmtDate(gn.createdAt), styles: { fillColor: [209, 250, 229] } },
+      { content: '—', styles: { fillColor: [209, 250, 229] } },
+      { content: gn.qty !== undefined ? String(gn.qty) : '—', styles: { fillColor: [209, 250, 229] } },
+      { content: '—', styles: { fillColor: [209, 250, 229] } },
+      { content: '—', styles: { fillColor: [209, 250, 229] } },
+      { content: 'Added', styles: { fillColor: [209, 250, 229], textColor: [6, 95, 70] } },
+    ])
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [[fmtRoom(cr), 'Description', 'Activity', 'Qty / Unit', 'Amount', 'Note', 'Status']],
+      body,
+      theme: 'grid',
+      headStyles: { fillColor: [71, 85, 105], textColor: 255, fontSize: 7, fontStyle: 'bold' as const },
+      bodyStyles: { fontSize: 7 },
+      columnStyles: { 0: { cellWidth: 12 }, 1: { cellWidth: 110 }, 2: { cellWidth: 22 }, 3: { cellWidth: 38 }, 4: { cellWidth: 28 }, 5: { cellWidth: 42 }, 6: { cellWidth: 24 } },
+      margin: { left: ML, right: ML },
+    })
+    currentY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6
+  }
+
+  // General notes
+  if (generalNotes.length > 0) {
+    autoTable(doc, {
+      startY: currentY,
+      head: [['General Notes', 'Qty', 'Date']],
+      body: generalNotes.map(gn => [gn.text, gn.qty !== undefined ? String(gn.qty) : '—', fmtDate(gn.createdAt)]),
+      theme: 'grid',
+      headStyles: { fillColor: [180, 83, 9], textColor: 255, fontSize: 7, fontStyle: 'bold' as const },
+      bodyStyles: { fontSize: 7, fillColor: [255, 251, 235] },
+      columnStyles: { 0: { cellWidth: 180 }, 1: { cellWidth: 30 }, 2: { cellWidth: 60 } },
+      margin: { left: ML, right: ML },
+    })
+  }
+
+  // Page numbers
+  const pageCount = doc.getNumberOfPages()
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p)
+    doc.setFontSize(7)
+    doc.setTextColor(148, 163, 184)
+    doc.text(`Page ${p} of ${pageCount}`, pageW - ML, 207, { align: 'right' })
+  }
+
+  return doc.output('blob')
 }

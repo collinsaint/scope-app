@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { ScopeItem, Walk, WalkNote, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, WalkItemOverride } from '../types'
 import { useStore } from '../store/useStore'
-import { buildWalkReportBlob, openWalkReportPdf } from '../lib/exportReport'
+import { buildWalkReportPdfBlob, openWalkReportPdf } from '../lib/exportReport'
 import { downloadWalkPhotos, buildPhotosZipBlob } from '../lib/downloadPhotos'
 import { uploadPhotoToOneDrive } from '../lib/oneDrive'
 import { useViewMode } from '../hooks/useViewMode'
@@ -284,7 +284,9 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
   const [exportIncludePhotos, setExportIncludePhotos] = useState(true)
   const [exportAdjustedOnly, setExportAdjustedOnly] = useState(false)
   const [sendType, setSendType] = useState<'report' | 'photos' | 'both'>('both')
-  const [isSending, setIsSending] = useState(false)
+  const [sharePdfBlob, setSharePdfBlob] = useState<Blob | null>(null)
+  const [shareZipBlob, setShareZipBlob] = useState<Blob | null>(null)
+  const [sharePrepping, setSharePrepping] = useState(false)
   const [photoRoomPickerRoom, setPhotoRoomPickerRoom] = useState('_general_')
   const [newRoomInPicker, setNewRoomInPicker] = useState('')
   const [addingRoomInPicker, setAddingRoomInPicker] = useState(false)
@@ -299,43 +301,67 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
     updateWalkItem(projectId, walk.id, itemId, { removed: !override?.removed })
   }
 
-  async function handleSend() {
+  // Pre-compute share blobs whenever the send type changes so handleSend is synchronous
+  // (avoids losing the iOS user-gesture context across async awaits before navigator.share)
+  useEffect(() => {
+    if (!showExportOptions || !project) return
+    setSharePdfBlob(null)
+    setShareZipBlob(null)
+    setSharePrepping(true)
+
+    const tasks: Promise<void>[] = []
+
+    if (sendType === 'report' || sendType === 'both') {
+      tasks.push(
+        Promise.resolve(buildWalkReportPdfBlob(project, walk, items, { adjustedOnly: exportAdjustedOnly }))
+          .then(setSharePdfBlob),
+      )
+    }
+
+    if ((sendType === 'photos' || sendType === 'both') && (walk.roomPhotos?.length ?? 0) > 0) {
+      tasks.push(
+        buildPhotosZipBlob(walk).then(b => { if (b) setShareZipBlob(b) }),
+      )
+    }
+
+    Promise.all(tasks).finally(() => setSharePrepping(false))
+  }, [showExportOptions, sendType, exportAdjustedOnly])
+
+  function handleSend() {
     if (!project) return
-    setIsSending(true)
-    try {
-      const reportOptions = { includePhotos: exportIncludePhotos, adjustedOnly: exportAdjustedOnly }
-      const files: File[] = []
+    const files: File[] = []
+    const slug = walk.name.replace(/\s+/g, '-')
 
-      if (sendType === 'report' || sendType === 'both') {
-        const blob = buildWalkReportBlob(project, walk, items, reportOptions)
-        files.push(new File([blob], `walk-report-${walk.name.replace(/\s+/g, '-')}.html`, { type: 'text/html' }))
+    if ((sendType === 'report' || sendType === 'both') && sharePdfBlob) {
+      files.push(new File([sharePdfBlob], `walk-report-${slug}.pdf`, { type: 'application/pdf' }))
+    }
+    if ((sendType === 'photos' || sendType === 'both') && shareZipBlob) {
+      files.push(new File([shareZipBlob], `walk-photos-${slug}.zip`, { type: 'application/zip' }))
+    }
+
+    if (files.length === 0) return
+
+    function downloadAll(f: File[]) {
+      for (const file of f) {
+        const url = URL.createObjectURL(file)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = file.name
+        a.click()
+        URL.revokeObjectURL(url)
       }
+    }
 
-      if (sendType === 'photos' || sendType === 'both') {
-        const blob = await buildPhotosZipBlob(walk)
-        if (blob) files.push(new File([blob], `walk-photos-${walk.name.replace(/\s+/g, '-')}.zip`, { type: 'application/zip' }))
-      }
-
-      if (files.length === 0) return
-
-      const canShare = 'share' in navigator && navigator.canShare?.({ files })
-      if (canShare) {
-        await navigator.share({ files, title: `Walk Report — ${walk.name}` })
-      } else {
-        for (const file of files) {
-          const url = URL.createObjectURL(file)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = file.name
-          a.click()
-          URL.revokeObjectURL(url)
-        }
-      }
+    const canShare = 'share' in navigator && navigator.canShare?.({ files })
+    if (canShare) {
+      navigator.share({ files, title: `Walk Report — ${walk.name}` })
+        .then(() => setShowExportOptions(false))
+        .catch(err => {
+          if ((err as Error).name !== 'AbortError') downloadAll(files)
+        })
+    } else {
+      downloadAll(files)
       setShowExportOptions(false)
-    } catch (err) {
-      if ((err as Error).name !== 'AbortError') console.error('Share failed', err)
-    } finally {
-      setIsSending(false)
     }
   }
 
@@ -2052,13 +2078,13 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                 </p>
                 <button
                   onClick={handleSend}
-                  disabled={isSending}
+                  disabled={sharePrepping}
                   className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 active:bg-emerald-800 transition-colors disabled:opacity-50"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                   </svg>
-                  {isSending ? 'Preparing…' : ('share' in navigator ? 'Share' : 'Download')}
+                  {sharePrepping ? 'Preparing…' : ('share' in navigator ? 'Share' : 'Download')}
                 </button>
               </div>
             </div>
