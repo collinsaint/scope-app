@@ -8,6 +8,10 @@ function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 }
 
+function fmtQty(n: number): string {
+  return parseFloat(n.toFixed(2)).toString()
+}
+
 function groupByRoom(items: ScopeItem[]): Record<string, ScopeItem[]> {
   return items.reduce<Record<string, ScopeItem[]>>((acc, item) => {
     ;(acc[item.room] = acc[item.room] ?? []).push(item)
@@ -147,9 +151,9 @@ function buildWalkReportHtml(
         ? '<span class="badge-removed">Removed</span>'
         : (hasQty || hasNotes) ? '<span class="badge-modified">Modified</span>' : ''
 
-      const qtyBase = i.qty > 0 ? `${i.qty} ${i.unit}` : '—'
+      const qtyBase = i.qty > 0 ? `${fmtQty(i.qty)} ${i.unit}` : '—'
       const qtyCell = hasQty
-        ? `${qtyBase} <span class="qty-update">→ ${ov!.qty} ${i.unit}</span>`
+        ? `${qtyBase} <span class="qty-update">→ ${fmtQty(ov!.qty as number)} ${i.unit}</span>`
         : qtyBase
 
       const mainRow = `<tr style="${rowBg}">
@@ -489,7 +493,7 @@ export function buildWalkReportPdfBlob(
         }
       }
 
-      const qty = hasQty ? `${item.qty} → ${ov!.qty} ${item.unit}` : item.qty > 0 ? `${item.qty} ${item.unit}` : '—'
+      const qty = hasQty ? `${fmtQty(item.qty)} → ${fmtQty(ov!.qty as number)} ${item.unit}` : item.qty > 0 ? `${fmtQty(item.qty)} ${item.unit}` : '—'
       const status = isRemoved ? 'Removed' : (hasQty || hasNotes) ? 'Modified' : ''
 
       const fillColor: [number, number, number] | undefined = isRemoved

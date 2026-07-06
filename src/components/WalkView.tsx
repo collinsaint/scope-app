@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { ScopeItem, Walk, WalkNote, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, WalkItemOverride } from '../types'
 import { useStore } from '../store/useStore'
-import { buildWalkReportPdfBlob, openWalkReportPdf } from '../lib/exportReport'
+import { buildWalkReportPdfBlob } from '../lib/exportReport'
 import { downloadWalkPhotos, buildPhotosZipBlob } from '../lib/downloadPhotos'
 import { uploadPhotoToOneDrive } from '../lib/oneDrive'
 import { useViewMode } from '../hooks/useViewMode'
@@ -119,6 +119,18 @@ function formatNoteDate(iso: string) {
   })
 }
 
+function useKeyboardHeight(): number {
+  const [kh, setKh] = useState(0)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const update = () => setKh(Math.max(0, window.innerHeight - vv.height))
+    vv.addEventListener('resize', update)
+    return () => vv.removeEventListener('resize', update)
+  }, [])
+  return kh
+}
+
 interface MobileWalkCardProps {
   item: ScopeItem
   override: WalkItemOverride | undefined
@@ -131,9 +143,10 @@ interface MobileWalkCardProps {
   onRevertQty: () => void
   onNote: () => void
   onDeleteNote: (idx: number) => void
+  onShowNote?: () => void
 }
 
-function MobileWalkCard({ item, override, isRemoved, hasQty, hasNotes, notes, onRemove, onQty, onRevertQty, onNote, onDeleteNote }: MobileWalkCardProps) {
+function MobileWalkCard({ item, override, isRemoved, hasQty, hasNotes, notes, onRemove, onQty, onRevertQty, onNote, onDeleteNote, onShowNote }: MobileWalkCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [deleteNoteConfirm, setDeleteNoteConfirm] = useState<number | null>(null)
 
@@ -159,8 +172,8 @@ function MobileWalkCard({ item, override, isRemoved, hasQty, hasNotes, notes, on
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-2">
           {item.activity && <span className="text-[11px] text-slate-400">{activityLabel(item.activity)}</span>}
           <span className="text-[11px] text-slate-400">
-            {item.qty > 0 ? `${item.qty} ${item.unit}` : '—'}
-            {hasQty && <span className="text-amber-600 font-semibold ml-1">→ {override!.qty} {item.unit}</span>}
+            {item.qty > 0 ? `${parseFloat(item.qty.toFixed(2))} ${item.unit}` : '—'}
+            {hasQty && <span className="text-amber-600 font-semibold ml-1">→ {parseFloat((override!.qty as number).toFixed(2))} {item.unit}</span>}
           </span>
           {item.rcv > 0 && <span className="text-[11px] font-semibold text-slate-600">{fmt(item.rcv)}</span>}
         </div>
@@ -211,6 +224,20 @@ function MobileWalkCard({ item, override, isRemoved, hasQty, hasNotes, notes, on
             </button>
           )}
         </div>
+
+        {/* Note 1 from Excel */}
+        {item.note && (
+          <button
+            onClick={onShowNote}
+            className="mt-2 w-full text-left flex items-center gap-2 border border-blue-100 bg-blue-50 rounded-lg px-2.5 py-1.5"
+          >
+            <svg className="w-3 h-3 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-[11px] font-semibold text-blue-600 flex-shrink-0">Note 1:</span>
+            <span className="text-[11px] text-slate-600 truncate">{item.note}</span>
+          </button>
+        )}
       </div>
 
       {/* Expanded notes */}
@@ -284,6 +311,8 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
   const [exportIncludePhotos, setExportIncludePhotos] = useState(true)
   const [exportAdjustedOnly, setExportAdjustedOnly] = useState(false)
   const [sendType, setSendType] = useState<'report' | 'photos' | 'both'>('both')
+  const [showItemNote, setShowItemNote] = useState<{ id: string; note: string } | null>(null)
+  const keyboardHeight = useKeyboardHeight()
   const [sharePdfBlob, setSharePdfBlob] = useState<Blob | null>(null)
   const [shareZipBlob, setShareZipBlob] = useState<Blob | null>(null)
   const [sharePrepping, setSharePrepping] = useState(false)
@@ -910,6 +939,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                     onRevertQty={() => updateWalkItem(projectId, walk.id, item.id, { qty: undefined })}
                     onNote={() => openNotePrompt(item.id)}
                     onDeleteNote={(idx) => deleteNote(item.id, idx)}
+                    onShowNote={item.note ? () => setShowItemNote({ id: item.id, note: item.note }) : undefined}
                   />
                 )
               })}
@@ -1101,8 +1131,16 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                       ? <span className="text-[13px] text-slate-300">—</span>
                       : item.rcv > 0 ? <span className="text-[13px] font-medium text-slate-800">{fmt(item.rcv)}</span> : <span className="text-slate-300">—</span>}
                   </td>
-                  <td className="px-3 py-3 max-w-[180px] text-[12px] text-slate-500">
-                    {item.note || <span className="text-slate-300">—</span>}
+                  <td className="px-3 py-3 max-w-[180px] text-[12px]">
+                    {item.note ? (
+                      <button
+                        onClick={() => setShowItemNote({ id: item.id, note: item.note })}
+                        className="text-left text-blue-600 hover:text-blue-800 hover:underline line-clamp-2 leading-snug"
+                        title="Click to view full note"
+                      >
+                        {item.note}
+                      </button>
+                    ) : <span className="text-slate-300">—</span>}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap">
                     {isDrv ? null : (
@@ -1155,9 +1193,12 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
 
       {/* Update Qty modal */}
       {qtyPrompt && qtyItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-[calc(60px+env(safe-area-inset-bottom))] sm:pb-0"
+          style={keyboardHeight > 0 ? { paddingBottom: keyboardHeight } : undefined}
+        >
           <div className="absolute inset-0 bg-black/40" onClick={() => setQtyPrompt(null)} />
-          <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4 flex flex-col gap-4">
+          <div className="relative bg-white rounded-t-2xl sm:rounded-xl shadow-xl p-6 w-full max-w-sm sm:mx-4 flex flex-col gap-4">
             <div>
               <h3 className="text-sm font-semibold text-slate-900">Update Quantity</h3>
               <p className="text-xs text-slate-400 mt-0.5 leading-snug">
@@ -1207,9 +1248,12 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
 
       {/* Add Group Note modal */}
       {groupNotePrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-[calc(60px+env(safe-area-inset-bottom))] sm:pb-0"
+          style={keyboardHeight > 0 ? { paddingBottom: keyboardHeight } : undefined}
+        >
           <div className="absolute inset-0 bg-black/40" onClick={() => { setGroupNotePrompt(null); setGroupNoteDeleteConfirm(null) }} />
-          <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4 flex flex-col gap-4">
+          <div className="relative bg-white rounded-t-2xl sm:rounded-xl shadow-xl p-6 w-full max-w-md sm:mx-4 flex flex-col gap-4">
             <div>
               <h3 className="text-sm font-semibold text-slate-900">Add Group Note</h3>
               <p className="text-xs text-slate-400 mt-0.5">{roomLabel(groupNotePrompt.room)}</p>
@@ -1896,9 +1940,12 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
 
       {/* Inspection Notes modal */}
       {notePrompt && noteItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-[calc(60px+env(safe-area-inset-bottom))] sm:pb-0"
+          style={keyboardHeight > 0 ? { paddingBottom: keyboardHeight } : undefined}
+        >
           <div className="absolute inset-0 bg-black/40" onClick={() => { setNotePrompt(null); setConfirmDeleteIdx(null) }} />
-          <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4 flex flex-col gap-4">
+          <div className="relative bg-white rounded-t-2xl sm:rounded-xl shadow-xl p-6 w-full max-w-md sm:mx-4 flex flex-col gap-4 max-h-[80dvh] overflow-y-auto">
             <div>
               <h3 className="text-sm font-semibold text-slate-900">Inspection Notes</h3>
               <p className="text-xs text-slate-400 mt-0.5 leading-snug">
@@ -2031,7 +2078,12 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                 <button
                   onClick={() => {
                     setShowExportOptions(false)
-                    if (project) openWalkReportPdf(project, walk, items, { includePhotos: exportIncludePhotos, adjustedOnly: exportAdjustedOnly })
+                    if (project) {
+                      const blob = buildWalkReportPdfBlob(project, walk, items, { adjustedOnly: exportAdjustedOnly })
+                      const url = URL.createObjectURL(blob)
+                      window.open(url, '_blank')
+                      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+                    }
                   }}
                   className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 active:bg-blue-800 transition-colors"
                 >
@@ -2040,7 +2092,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                   </svg>
                   Export PDF
                 </button>
-                <p className="text-[11px] text-center text-slate-400">Opens in new tab — use Print to save as PDF</p>
+                <p className="text-[11px] text-center text-slate-400">Opens the PDF report in a new tab</p>
               </div>
 
               <div className="border-t border-slate-100" />
@@ -2097,6 +2149,31 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Note 1 (Excel) viewer */}
+      {showItemNote && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-[calc(60px+env(safe-area-inset-bottom))] sm:pb-0">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowItemNote(null)} />
+          <div className="relative bg-white rounded-t-2xl sm:rounded-xl shadow-xl p-5 w-full max-w-sm sm:mx-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <h3 className="text-sm font-semibold text-slate-900">Note 1</h3>
+              <span className="text-xs text-slate-400 ml-auto">from Excel file</span>
+            </div>
+            <p className="text-sm text-slate-700 leading-relaxed bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
+              {showItemNote.note}
+            </p>
+            <button
+              onClick={() => setShowItemNote(null)}
+              className="w-full py-2 text-sm font-medium text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
