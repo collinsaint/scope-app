@@ -96,7 +96,7 @@ function buildWalkReportHtml(
   walk: Walk,
   items: ScopeItem[],
   options: { includePhotos?: boolean; adjustedOnly?: boolean } = {},
-  autoPrint = false,
+  pdfDataUri?: string,
 ): string {
   const { includePhotos = true, adjustedOnly = false } = options
   const overrides = walk.itemOverrides ?? []
@@ -343,8 +343,17 @@ function buildWalkReportHtml(
   <h1>Walk Report &mdash; ${walk.name}</h1>
   <p class="meta">${project.name}${project.address ? ' &nbsp;&middot;&nbsp; ' + project.address : ''} &nbsp;&middot;&nbsp; Generated ${generated}</p>
 
-  <div class="no-print" style="margin-bottom:24px;display:flex;gap:10px;align-items:center">
-    <button onclick="window.print()" style="padding:8px 20px;background:#1d4ed8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px">Print / Save as PDF</button>
+  ${pdfDataUri ? `<script>
+    var _PDF_URI = '${pdfDataUri}';
+    var _PDF_NAME = 'walk-report-${walk.name.replace(/\s+/g, '-')}.pdf';
+    function savePdf() { var a = document.createElement('a'); a.href = _PDF_URI; a.download = _PDF_NAME; a.click(); }
+  </script>` : ''}
+
+  <div class="no-print" style="margin-bottom:24px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    ${pdfDataUri
+      ? `<button onclick="savePdf()" style="padding:8px 20px;background:#1d4ed8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px">&#128462; Save PDF</button>`
+      : `<button onclick="window.print()" style="padding:8px 20px;background:#1d4ed8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px">Print / Save as PDF</button>`
+    }
     ${includePhotos && allRoomPhotos.length > 0 ? `<button id="dl-photos-btn" onclick="downloadAllPhotos()" style="padding:8px 20px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px">Download All Photos (${allRoomPhotos.length})</button>` : ''}
   </div>
 
@@ -359,7 +368,6 @@ function buildWalkReportHtml(
   </div>
 
   ${generalPhotosSection}${generalNotesSection}${fullScope}${customRoomSections}
-  ${autoPrint ? `<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},800)})</script>` : ''}
 </body>
 </html>`
   return html
@@ -380,7 +388,8 @@ export function openWalkReportPdf(
   items: ScopeItem[],
   options: { includePhotos?: boolean; adjustedOnly?: boolean } = {},
 ): void {
-  const html = buildWalkReportHtml(project, walk, items, options, true)
+  const pdfDataUri = buildWalkReportPdfDoc(project, walk, items, { adjustedOnly: options.adjustedOnly }).output('datauristring') as string
+  const html = buildWalkReportHtml(project, walk, items, options, pdfDataUri)
   const blob = new Blob([html], { type: 'text/html' })
   const url = URL.createObjectURL(blob)
   const w = window.open(url, '_blank')
@@ -403,12 +412,12 @@ export function generateWalkReport(
   URL.revokeObjectURL(url)
 }
 
-export function buildWalkReportPdfBlob(
+function buildWalkReportPdfDoc(
   project: Project,
   walk: Walk,
   items: ScopeItem[],
   options: { adjustedOnly?: boolean } = {},
-): Blob {
+): InstanceType<typeof jsPDF> {
   const { adjustedOnly = false } = options
   const overrides = walk.itemOverrides ?? []
 
@@ -607,5 +616,14 @@ export function buildWalkReportPdfBlob(
     doc.text(`Page ${p} of ${pageCount}`, pageW - ML, 207, { align: 'right' })
   }
 
-  return doc.output('blob')
+  return doc
+}
+
+export function buildWalkReportPdfBlob(
+  project: Project,
+  walk: Walk,
+  items: ScopeItem[],
+  options: { adjustedOnly?: boolean } = {},
+): Blob {
+  return buildWalkReportPdfDoc(project, walk, items, options).output('blob')
 }

@@ -1,5 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
 
+type FlashMode = 'off' | 'auto' | 'torch'
+
+// Extended constraint set with non-standard camera controls
+interface CameraConstraintSet extends MediaTrackConstraintSet {
+  torch?: boolean
+  zoom?: number
+  pointsOfInterest?: Array<{ x: number; y: number }>
+  focusMode?: string
+}
+
 interface Props {
   onCapture: (dataUrls: string[]) => void
   onClose: () => void
@@ -9,43 +19,169 @@ export function CameraCapture({ onCapture, onClose }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const pinchDistRef = useRef<number | null>(null)
+
   const [captured, setCaptured] = useState<string[]>([])
   const [error, setError] = useState('')
-  const [flash, setFlash] = useState(false)
+  const [shutterFlash, setShutterFlash] = useState(false)
+  const [flashMode, setFlashMode] = useState<FlashMode>('off')
+  const [zoom, setZoom] = useState(1)
+  const [maxZoom, setMaxZoom] = useState(5)
+  const [hasHwZoom, setHasHwZoom] = useState(false)
+  const [hasTorch, setHasTorch] = useState(false)
+  const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
+    let mounted = true
     async function startCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
           audio: false,
         })
+        if (!mounted) { stream.getTracks().forEach(t => t.stop()); return }
         streamRef.current = stream
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
+        if (videoRef.current) videoRef.current.srcObject = stream
+
+        const track = stream.getVideoTracks()[0]
+        const caps = track.getCapabilities?.() as Record<string, unknown> | undefined
+        if (caps) {
+          if (caps.torch === true) setHasTorch(true)
+          const zc = caps.zoom
+          if (zc && typeof zc === 'object' && 'max' in zc) {
+            setHasHwZoom(true)
+            setMaxZoom(Math.min((zc as { max: number }).max, 10))
+          }
         }
       } catch {
-        setError('Camera access denied or unavailable.')
+        if (mounted) setError('Camera access denied or unavailable.')
       }
     }
     startCamera()
     return () => {
+      mounted = false
       streamRef.current?.getTracks().forEach(t => t.stop())
     }
   }, [])
 
-  function takePhoto() {
+  // Torch on/off based on flashMode
+  useEffect(() => {
+    const track = streamRef.current?.getVideoTracks()[0]
+    if (!track || !hasTorch) return
+    try {
+      track.applyConstraints({ advanced: [{ torch: flashMode === 'torch' } as CameraConstraintSet] }).catch(() => {})
+    } catch { /**/ }
+  }, [flashMode, hasTorch])
+
+  // Apply zoom (hardware or CSS)
+  useEffect(() => {
+    const track = streamRef.current?.getVideoTracks()[0]
+    if (hasHwZoom && track) {
+      try {
+        track.applyConstraints({ advanced: [{ zoom } as CameraConstraintSet] }).catch(() => {})
+      } catch { /**/ }
+    } else if (videoRef.current) {
+      videoRef.current.style.transform = zoom > 1 ? `scale(${zoom})` : ''
+    }
+  }, [zoom, hasHwZoom])
+
+  async function takePhoto() {
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas || video.readyState < 2) return
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    canvas.getContext('2d')!.drawImage(video, 0, 0)
+
+    setShutterFlash(true)
+    setTimeout(() => setShutterFlash(false), 130)
+
+    const track = streamRef.current?.getVideoTracks()[0]
+
+    // Auto flash: briefly activate torch during capture
+    if (flashMode === 'auto' && track && hasTorch) {
+      try {
+        await track.applyConstraints({ advanced: [{ torch: true } as CameraConstraintSet] })
+        await new Promise(r => setTimeout(r, 200))
+      } catch { /**/ }
+    }
+
+    // Orientation-aware capture
+    const vw = video.videoWidth
+    const vh = video.videoHeight
+    const angle = screen.orientation?.angle ?? 0
+    // If screen orientation disagrees with video aspect ratio, rotate the captured frame
+    const screenLandscape = window.innerWidth > window.innerHeight
+    const videoLandscape = vw > vh
+    const needsRotation = screenLandscape !== videoLandscape
+
+    const ctx = canvas.getContext('2d')!
+    if (needsRotation) {
+      canvas.width = vh
+      canvas.height = vw
+      ctx.translate(vh / 2, vw / 2)
+      ctx.rotate(angle === 270 ? -Math.PI / 2 : Math.PI / 2)
+      ctx.drawImage(video, -vw / 2, -vh / 2)
+    } else {
+      canvas.width = vw
+      canvas.height = vh
+      ctx.drawImage(video, 0, 0)
+    }
+
     const dataUrl = canvas.toDataURL('image/jpeg', 0.88)
     setCaptured(prev => [...prev, dataUrl])
-    // brief flash
-    setFlash(true)
-    setTimeout(() => setFlash(false), 120)
+
+    if (flashMode === 'auto' && track && hasTorch) {
+      try {
+        await track.applyConstraints({ advanced: [{ torch: false } as CameraConstraintSet] })
+      } catch { /**/ }
+    }
+  }
+
+  function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
+    if (e.touches.length === 2) {
+      pinchDistRef.current = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY,
+      )
+    }
+  }
+
+  function handleTouchMove(e: React.TouchEvent<HTMLDivElement>) {
+    if (e.touches.length !== 2 || pinchDistRef.current === null) return
+    const newDist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY,
+    )
+    const ratio = newDist / pinchDistRef.current
+    pinchDistRef.current = newDist
+    setZoom(prev => Math.max(1, Math.min(prev * ratio, maxZoom)))
+  }
+
+  function handleTouchEnd() {
+    pinchDistRef.current = null
+  }
+
+  function handleTapFocus(e: React.TouchEvent<HTMLDivElement>) {
+    if (e.touches.length !== 1 || pinchDistRef.current !== null) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const tx = e.touches[0].clientX - rect.left
+    const ty = e.touches[0].clientY - rect.top
+    setFocusPoint({ x: tx, y: ty })
+    setTimeout(() => setFocusPoint(null), 900)
+    const track = streamRef.current?.getVideoTracks()[0]
+    if (track) {
+      try {
+        track.applyConstraints({
+          advanced: [{
+            pointsOfInterest: [{ x: tx / rect.width, y: ty / rect.height }],
+            focusMode: 'manual',
+          } as CameraConstraintSet],
+        }).catch(() => {})
+      } catch { /**/ }
+    }
+  }
+
+  function cycleFlash() {
+    if (!hasTorch) return
+    setFlashMode(prev => prev === 'off' ? 'auto' : prev === 'auto' ? 'torch' : 'off')
   }
 
   function done() {
@@ -65,19 +201,41 @@ export function CameraCapture({ onCapture, onClose }: Props) {
         </div>
       ) : (
         <>
-          {/* Live viewfinder */}
-          <div className="flex-1 relative overflow-hidden">
+          {/* Viewfinder */}
+          <div
+            className="flex-1 relative overflow-hidden"
+            onTouchStart={(e) => { handleTouchStart(e); if (e.touches.length === 1) handleTapFocus(e) }}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
               className="absolute inset-0 w-full h-full object-cover"
+              style={{ transformOrigin: 'center' }}
             />
-            {/* Flash overlay */}
-            {flash && <div className="absolute inset-0 bg-white/70 pointer-events-none" />}
 
-            {/* Thumbnail strip at bottom of viewfinder */}
+            {/* Shutter flash overlay */}
+            {shutterFlash && <div className="absolute inset-0 bg-white/70 pointer-events-none" />}
+
+            {/* Tap-to-focus ring */}
+            {focusPoint && (
+              <div
+                className="absolute w-14 h-14 border-2 border-yellow-400 rounded pointer-events-none"
+                style={{ left: focusPoint.x - 28, top: focusPoint.y - 28, transition: 'opacity 0.8s', opacity: 0.9 }}
+              />
+            )}
+
+            {/* Zoom badge */}
+            {zoom !== 1 && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-[13px] font-semibold px-3 py-1 rounded-full pointer-events-none">
+                {zoom.toFixed(1)}×
+              </div>
+            )}
+
+            {/* Thumbnail strip */}
             {captured.length > 0 && (
               <div className="absolute bottom-0 left-0 right-0 p-3 flex gap-2 overflow-x-auto bg-gradient-to-t from-black/70 to-transparent">
                 {captured.map((src, i) => (
@@ -86,40 +244,79 @@ export function CameraCapture({ onCapture, onClose }: Props) {
                     <button
                       onClick={() => setCaptured(prev => prev.filter((_, j) => j !== i))}
                       className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-[11px] font-bold flex items-center justify-center shadow"
-                    >
-                      ×
-                    </button>
+                    >×</button>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Controls bar */}
-          <div className="flex items-center justify-between px-10 py-6 bg-black flex-shrink-0"
-               style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }}>
-            {/* Cancel */}
-            <button onClick={onClose} className="text-white/70 text-sm font-medium w-16">
-              Cancel
-            </button>
+          {/* Controls */}
+          <div className="bg-black flex-shrink-0" style={{ paddingBottom: 'max(0px, env(safe-area-inset-bottom))' }}>
+            {/* Top row: flash + zoom slider */}
+            <div className="flex items-center gap-3 px-5 pt-3 pb-1">
+              {/* Flash cycle button */}
+              <button
+                onClick={cycleFlash}
+                disabled={!hasTorch}
+                className="flex items-center gap-1.5 flex-shrink-0 disabled:opacity-30"
+              >
+                <svg
+                  className={`w-5 h-5 ${flashMode !== 'off' ? 'text-yellow-400' : 'text-white/40'}`}
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  {flashMode === 'off' ? (
+                    <g>
+                      <path d="M13 2L3 13h8l-2 9 10-11h-7z" opacity="0.35" />
+                      <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" d="M3 3l18 18" fill="none" />
+                    </g>
+                  ) : (
+                    <path d="M13 2L3 13h8l-2 9 10-11h-7z" />
+                  )}
+                </svg>
+                <span className={`text-[11px] font-semibold ${flashMode !== 'off' ? 'text-yellow-400' : 'text-white/40'}`}>
+                  {flashMode === 'off' ? 'Off' : flashMode === 'auto' ? 'Auto' : 'Torch'}
+                </span>
+              </button>
 
-            {/* Shutter button */}
-            <button
-              onClick={takePhoto}
-              className="w-18 h-18 flex items-center justify-center"
-              style={{ width: 72, height: 72 }}
-            >
-              <div className="w-16 h-16 rounded-full bg-white border-4 border-white/40 shadow-lg active:scale-95 transition-transform" />
-            </button>
+              {/* Zoom slider */}
+              <div className="flex-1 flex items-center gap-2">
+                <span className="text-[10px] text-white/40 flex-shrink-0">1×</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={maxZoom}
+                  step={0.1}
+                  value={zoom}
+                  onChange={e => setZoom(parseFloat(e.target.value))}
+                  className="flex-1"
+                  style={{ accentColor: 'white' }}
+                />
+                <span className="text-[10px] text-white/40 flex-shrink-0 w-7 text-right">{maxZoom}×</span>
+              </div>
+            </div>
 
-            {/* Done */}
-            <button
-              onClick={done}
-              disabled={captured.length === 0}
-              className="text-white text-sm font-semibold w-16 text-right disabled:opacity-30 transition-opacity"
-            >
-              Done{captured.length > 0 ? ` (${captured.length})` : ''}
-            </button>
+            {/* Shutter row */}
+            <div className="flex items-center justify-between px-10 py-5">
+              <button onClick={onClose} className="text-white/70 text-sm font-medium w-16">Cancel</button>
+
+              <button
+                onClick={takePhoto}
+                className="flex items-center justify-center"
+                style={{ width: 72, height: 72 }}
+              >
+                <div className="w-16 h-16 rounded-full bg-white border-4 border-white/40 shadow-lg active:scale-95 transition-transform" />
+              </button>
+
+              <button
+                onClick={done}
+                disabled={captured.length === 0}
+                className="text-white text-sm font-semibold w-16 text-right disabled:opacity-30 transition-opacity"
+              >
+                Done{captured.length > 0 ? ` (${captured.length})` : ''}
+              </button>
+            </div>
           </div>
 
           <canvas ref={canvasRef} className="hidden" />
