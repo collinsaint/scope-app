@@ -85,12 +85,13 @@ export function generateReport(project: Project): void {
   URL.revokeObjectURL(url)
 }
 
-export function generateWalkReport(
+function buildWalkReportHtml(
   project: Project,
   walk: Walk,
   items: ScopeItem[],
   options: { includePhotos?: boolean; adjustedOnly?: boolean } = {},
-): void {
+  autoPrint = false,
+): string {
   const { includePhotos = true, adjustedOnly = false } = options
   const overrides = walk.itemOverrides ?? []
   const allDataItems = items.filter(i => !i.isHeader && i.coverage?.toUpperCase() !== 'DRV')
@@ -352,13 +353,45 @@ export function generateWalkReport(
   </div>
 
   ${generalPhotosSection}${generalNotesSection}${fullScope}${customRoomSections}
+  ${autoPrint ? `<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},800)})</script>` : ''}
 </body>
 </html>`
+  return html
+}
 
+export function buildWalkReportBlob(
+  project: Project,
+  walk: Walk,
+  items: ScopeItem[],
+  options: { includePhotos?: boolean; adjustedOnly?: boolean } = {},
+): Blob {
+  return new Blob([buildWalkReportHtml(project, walk, items, options)], { type: 'text/html' })
+}
+
+export function openWalkReportPdf(
+  project: Project,
+  walk: Walk,
+  items: ScopeItem[],
+  options: { includePhotos?: boolean; adjustedOnly?: boolean } = {},
+): void {
+  const html = buildWalkReportHtml(project, walk, items, options, true)
   const blob = new Blob([html], { type: 'text/html' })
-  const url  = URL.createObjectURL(blob)
-  const a    = document.createElement('a')
-  a.href     = url
+  const url = URL.createObjectURL(blob)
+  const w = window.open(url, '_blank')
+  if (!w) window.location.href = url
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+export function generateWalkReport(
+  project: Project,
+  walk: Walk,
+  items: ScopeItem[],
+  options: { includePhotos?: boolean; adjustedOnly?: boolean } = {},
+): void {
+  const blob = buildWalkReportBlob(project, walk, items, options)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
   a.download = `walk-report-${walk.name.replace(/\s+/g, '-')}-${project.name.replace(/\s+/g, '-')}.html`
   a.click()
   URL.revokeObjectURL(url)

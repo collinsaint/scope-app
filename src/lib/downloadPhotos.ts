@@ -1,9 +1,9 @@
 import JSZip from 'jszip'
 import type { Walk } from '../types'
 
-export async function downloadWalkPhotos(walk: Walk, projectName: string): Promise<void> {
+export async function buildPhotosZipBlob(walk: Walk): Promise<Blob | null> {
   const photos = walk.roomPhotos ?? []
-  if (photos.length === 0) return
+  if (photos.length === 0) return null
 
   const zip = new JSZip()
   const root = zip.folder('walk-photos')!
@@ -24,7 +24,12 @@ export async function downloadWalkPhotos(walk: Walk, projectName: string): Promi
     })
   }
 
-  const blob = await zip.generateAsync({ type: 'blob' })
+  return zip.generateAsync({ type: 'blob' })
+}
+
+export async function downloadWalkPhotos(walk: Walk, projectName: string): Promise<void> {
+  const blob = await buildPhotosZipBlob(walk)
+  if (!blob) return
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

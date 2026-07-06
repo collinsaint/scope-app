@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import type { ScopeItem, Walk, WalkNote, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, WalkItemOverride } from '../types'
 import { useStore } from '../store/useStore'
-import { generateWalkReport } from '../lib/exportReport'
-import { downloadWalkPhotos } from '../lib/downloadPhotos'
+import { buildWalkReportBlob, openWalkReportPdf } from '../lib/exportReport'
+import { downloadWalkPhotos, buildPhotosZipBlob } from '../lib/downloadPhotos'
 import { uploadPhotoToOneDrive } from '../lib/oneDrive'
 import { useViewMode } from '../hooks/useViewMode'
 import { CameraCapture } from './CameraCapture'
@@ -283,6 +283,8 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
   const [showExportOptions, setShowExportOptions] = useState(false)
   const [exportIncludePhotos, setExportIncludePhotos] = useState(true)
   const [exportAdjustedOnly, setExportAdjustedOnly] = useState(false)
+  const [sendType, setSendType] = useState<'report' | 'photos' | 'both'>('both')
+  const [isSending, setIsSending] = useState(false)
   const [photoRoomPickerRoom, setPhotoRoomPickerRoom] = useState('_general_')
   const [newRoomInPicker, setNewRoomInPicker] = useState('')
   const [addingRoomInPicker, setAddingRoomInPicker] = useState(false)
@@ -295,6 +297,46 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
   function handleRemove(itemId: string) {
     const override = getOverride(itemId)
     updateWalkItem(projectId, walk.id, itemId, { removed: !override?.removed })
+  }
+
+  async function handleSend() {
+    if (!project) return
+    setIsSending(true)
+    try {
+      const reportOptions = { includePhotos: exportIncludePhotos, adjustedOnly: exportAdjustedOnly }
+      const files: File[] = []
+
+      if (sendType === 'report' || sendType === 'both') {
+        const blob = buildWalkReportBlob(project, walk, items, reportOptions)
+        files.push(new File([blob], `walk-report-${walk.name.replace(/\s+/g, '-')}.html`, { type: 'text/html' }))
+      }
+
+      if (sendType === 'photos' || sendType === 'both') {
+        const blob = await buildPhotosZipBlob(walk)
+        if (blob) files.push(new File([blob], `walk-photos-${walk.name.replace(/\s+/g, '-')}.zip`, { type: 'application/zip' }))
+      }
+
+      if (files.length === 0) return
+
+      const canShare = 'share' in navigator && navigator.canShare?.({ files })
+      if (canShare) {
+        await navigator.share({ files, title: `Walk Report — ${walk.name}` })
+      } else {
+        for (const file of files) {
+          const url = URL.createObjectURL(file)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = file.name
+          a.click()
+          URL.revokeObjectURL(url)
+        }
+      }
+      setShowExportOptions(false)
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') console.error('Share failed', err)
+    } finally {
+      setIsSending(false)
+    }
   }
 
   function openQtyPrompt(itemId: string) {
@@ -1923,50 +1965,110 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
       {showExportOptions && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-[calc(60px+env(safe-area-inset-bottom))] sm:pb-0">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowExportOptions(false)} />
-          <div className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-sm p-5 flex flex-col gap-4">
-            <h3 className="text-base font-semibold text-slate-900">Export Options</h3>
+          <div className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-sm flex flex-col max-h-[82dvh] overflow-y-auto">
+            <div className="p-5 flex flex-col gap-4">
+              <h3 className="text-base font-semibold text-slate-900">Export Report</h3>
 
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={exportIncludePhotos}
-                onChange={e => setExportIncludePhotos(e.target.checked)}
-                className="mt-0.5 w-4 h-4 accent-blue-600 cursor-pointer"
-              />
-              <div>
-                <p className="text-sm font-medium text-slate-800">Include photos</p>
-                <p className="text-xs text-slate-400 mt-0.5">Embed room and general photos in the report</p>
+              {/* Content options */}
+              <div className="flex flex-col gap-3">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Report Content</p>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exportIncludePhotos}
+                    onChange={e => setExportIncludePhotos(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-blue-600 cursor-pointer"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Include photos</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Embed room and general photos in the report</p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exportAdjustedOnly}
+                    onChange={e => setExportAdjustedOnly(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-blue-600 cursor-pointer"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Adjusted items only</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Only show removed, qty-changed, or noted items</p>
+                  </div>
+                </label>
               </div>
-            </label>
 
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={exportAdjustedOnly}
-                onChange={e => setExportAdjustedOnly(e.target.checked)}
-                className="mt-0.5 w-4 h-4 accent-blue-600 cursor-pointer"
-              />
-              <div>
-                <p className="text-sm font-medium text-slate-800">Adjusted items only</p>
-                <p className="text-xs text-slate-400 mt-0.5">Only include items that were removed, had a quantity change, or have inspection notes — plus all group and general notes</p>
+              <div className="border-t border-slate-100" />
+
+              {/* Export PDF */}
+              <div className="flex flex-col gap-1.5">
+                <button
+                  onClick={() => {
+                    setShowExportOptions(false)
+                    if (project) openWalkReportPdf(project, walk, items, { includePhotos: exportIncludePhotos, adjustedOnly: exportAdjustedOnly })
+                  }}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 active:bg-blue-800 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  Export PDF
+                </button>
+                <p className="text-[11px] text-center text-slate-400">Opens in new tab — use Print to save as PDF</p>
               </div>
-            </label>
 
-            <div className="flex justify-end gap-2 pt-1">
+              <div className="border-t border-slate-100" />
+
+              {/* Send Report */}
+              <div className="flex flex-col gap-3">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Send Report</p>
+                <div className="flex gap-2">
+                  {(['report', 'photos', 'both'] as const).map(opt => {
+                    const labels = { report: 'Report', photos: 'Photos', both: 'Both' }
+                    const hasPhotos = (walk.roomPhotos?.length ?? 0) > 0
+                    const disabled = (opt === 'photos' || opt === 'both') && !hasPhotos
+                    return (
+                      <button
+                        key={opt}
+                        onClick={() => !disabled && setSendType(opt)}
+                        disabled={disabled}
+                        className={`flex-1 py-2 text-xs font-medium rounded-lg border transition-colors ${
+                          sendType === opt
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : disabled
+                            ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600'
+                        }`}
+                      >
+                        {labels[opt]}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  {sendType === 'report' && 'HTML file — open in any browser, print to PDF'}
+                  {sendType === 'photos' && `ZIP of ${walk.roomPhotos?.length ?? 0} photos organized by room`}
+                  {sendType === 'both' && 'Report + photo ZIP, both attached'}
+                </p>
+                <button
+                  onClick={handleSend}
+                  disabled={isSending}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 active:bg-emerald-800 transition-colors disabled:opacity-50"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                  {isSending ? 'Preparing…' : ('share' in navigator ? 'Share' : 'Download')}
+                </button>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-100 p-4">
               <button
                 onClick={() => setShowExportOptions(false)}
-                className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                className="w-full py-2 text-sm text-slate-500 hover:text-slate-800 transition-colors"
               >
                 Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowExportOptions(false)
-                  if (project) generateWalkReport(project, walk, items, { includePhotos: exportIncludePhotos, adjustedOnly: exportAdjustedOnly })
-                }}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-              >
-                Export
               </button>
             </div>
           </div>
