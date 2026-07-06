@@ -36,7 +36,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-100">
+    <div className="flex overflow-hidden bg-slate-100" style={{ height: '100dvh' }}>
       <Sidebar view={view} onNavigate={navigate} />
       <main className={`flex-1 flex flex-col overflow-hidden ${isMobile ? 'pb-[60px]' : ''}`}>
         {view === 'dashboard' ? (
