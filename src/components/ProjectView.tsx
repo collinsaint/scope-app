@@ -350,12 +350,9 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
         }
 
         return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-[calc(60px+env(safe-area-inset-bottom))] sm:pb-0">
             <div className="absolute inset-0 bg-black/40" onClick={() => setAddRoomName(null)} />
-            <div
-              className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm sm:mx-4 flex flex-col"
-              style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-            >
+            <div className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm sm:mx-4 flex flex-col">
               {/* Handle bar (mobile) */}
               <div className="flex justify-center pt-3 pb-1 sm:hidden">
                 <div className="w-10 h-1 rounded-full bg-slate-300" />

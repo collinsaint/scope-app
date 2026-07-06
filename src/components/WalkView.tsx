@@ -280,6 +280,9 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
   const [roomHeaderDeleteConfirm, setRoomHeaderDeleteConfirm] = useState<string | null>(null)
   const [pendingPhotoAction, setPendingPhotoAction] = useState<'camera' | 'gallery' | null>(null)
+  const [showExportOptions, setShowExportOptions] = useState(false)
+  const [exportIncludePhotos, setExportIncludePhotos] = useState(true)
+  const [exportAdjustedOnly, setExportAdjustedOnly] = useState(false)
   const [photoRoomPickerRoom, setPhotoRoomPickerRoom] = useState('_general_')
   const [newRoomInPicker, setNewRoomInPicker] = useState('')
   const [addingRoomInPicker, setAddingRoomInPicker] = useState(false)
@@ -527,7 +530,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
               General Notes{generalNotes.length > 0 ? ` (${generalNotes.length})` : ''}
             </button>
             <button
-              onClick={() => project && generateWalkReport(project, walk, items)}
+              onClick={() => setShowExportOptions(true)}
               className="p-2 bg-blue-600 text-white rounded-lg"
               title="Export Report"
             >
@@ -658,7 +661,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
               General Note{generalNotes.length > 0 ? `s (${generalNotes.length})` : '(s)'}
             </button>
             <button
-              onClick={() => project && generateWalkReport(project, walk, items)}
+              onClick={() => setShowExportOptions(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1725,7 +1728,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
 
       {/* Room picker modal — shown before camera/gallery in Walk Photos */}
       {pendingPhotoAction && (
-        <div className="fixed inset-0 z-[55] flex items-end sm:items-center justify-center">
+        <div className="fixed inset-0 z-[55] flex items-end sm:items-center justify-center pb-[calc(60px+env(safe-area-inset-bottom))] sm:pb-0">
           <div className="absolute inset-0 bg-black/50" onClick={() => setPendingPhotoAction(null)} />
           <div
             className="relative bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md mx-0 sm:mx-4 flex flex-col"
@@ -1910,6 +1913,60 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Add Note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export options modal */}
+      {showExportOptions && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-[calc(60px+env(safe-area-inset-bottom))] sm:pb-0">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowExportOptions(false)} />
+          <div className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-sm p-5 flex flex-col gap-4">
+            <h3 className="text-base font-semibold text-slate-900">Export Options</h3>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={exportIncludePhotos}
+                onChange={e => setExportIncludePhotos(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-blue-600 cursor-pointer"
+              />
+              <div>
+                <p className="text-sm font-medium text-slate-800">Include photos</p>
+                <p className="text-xs text-slate-400 mt-0.5">Embed room and general photos in the report</p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={exportAdjustedOnly}
+                onChange={e => setExportAdjustedOnly(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-blue-600 cursor-pointer"
+              />
+              <div>
+                <p className="text-sm font-medium text-slate-800">Adjusted items only</p>
+                <p className="text-xs text-slate-400 mt-0.5">Only include items that were removed, had a quantity change, or have inspection notes — plus all group and general notes</p>
+              </div>
+            </label>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => setShowExportOptions(false)}
+                className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowExportOptions(false)
+                  if (project) generateWalkReport(project, walk, items, { includePhotos: exportIncludePhotos, adjustedOnly: exportAdjustedOnly })
+                }}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Export
               </button>
             </div>
           </div>

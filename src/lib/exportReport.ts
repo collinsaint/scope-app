@@ -85,9 +85,21 @@ export function generateReport(project: Project): void {
   URL.revokeObjectURL(url)
 }
 
-export function generateWalkReport(project: Project, walk: Walk, items: ScopeItem[]): void {
+export function generateWalkReport(
+  project: Project,
+  walk: Walk,
+  items: ScopeItem[],
+  options: { includePhotos?: boolean; adjustedOnly?: boolean } = {},
+): void {
+  const { includePhotos = true, adjustedOnly = false } = options
   const overrides = walk.itemOverrides ?? []
-  const dataItems = items.filter(i => !i.isHeader && i.coverage?.toUpperCase() !== 'DRV')
+  const allDataItems = items.filter(i => !i.isHeader && i.coverage?.toUpperCase() !== 'DRV')
+  const dataItems = adjustedOnly
+    ? allDataItems.filter(i => {
+        const ov = overrides.find(o => o.itemId === i.id)
+        return ov?.removed === true || ov?.qty !== undefined || (ov?.notes?.length ?? 0) > 0
+      })
+    : allDataItems
 
   function getOverride(itemId: string) {
     return overrides.find(o => o.itemId === itemId)
@@ -180,7 +192,7 @@ export function generateWalkReport(project: Project, walk: Walk, items: ScopeIte
       <td><span class="badge-added">Added</span></td>
     </tr>`).join('')
 
-    const photoGrid = photos.length > 0 ? `
+    const photoGrid = includePhotos && photos.length > 0 ? `
       <div class="photo-grid">
         ${photos.map((ph, i) => {
           const ext = ph.data.startsWith('data:image/png') ? 'png' : 'jpg'
@@ -213,7 +225,7 @@ export function generateWalkReport(project: Project, walk: Walk, items: ScopeIte
         <td style="color:#059669;font-weight:600;font-size:13px">${gn.qty !== undefined ? gn.qty : '—'}</td>
         <td>—</td><td>—</td><td><span class="badge-added">Added</span></td>
       </tr>`).join('')
-      const photoGrid = crPhotos.length > 0 ? `<div class="photo-grid">${crPhotos.map((ph, i) => {
+      const photoGrid = includePhotos && crPhotos.length > 0 ? `<div class="photo-grid">${crPhotos.map((ph, i) => {
         const ext = ph.data.startsWith('data:image/png') ? 'png' : 'jpg'
         const ts = new Date(ph.createdAt).toISOString().replace(/[:.]/g, '-').slice(0, 19)
         const fileName = `photo_${String(i + 1).padStart(2, '0')}_${fmtRoom(ph.room).replace(/\s+/g, '-')}_${ts}.${ext}`
@@ -226,7 +238,7 @@ export function generateWalkReport(project: Project, walk: Walk, items: ScopeIte
 
   // General notes section
   const generalPhotos = allRoomPhotos.filter(p => p.room === '_general_')
-  const generalPhotosSection = generalPhotos.length > 0 ? `
+  const generalPhotosSection = includePhotos && generalPhotos.length > 0 ? `
     <h3 class="room-heading" style="margin-top:0">General Photos</h3>
     <div class="photo-grid">
       ${generalPhotos.map((ph, i) => {
@@ -326,17 +338,17 @@ export function generateWalkReport(project: Project, walk: Walk, items: ScopeIte
 
   <div class="no-print" style="margin-bottom:24px;display:flex;gap:10px;align-items:center">
     <button onclick="window.print()" style="padding:8px 20px;background:#1d4ed8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px">Print / Save as PDF</button>
-    ${allRoomPhotos.length > 0 ? `<button id="dl-photos-btn" onclick="downloadAllPhotos()" style="padding:8px 20px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px">Download All Photos (${allRoomPhotos.length})</button>` : ''}
+    ${includePhotos && allRoomPhotos.length > 0 ? `<button id="dl-photos-btn" onclick="downloadAllPhotos()" style="padding:8px 20px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px">Download All Photos (${allRoomPhotos.length})</button>` : ''}
   </div>
 
   <div class="cards">
-    <div class="card"><div class="card-label">Total Items</div><div class="card-value">${dataItems.length}</div></div>
+    <div class="card"><div class="card-label">${adjustedOnly ? 'Adjusted Items' : 'Total Items'}</div><div class="card-value">${dataItems.length}${adjustedOnly ? ` / ${allDataItems.length}` : ''}</div></div>
     <div class="card"><div class="card-label">Removed</div><div class="card-value" style="color:#b91c1c">${removedCount}</div></div>
     <div class="card"><div class="card-label">Qty Updates</div><div class="card-value" style="color:#92400e">${qtyCount}</div></div>
     <div class="card"><div class="card-label">Inspection Notes</div><div class="card-value" style="color:#1d4ed8">${noteCount}</div></div>
     <div class="card"><div class="card-label">Group Notes</div><div class="card-value" style="color:#059669">${groupNoteCount}</div></div>
     <div class="card"><div class="card-label">General Notes</div><div class="card-value" style="color:#d97706">${generalNotes.length}</div></div>
-    <div class="card"><div class="card-label">Photos</div><div class="card-value" style="color:#7c3aed">${allRoomPhotos.length}</div></div>
+    ${includePhotos ? `<div class="card"><div class="card-label">Photos</div><div class="card-value" style="color:#7c3aed">${allRoomPhotos.length}</div></div>` : ''}
   </div>
 
   ${generalPhotosSection}${generalNotesSection}${fullScope}${customRoomSections}
