@@ -55,6 +55,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
   const [sketchLabel, setSketchLabel] = useState<SketchLabel>(SKETCH_LABELS[0])
   const sketchUploadRef = useRef<HTMLInputElement>(null)
   const [showNewWalk, setShowNewWalk] = useState(false)
+  const [showWalkBar, setShowWalkBar] = useState(false)
   const [addRoomName, setAddRoomName] = useState<string | null>(null)
   const [activeWalkId, setActiveWalkId] = useState<string | null>(() => {
     const proj = useStore.getState().projects.find(p => p.id === projectId)
@@ -242,9 +243,20 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
             </div>
           )}
 
-          {/* Mobile compact actions — comments + export only */}
+          {/* Mobile compact actions — walk toggle + comments + export */}
           {isMobile && (
             <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => setShowWalkBar(v => !v)}
+                className={`p-2 rounded-lg border transition-colors ${showWalkBar ? 'bg-slate-700 text-white border-slate-700' : 'border-slate-700 text-slate-400'}`}
+                title="Toggle walk selector"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="3" y1="6" x2="21" y2="6"/>
+                  <line x1="3" y1="12" x2="21" y2="12"/>
+                  <line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+              </button>
               <button
                 onClick={() => setActiveView(v => v === 'comments' ? 'scope' : 'comments')}
                 className={`p-2 rounded-lg border transition-colors ${activeView === 'comments' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-700 text-slate-400'}`}
@@ -259,8 +271,8 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
           )}
         </div>
 
-        {/* Mobile: walk + scope switcher row */}
-        {isMobile && (
+        {/* Mobile: walk + scope switcher row — toggled by hamburger */}
+        {isMobile && showWalkBar && (
           <div className="flex items-center gap-2 px-4 pb-2.5">
             <select
               value={activeWalkId ?? ''}
