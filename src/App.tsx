@@ -40,6 +40,10 @@ export default function App() {
 
   // On login: load projects from Supabase
   const prevUserIdRef = useRef<string | null>(null)
+  const prevProjectsRef = useRef(projects)
+  const prevProjectIdsRef = useRef(new Set(projects.map(p => p.id)))
+  const loadingFromSupabase = useRef(false)
+
   useEffect(() => {
     if (!user) {
       prevUserIdRef.current = null
@@ -49,16 +53,21 @@ export default function App() {
     prevUserIdRef.current = user.id
 
     async function loadFromSupabase() {
+      loadingFromSupabase.current = true
       setSyncing(true)
+      // Clear local state first — prevents another user's localStorage data showing
+      replaceProjects([])
       const remoteProjects = await loadProjectsFromSupabase()
       if (remoteProjects.length > 0) {
         replaceProjects(remoteProjects)
-      } else if (projects.length > 0) {
-        // First login — migrate existing local projects to Supabase
-        await Promise.all(projects.filter(p => !p.isDemo).map(p => syncProjectToSupabase(p, user!.id)))
+        // Pre-seed refs so the sync effect sees no diff and skips re-uploading
+        prevProjectsRef.current = remoteProjects
+        prevProjectIdsRef.current = new Set(remoteProjects.map(p => p.id))
       } else {
+        // No projects in Supabase yet — show demo so dashboard isn't empty
         seedDemoProject()
       }
+      loadingFromSupabase.current = false
       setSyncing(false)
     }
     loadFromSupabase()
@@ -66,10 +75,8 @@ export default function App() {
   }, [user?.id])
 
   // Sync project changes to Supabase
-  const prevProjectsRef = useRef(projects)
-  const prevProjectIdsRef = useRef(new Set(projects.map(p => p.id)))
   useEffect(() => {
-    if (!user) return
+    if (!user || loadingFromSupabase.current) return
     const prev = prevProjectsRef.current
     const prevIds = prevProjectIdsRef.current
     const currentIds = new Set(projects.map(p => p.id))
