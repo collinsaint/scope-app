@@ -158,8 +158,6 @@ export default function App() {
             onOpenProjectDetails={(id) => openProject(id, 'details')}
             onOpenProjectScope={activeProjectId ? () => openProject(activeProjectId, 'scope') : undefined}
             activeProjectSubView={projectSubView}
-            onSignOut={signOut}
-            userEmail={user?.email}
           />
         )}
       </div>

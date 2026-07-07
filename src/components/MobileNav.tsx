@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { useViewMode } from '../hooks/useViewMode'
 
@@ -9,93 +10,125 @@ interface Props {
   onOpenProjectDetails: (id: string) => void
   onOpenProjectScope?: () => void
   activeProjectSubView?: 'scope' | 'details' | 'comments'
-  onSignOut?: () => void
-  userEmail?: string
 }
 
-export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjectScope, activeProjectSubView, onSignOut }: Props) {
+export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjectScope, activeProjectSubView }: Props) {
   const { projects, activeProjectId } = useStore()
   const { toggle } = useViewMode()
   const activeProject = projects.find(p => p.id === activeProjectId)
+  const [showSettingsPicker, setShowSettingsPicker] = useState(false)
 
   const isSettings = view === 'contractor-settings' || view === 'user-settings'
   const isScopeActive = view === 'project' && activeProjectSubView === 'scope'
   const isDetailsActive = view === 'project' && activeProjectSubView === 'details'
 
+  function handleSettingsPress() {
+    setShowSettingsPicker(v => !v)
+  }
+
+  function goToSettings(target: 'contractor-settings' | 'user-settings') {
+    onNavigate(target)
+    setShowSettingsPicker(false)
+  }
+
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700/60 z-50 flex items-stretch"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)', minHeight: '60px' }}
-    >
-      {/* Dashboard */}
-      <button
-        onClick={() => onNavigate('dashboard')}
-        className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${
-          view === 'dashboard' ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'
-        }`}
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-          <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-        </svg>
-        <span className="text-[10px] font-medium leading-none">Dashboard</span>
-      </button>
-
-      {/* Project Scope shortcut — only visible while in a project */}
-      {view === 'project' && onOpenProjectScope && (
-        <button
-          onClick={onOpenProjectScope}
-          className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${isScopeActive ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'}`}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-          </svg>
-          <span className="text-[10px] font-medium leading-none">Project Scope</span>
-        </button>
+    <>
+      {/* Settings picker sheet */}
+      {showSettingsPicker && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setShowSettingsPicker(false)}
+          />
+          <div
+            className="fixed left-0 right-0 z-40 bg-slate-800 border-t border-slate-700 shadow-xl"
+            style={{ bottom: 'calc(60px + env(safe-area-inset-bottom))' }}
+          >
+            <div className="p-3 flex flex-col gap-1">
+              <button
+                onClick={() => goToSettings('contractor-settings')}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors text-left ${view === 'contractor-settings' ? 'bg-blue-600/20 text-blue-300' : 'text-slate-200 hover:bg-slate-700'}`}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+                </svg>
+                Contractor Settings
+              </button>
+              <button
+                onClick={() => goToSettings('user-settings')}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors text-left ${view === 'user-settings' ? 'bg-blue-600/20 text-blue-300' : 'text-slate-200 hover:bg-slate-700'}`}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                </svg>
+                User Settings
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
-      {/* Project Details shortcut */}
-      {activeProject && (
-        <button
-          onClick={() => onOpenProjectDetails(activeProjectId!)}
-          className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${isDetailsActive ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'}`}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-          </svg>
-          <span className="text-[10px] font-medium leading-none">Project Details</span>
-        </button>
-      )}
-
-      {/* Settings */}
-      <button
-        onClick={() => onNavigate('contractor-settings')}
-        className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${
-          isSettings ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'
-        }`}
+      <nav
+        className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700/60 z-50 flex items-stretch"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)', minHeight: '60px' }}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-        </svg>
-        <span className="text-[10px] font-medium leading-none">Settings</span>
-      </button>
-
-      {/* Sign out (if logged in) */}
-      {onSignOut ? (
+        {/* Dashboard */}
         <button
-          onClick={onSignOut}
-          className="flex-1 flex flex-col items-center justify-center gap-1 py-3 text-slate-500 active:text-red-400 transition-colors"
+          onClick={() => { onNavigate('dashboard'); setShowSettingsPicker(false) }}
+          className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${
+            view === 'dashboard' ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'
+          }`}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
           </svg>
-          <span className="text-[10px] font-medium leading-none">Sign Out</span>
+          <span className="text-[10px] font-medium leading-none">Dashboard</span>
         </button>
-      ) : (
-        /* Web mode toggle */
+
+        {/* Project Scope shortcut */}
+        {view === 'project' && onOpenProjectScope && (
+          <button
+            onClick={() => { onOpenProjectScope(); setShowSettingsPicker(false) }}
+            className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${isScopeActive ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'}`}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+            </svg>
+            <span className="text-[10px] font-medium leading-none">Project Scope</span>
+          </button>
+        )}
+
+        {/* Project Details shortcut */}
+        {activeProject && (
+          <button
+            onClick={() => { onOpenProjectDetails(activeProjectId!); setShowSettingsPicker(false) }}
+            className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${isDetailsActive ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'}`}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <span className="text-[10px] font-medium leading-none">Project Details</span>
+          </button>
+        )}
+
+        {/* Settings — opens picker */}
         <button
-          onClick={toggle}
+          onClick={handleSettingsPress}
+          className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${
+            isSettings || showSettingsPicker ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'
+          }`}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+          <span className="text-[10px] font-medium leading-none">Settings</span>
+        </button>
+
+        {/* Web Mode */}
+        <button
+          onClick={() => { toggle(); setShowSettingsPicker(false) }}
           className="flex-1 flex flex-col items-center justify-center gap-1 py-3 text-slate-500 active:text-slate-200 transition-colors"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -105,7 +138,7 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
           </svg>
           <span className="text-[10px] font-medium leading-none">Web Mode</span>
         </button>
-      )}
-    </nav>
+      </nav>
+    </>
   )
 }

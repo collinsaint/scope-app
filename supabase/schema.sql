@@ -57,18 +57,18 @@ CREATE POLICY "projects_select_granted" ON public.projects
     )
   );
 
--- Project access: owner can manage grants
-CREATE POLICY "access_all_owner" ON public.project_access
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.projects
-      WHERE id = project_id AND owner_id = auth.uid()
-    )
-  );
+-- Project access: owner (granted_by) can manage grants; participants can view
+CREATE POLICY "access_select_participant" ON public.project_access
+  FOR SELECT USING (granted_by = auth.uid() OR user_id = auth.uid());
 
--- Project access: grantee can see their own grant
-CREATE POLICY "access_select_self" ON public.project_access
-  FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "access_insert_owner" ON public.project_access
+  FOR INSERT WITH CHECK (granted_by = auth.uid());
+
+CREATE POLICY "access_update_owner" ON public.project_access
+  FOR UPDATE USING (granted_by = auth.uid());
+
+CREATE POLICY "access_delete_owner" ON public.project_access
+  FOR DELETE USING (granted_by = auth.uid());
 
 -- ─── Auto-create profile on signup ────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.handle_new_user()
