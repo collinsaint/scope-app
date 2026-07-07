@@ -24,6 +24,7 @@ export function CameraCapture({ onCapture, onClose }: Props) {
   const [maxZoom, setMaxZoom] = useState(5)
   const [hasHwZoom, setHasHwZoom] = useState(false)
   const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null)
+  const [viewRotation, setViewRotation] = useState<0 | -90>(0)
 
   useEffect(() => {
     let mounted = true
@@ -57,15 +58,14 @@ export function CameraCapture({ onCapture, onClose }: Props) {
     }
   }, [])
 
-  // Apply zoom (hardware or CSS scale)
+  // Hardware zoom via track constraints; CSS zoom handled in video style
   useEffect(() => {
+    if (!hasHwZoom) return
     const track = streamRef.current?.getVideoTracks()[0]
-    if (hasHwZoom && track) {
+    if (track) {
       try {
         track.applyConstraints({ advanced: [{ zoom } as CameraConstraintSet] }).catch(() => {})
       } catch { /**/ }
-    } else if (videoRef.current) {
-      videoRef.current.style.transform = zoom > 1 ? `scale(${zoom})` : ''
     }
   }, [zoom, hasHwZoom])
 
@@ -79,14 +79,26 @@ export function CameraCapture({ onCapture, onClose }: Props) {
 
     const vw = video.videoWidth
     const vh = video.videoHeight
-    canvas.width = vw
-    canvas.height = vh
-    canvas.getContext('2d')!.drawImage(video, 0, 0)
+
+    if (viewRotation === -90) {
+      // Rotate frame CCW — output dimensions flip
+      canvas.width = vh
+      canvas.height = vw
+      const ctx = canvas.getContext('2d')!
+      ctx.translate(canvas.width / 2, canvas.height / 2)
+      ctx.rotate(-Math.PI / 2)
+      ctx.drawImage(video, -vw / 2, -vh / 2)
+    } else {
+      canvas.width = vw
+      canvas.height = vh
+      canvas.getContext('2d')!.drawImage(video, 0, 0)
+    }
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.88)
     setCaptured(prev => [...prev, dataUrl])
   }
 
+  // Rotate thumbnail CCW in-place
   async function rotatePhoto(index: number) {
     const src = captured[index]
     const img = new Image()
@@ -97,7 +109,7 @@ export function CameraCapture({ onCapture, onClose }: Props) {
     c.height = img.width
     const ctx = c.getContext('2d')!
     ctx.translate(c.width / 2, c.height / 2)
-    ctx.rotate(Math.PI / 2)
+    ctx.rotate(-Math.PI / 2)  // counter-clockwise
     ctx.drawImage(img, -img.width / 2, -img.height / 2)
     const rotated = c.toDataURL('image/jpeg', 0.88)
     setCaptured(prev => prev.map((p, i) => i === index ? rotated : p))
@@ -152,6 +164,24 @@ export function CameraCapture({ onCapture, onClose }: Props) {
     onClose()
   }
 
+  // Video element style: when rotated -90° use 100vh/100vw swap trick to fill portrait frame
+  const videoStyle: React.CSSProperties = viewRotation === -90
+    ? {
+        position: 'absolute',
+        top: '50%', left: '50%', right: 'auto', bottom: 'auto',
+        width: '100vh', height: '100vw',
+        objectFit: 'cover',
+        transform: `translate(-50%, -50%) rotate(-90deg)${!hasHwZoom && zoom > 1 ? ` scale(${zoom})` : ''}`,
+      }
+    : {
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        width: '100%', height: '100%',
+        objectFit: 'cover',
+        transformOrigin: 'center',
+        transform: !hasHwZoom && zoom > 1 ? `scale(${zoom})` : 'none',
+      }
+
   return (
     <div className="fixed inset-0 z-[60] bg-black flex flex-col">
       {error ? (
@@ -171,14 +201,7 @@ export function CameraCapture({ onCapture, onClose }: Props) {
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ transformOrigin: 'center' }}
-            />
+            <video ref={videoRef} autoPlay playsInline muted style={videoStyle} />
 
             {/* Shutter flash overlay */}
             {shutterFlash && <div className="absolute inset-0 bg-white/70 pointer-events-none" />}
@@ -198,6 +221,13 @@ export function CameraCapture({ onCapture, onClose }: Props) {
               </div>
             )}
 
+            {/* Landscape mode badge */}
+            {viewRotation === -90 && (
+              <div className="absolute top-4 right-4 bg-amber-500/90 text-white text-[11px] font-semibold px-2 py-1 rounded-full pointer-events-none">
+                Landscape
+              </div>
+            )}
+
             {/* Thumbnail strip */}
             {captured.length > 0 && (
               <div className="absolute bottom-0 left-0 right-0 p-3 flex gap-2 overflow-x-auto bg-gradient-to-t from-black/70 to-transparent">
@@ -209,14 +239,14 @@ export function CameraCapture({ onCapture, onClose }: Props) {
                       onClick={() => setCaptured(prev => prev.filter((_, j) => j !== i))}
                       className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-[11px] font-bold flex items-center justify-center shadow"
                     >×</button>
-                    {/* Rotate */}
+                    {/* Rotate CCW */}
                     <button
                       onClick={() => rotatePhoto(i)}
                       className="absolute -bottom-1.5 -right-1.5 w-5 h-5 bg-slate-700 text-white rounded-full flex items-center justify-center shadow"
-                      title="Rotate 90°"
+                      title="Rotate counter-clockwise"
                     >
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+                        <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
                       </svg>
                     </button>
                   </div>
@@ -227,8 +257,21 @@ export function CameraCapture({ onCapture, onClose }: Props) {
 
           {/* Controls */}
           <div className="bg-black flex-shrink-0" style={{ paddingBottom: 'max(0px, env(safe-area-inset-bottom))' }}>
-            {/* Zoom slider */}
-            <div className="flex items-center gap-2 px-5 pt-3 pb-1">
+            {/* Rotate-view + zoom row */}
+            <div className="flex items-center gap-3 px-5 pt-3 pb-1">
+              {/* Rotate view CCW — toggles between portrait and landscape */}
+              <button
+                onClick={() => setViewRotation(r => r === 0 ? -90 : 0)}
+                className={`flex items-center gap-1.5 flex-shrink-0 px-2.5 py-1.5 rounded-lg border transition-colors ${viewRotation === -90 ? 'border-amber-400 text-amber-400' : 'border-white/20 text-white/50'}`}
+                title="Rotate view counter-clockwise"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
+                </svg>
+                <span className="text-[11px] font-semibold">{viewRotation === -90 ? 'Landscape' : 'Rotate'}</span>
+              </button>
+
+              {/* Zoom slider */}
               <span className="text-[10px] text-white/40 flex-shrink-0">1×</span>
               <input
                 type="range"
