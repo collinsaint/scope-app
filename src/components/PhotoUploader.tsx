@@ -2,31 +2,12 @@ import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useStore } from '../store/useStore'
 import { uploadPhotoToOneDrive } from '../lib/oneDrive'
+import { compressPhoto } from '../lib/compressPhoto'
 
 interface Props {
   projectId: string
   itemId: string
   photos: string[]
-}
-
-function resizeImage(file: File, maxWidth = 900, quality = 0.75): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      const scale = Math.min(1, maxWidth / img.width)
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.round(img.width * scale)
-      canvas.height = Math.round(img.height * scale)
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return reject(new Error('No canvas context'))
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      resolve(canvas.toDataURL('image/jpeg', quality))
-    }
-    img.onerror = reject
-    img.src = url
-  })
 }
 
 export function PhotoUploader({ projectId, itemId, photos }: Props) {
@@ -37,8 +18,9 @@ export function PhotoUploader({ projectId, itemId, photos }: Props) {
     setUploading(true)
     const project = useStore.getState().projects.find(p => p.id === projectId)
     for (const file of accepted) {
+      const url = URL.createObjectURL(file)
       try {
-        const dataUrl = await resizeImage(file)
+        const dataUrl = await compressPhoto(url)
         addPhoto(projectId, itemId, dataUrl)
 
         // Fire-and-forget OneDrive sync — never blocks the UI
@@ -46,7 +28,9 @@ export function PhotoUploader({ projectId, itemId, photos }: Props) {
           const fileName = `${itemId}_${Date.now()}.jpg`
           uploadPhotoToOneDrive(oneDrive.rootFolderName, project.name, dataUrl, fileName).catch(() => {})
         }
-      } catch { /* skip failed */ }
+      } catch { /* skip failed */ } finally {
+        URL.revokeObjectURL(url)
+      }
     }
     setUploading(false)
   }, [projectId, itemId, addPhoto, oneDrive])

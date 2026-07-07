@@ -81,35 +81,37 @@ function activityLabel(a: string): string {
 
 async function stampPhoto(file: File, projectName: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        canvas.width = img.naturalWidth
-        canvas.height = img.naturalHeight
-        const ctx = canvas.getContext('2d')!
-        ctx.drawImage(img, 0, 0)
-        const ts = new Date().toLocaleString('en-US', {
-          month: 'short', day: 'numeric', year: 'numeric',
-          hour: 'numeric', minute: '2-digit', hour12: true,
-        })
-        const label = `${projectName}  ·  ${ts}`
-        const fontSize = Math.max(14, Math.round(img.naturalWidth / 50))
-        const pad = Math.round(fontSize * 0.6)
-        ctx.font = `600 ${fontSize}px system-ui, sans-serif`
-        const tw = ctx.measureText(label).width
-        ctx.fillStyle = 'rgba(0,0,0,0.55)'
-        ctx.fillRect(img.naturalWidth - tw - pad * 2, img.naturalHeight - fontSize - pad * 2, tw + pad * 2, fontSize + pad * 2)
-        ctx.fillStyle = '#ffffff'
-        ctx.fillText(label, img.naturalWidth - tw - pad, img.naturalHeight - pad)
-        resolve(canvas.toDataURL('image/jpeg', 0.88))
-      }
-      img.onerror = reject
-      img.src = reader.result as string
+    const objUrl = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(objUrl)
+      const MAX_DIM = 2048
+      const scale = Math.min(1, MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight))
+      const w = Math.round(img.naturalWidth * scale)
+      const h = Math.round(img.naturalHeight * scale)
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, w, h)
+      const ts = new Date().toLocaleString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true,
+      })
+      const label = `${projectName}  ·  ${ts}`
+      const fontSize = Math.max(14, Math.round(w / 50))
+      const pad = Math.round(fontSize * 0.6)
+      ctx.font = `600 ${fontSize}px system-ui, sans-serif`
+      const tw = ctx.measureText(label).width
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'
+      ctx.fillRect(w - tw - pad * 2, h - fontSize - pad * 2, tw + pad * 2, fontSize + pad * 2)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText(label, w - tw - pad, h - pad)
+      const webp = canvas.toDataURL('image/webp', 0.88)
+      resolve(webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/jpeg', 0.88))
     }
-    reader.onerror = reject
-    reader.readAsDataURL(file)
+    img.onerror = reject
+    img.src = objUrl
   })
 }
 

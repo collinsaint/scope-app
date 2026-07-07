@@ -94,7 +94,8 @@ export function CameraCapture({ onCapture, onClose }: Props) {
       canvas.getContext('2d')!.drawImage(video, 0, 0)
     }
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.88)
+    const webp = canvas.toDataURL('image/webp', 0.88)
+    const dataUrl = webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/jpeg', 0.88)
     setCaptured(prev => [...prev, dataUrl])
   }
 
@@ -111,7 +112,8 @@ export function CameraCapture({ onCapture, onClose }: Props) {
     ctx.translate(c.width / 2, c.height / 2)
     ctx.rotate(-Math.PI / 2)
     ctx.drawImage(img, -img.width / 2, -img.height / 2)
-    const rotated = c.toDataURL('image/jpeg', 0.88)
+    const rotatedWebp = c.toDataURL('image/webp', 0.88)
+    const rotated = rotatedWebp.startsWith('data:image/webp') ? rotatedWebp : c.toDataURL('image/jpeg', 0.88)
     setCaptured(prev => prev.map((p, i) => i === index ? rotated : p))
   }
 
