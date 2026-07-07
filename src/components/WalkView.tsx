@@ -161,7 +161,7 @@ function MobileWalkCard({ item, override, isRemoved, hasQty, hasNotes, notes, on
                 {isRemoved ? 'Removed' : 'Modified'}
               </span>
             )}
-            <p className={`text-sm font-medium leading-snug ${isRemoved ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+            <p className={`text-xs font-medium leading-snug ${isRemoved ? 'line-through text-slate-400' : 'text-slate-800'}`}>
               {item.description}
             </p>
           </div>
@@ -1253,74 +1253,81 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
           style={keyboardHeight > 0 ? { paddingBottom: keyboardHeight } : undefined}
         >
           <div className="absolute inset-0 bg-black/40" onClick={() => { setGroupNotePrompt(null); setGroupNoteDeleteConfirm(null) }} />
-          <div className="relative bg-white rounded-t-2xl sm:rounded-xl shadow-xl p-6 w-full max-w-md sm:mx-4 flex flex-col gap-4">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900">Add Group Note</h3>
-              <p className="text-xs text-slate-400 mt-0.5">{roomLabel(groupNotePrompt.room)}</p>
-            </div>
-
-            {/* Existing group notes for this room */}
-            {groupNotes.filter(n => n.room === groupNotePrompt.room).length > 0 && (
-              <div className="flex flex-col gap-2">
-                <p className="text-xs font-medium text-slate-500">Existing group notes</p>
-                <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
-                  {groupNotes.filter(n => n.room === groupNotePrompt.room).map(gn => (
-                    <div key={gn.id} className="rounded-lg border border-teal-100 bg-teal-50 overflow-hidden">
-                      {groupNoteDeleteConfirm === gn.id ? (
-                        <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-                          <p className="text-xs text-slate-700">Delete this note?</p>
-                          <div className="flex gap-1.5 flex-shrink-0">
-                            <button onClick={() => setGroupNoteDeleteConfirm(null)} className="px-2.5 py-1 text-[11px] border border-slate-200 rounded text-slate-600 hover:bg-white transition-colors">Cancel</button>
-                            <button onClick={() => { deleteWalkGroupNote(projectId, walk.id, gn.id); setGroupNoteDeleteConfirm(null) }} className="px-2.5 py-1 text-[11px] bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium">Delete</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-start justify-between gap-3 px-3 py-2.5">
-                          <div className="flex flex-col gap-0.5 min-w-0">
-                            <p className="text-xs text-slate-700 leading-snug break-words">{gn.text}</p>
-                            {gn.qty !== undefined && <p className="text-[10px] text-teal-600 font-medium">Qty: {gn.qty}</p>}
-                            <p className="text-[10px] text-slate-400">{formatNoteDate(gn.createdAt)}</p>
-                          </div>
-                          <button onClick={() => setGroupNoteDeleteConfirm(gn.id)} className="flex-shrink-0 text-slate-300 hover:text-red-500 transition-colors mt-0.5" title="Delete note">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+          <div className="relative bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full max-w-md sm:mx-4 flex flex-col" style={{ maxHeight: '85dvh' }}>
+            {/* Scrollable body */}
+            <div className="flex flex-col gap-4 p-6 pb-3 overflow-y-auto flex-1">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Add Group Note</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{roomLabel(groupNotePrompt.room)}</p>
               </div>
-            )}
 
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Note</label>
-              <textarea
-                rows={3}
-                placeholder="Enter a group note…"
-                value={groupNotePrompt.text}
-                onChange={e => setGroupNotePrompt(p => p ? { ...p, text: e.target.value } : null)}
-                onKeyDown={e => { if (e.key === 'Escape') { setGroupNotePrompt(null); setGroupNoteDeleteConfirm(null) } }}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
-                autoFocus
-              />
+              {/* Existing group notes — scrollable list */}
+              {groupNotes.filter(n => n.room === groupNotePrompt.room).length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs font-medium text-slate-500">
+                    Existing notes ({groupNotes.filter(n => n.room === groupNotePrompt.room).length})
+                  </p>
+                  <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-0.5">
+                    {groupNotes.filter(n => n.room === groupNotePrompt.room).map(gn => (
+                      <div key={gn.id} className="rounded-lg border border-teal-100 bg-teal-50 overflow-hidden flex-shrink-0">
+                        {groupNoteDeleteConfirm === gn.id ? (
+                          <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                            <p className="text-xs text-slate-700">Delete this note?</p>
+                            <div className="flex gap-1.5 flex-shrink-0">
+                              <button onClick={() => setGroupNoteDeleteConfirm(null)} className="px-2.5 py-1 text-[11px] border border-slate-200 rounded text-slate-600 hover:bg-white transition-colors">Cancel</button>
+                              <button onClick={() => { deleteWalkGroupNote(projectId, walk.id, gn.id); setGroupNoteDeleteConfirm(null) }} className="px-2.5 py-1 text-[11px] bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium">Delete</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start justify-between gap-3 px-3 py-2.5">
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                              <p className="text-xs text-slate-700 leading-snug break-words">{gn.text}</p>
+                              {gn.qty !== undefined && <p className="text-[10px] text-teal-600 font-medium">Qty: {gn.qty}</p>}
+                              <p className="text-[10px] text-slate-400">{formatNoteDate(gn.createdAt)}</p>
+                            </div>
+                            <button onClick={() => setGroupNoteDeleteConfirm(gn.id)} className="flex-shrink-0 text-slate-300 hover:text-red-500 transition-colors mt-0.5" title="Delete note">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Note</label>
+                <textarea
+                  key={groupNotes.filter(n => n.room === groupNotePrompt.room).length}
+                  rows={3}
+                  placeholder="Enter a group note…"
+                  value={groupNotePrompt.text}
+                  onChange={e => setGroupNotePrompt(p => p ? { ...p, text: e.target.value } : null)}
+                  onKeyDown={e => { if (e.key === 'Escape') { setGroupNotePrompt(null); setGroupNoteDeleteConfirm(null) } }}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Proposed Quantity <span className="text-slate-400 font-normal">(optional)</span></label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0.00"
+                  value={groupNotePrompt.qty}
+                  onChange={e => setGroupNotePrompt(p => p ? { ...p, qty: e.target.value } : null)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Proposed Quantity <span className="text-slate-400 font-normal">(optional)</span></label>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                placeholder="0.00"
-                value={groupNotePrompt.qty}
-                onChange={e => setGroupNotePrompt(p => p ? { ...p, qty: e.target.value } : null)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2">
+            {/* Pinned action buttons */}
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100 flex-shrink-0">
               <button onClick={() => { setGroupNotePrompt(null); setGroupNoteDeleteConfirm(null) }} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
                 Close
               </button>
@@ -1761,73 +1768,80 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
       {generalNotePrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => { setGeneralNotePrompt(null); setGeneralNoteDeleteConfirm(null) }} />
-          <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4 flex flex-col gap-4">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900">General Notes</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Notes attached to this walk report, not tied to any room.</p>
-            </div>
-
-            {generalNotes.length > 0 && (
-              <div className="flex flex-col gap-2">
-                <p className="text-xs font-medium text-slate-500">Existing notes</p>
-                <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
-                  {generalNotes.map(gn => (
-                    <div key={gn.id} className="rounded-lg border border-amber-100 bg-amber-50 overflow-hidden">
-                      {generalNoteDeleteConfirm === gn.id ? (
-                        <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-                          <p className="text-xs text-slate-700">Delete this note?</p>
-                          <div className="flex gap-1.5 flex-shrink-0">
-                            <button onClick={() => setGeneralNoteDeleteConfirm(null)} className="px-2.5 py-1 text-[11px] border border-slate-200 rounded text-slate-600 hover:bg-white transition-colors">Cancel</button>
-                            <button onClick={() => { deleteWalkGeneralNote(projectId, walk.id, gn.id); setGeneralNoteDeleteConfirm(null) }} className="px-2.5 py-1 text-[11px] bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium">Delete</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-start justify-between gap-3 px-3 py-2.5">
-                          <div className="flex flex-col gap-0.5 min-w-0">
-                            <p className="text-xs text-slate-700 leading-snug break-words">{gn.text}</p>
-                            {gn.qty !== undefined && <p className="text-[10px] text-amber-600 font-medium">Qty: {gn.qty}</p>}
-                            <p className="text-[10px] text-slate-400">{formatNoteDate(gn.createdAt)}</p>
-                          </div>
-                          <button onClick={() => setGeneralNoteDeleteConfirm(gn.id)} className="flex-shrink-0 text-slate-300 hover:text-red-500 transition-colors mt-0.5" title="Delete note">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4 flex flex-col" style={{ maxHeight: '85dvh' }}>
+            {/* Scrollable body */}
+            <div className="flex flex-col gap-4 p-6 pb-3 overflow-y-auto flex-1">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">General Notes</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Notes attached to this walk report, not tied to any room.</p>
               </div>
-            )}
 
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Note</label>
-              <textarea
-                rows={3}
-                placeholder="Enter a general note…"
-                value={generalNotePrompt.text}
-                onChange={e => setGeneralNotePrompt(p => p ? { ...p, text: e.target.value } : null)}
-                onKeyDown={e => { if (e.key === 'Escape') { setGeneralNotePrompt(null); setGeneralNoteDeleteConfirm(null) } }}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
-                autoFocus
-              />
+              {generalNotes.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs font-medium text-slate-500">
+                    Existing notes ({generalNotes.length})
+                  </p>
+                  <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-0.5">
+                    {generalNotes.map(gn => (
+                      <div key={gn.id} className="rounded-lg border border-amber-100 bg-amber-50 overflow-hidden flex-shrink-0">
+                        {generalNoteDeleteConfirm === gn.id ? (
+                          <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                            <p className="text-xs text-slate-700">Delete this note?</p>
+                            <div className="flex gap-1.5 flex-shrink-0">
+                              <button onClick={() => setGeneralNoteDeleteConfirm(null)} className="px-2.5 py-1 text-[11px] border border-slate-200 rounded text-slate-600 hover:bg-white transition-colors">Cancel</button>
+                              <button onClick={() => { deleteWalkGeneralNote(projectId, walk.id, gn.id); setGeneralNoteDeleteConfirm(null) }} className="px-2.5 py-1 text-[11px] bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium">Delete</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start justify-between gap-3 px-3 py-2.5">
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                              <p className="text-xs text-slate-700 leading-snug break-words">{gn.text}</p>
+                              {gn.qty !== undefined && <p className="text-[10px] text-amber-600 font-medium">Qty: {gn.qty}</p>}
+                              <p className="text-[10px] text-slate-400">{formatNoteDate(gn.createdAt)}</p>
+                            </div>
+                            <button onClick={() => setGeneralNoteDeleteConfirm(gn.id)} className="flex-shrink-0 text-slate-300 hover:text-red-500 transition-colors mt-0.5" title="Delete note">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Note</label>
+                <textarea
+                  key={generalNotes.length}
+                  rows={3}
+                  placeholder="Enter a general note…"
+                  value={generalNotePrompt.text}
+                  onChange={e => setGeneralNotePrompt(p => p ? { ...p, text: e.target.value } : null)}
+                  onKeyDown={e => { if (e.key === 'Escape') { setGeneralNotePrompt(null); setGeneralNoteDeleteConfirm(null) } }}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Proposed Quantity <span className="text-slate-400 font-normal">(optional)</span></label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0.00"
+                  value={generalNotePrompt.qty}
+                  onChange={e => setGeneralNotePrompt(p => p ? { ...p, qty: e.target.value } : null)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Proposed Quantity <span className="text-slate-400 font-normal">(optional)</span></label>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                placeholder="0.00"
-                value={generalNotePrompt.qty}
-                onChange={e => setGeneralNotePrompt(p => p ? { ...p, qty: e.target.value } : null)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2">
+            {/* Pinned action buttons */}
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100 flex-shrink-0">
               <button onClick={() => { setGeneralNotePrompt(null); setGeneralNoteDeleteConfirm(null) }} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
                 Close
               </button>

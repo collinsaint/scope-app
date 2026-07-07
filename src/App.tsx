@@ -11,13 +11,27 @@ import { seedDemoProject } from './lib/seedDemoProject'
 
 type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings'
 
+const VALID_VIEWS: AppView[] = ['dashboard', 'project', 'contractor-settings', 'user-settings']
+
+function readSavedView(): AppView {
+  try {
+    const v = sessionStorage.getItem('ps-view') as AppView | null
+    return v && VALID_VIEWS.includes(v) ? v : 'dashboard'
+  } catch { return 'dashboard' }
+}
+
 export default function App() {
   const { setActiveProject, activeProjectId } = useStore()
 
   useEffect(() => { seedDemoProject() }, [])
   const { isMobile } = useViewMode()
-  const [view, setView] = useState<AppView>('dashboard')
+  const [view, setView] = useState<AppView>(readSavedView)
   const [projectInitialView, setProjectInitialView] = useState<'scope' | 'details'>('scope')
+
+  // Persist view to sessionStorage so refresh restores the same page
+  useEffect(() => {
+    try { sessionStorage.setItem('ps-view', view) } catch { /**/ }
+  }, [view])
   const [projectSubView, setProjectSubView] = useState<'scope' | 'details' | 'comments'>('scope')
 
   function openProject(id: string, initialView: 'scope' | 'details' = 'scope') {

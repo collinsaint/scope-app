@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 
 type FlashMode = 'off' | 'auto' | 'torch'
 
-// Extended constraint set with non-standard camera controls
 interface CameraConstraintSet extends MediaTrackConstraintSet {
   torch?: boolean
   zoom?: number
@@ -28,7 +27,6 @@ export function CameraCapture({ onCapture, onClose }: Props) {
   const [zoom, setZoom] = useState(1)
   const [maxZoom, setMaxZoom] = useState(5)
   const [hasHwZoom, setHasHwZoom] = useState(false)
-  const [hasTorch, setHasTorch] = useState(false)
   const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
@@ -46,7 +44,6 @@ export function CameraCapture({ onCapture, onClose }: Props) {
         const track = stream.getVideoTracks()[0]
         const caps = track.getCapabilities?.() as Record<string, unknown> | undefined
         if (caps) {
-          if (caps.torch === true) setHasTorch(true)
           const zc = caps.zoom
           if (zc && typeof zc === 'object' && 'max' in zc) {
             setHasHwZoom(true)
@@ -64,16 +61,16 @@ export function CameraCapture({ onCapture, onClose }: Props) {
     }
   }, [])
 
-  // Torch on/off based on flashMode
+  // Torch on/off based on flashMode — always attempt, fail silently on unsupported devices
   useEffect(() => {
     const track = streamRef.current?.getVideoTracks()[0]
-    if (!track || !hasTorch) return
+    if (!track) return
     try {
       track.applyConstraints({ advanced: [{ torch: flashMode === 'torch' } as CameraConstraintSet] }).catch(() => {})
     } catch { /**/ }
-  }, [flashMode, hasTorch])
+  }, [flashMode])
 
-  // Apply zoom (hardware or CSS)
+  // Apply zoom (hardware or CSS scale)
   useEffect(() => {
     const track = streamRef.current?.getVideoTracks()[0]
     if (hasHwZoom && track) {
@@ -95,40 +92,28 @@ export function CameraCapture({ onCapture, onClose }: Props) {
 
     const track = streamRef.current?.getVideoTracks()[0]
 
-    // Auto flash: briefly activate torch during capture
-    if (flashMode === 'auto' && track && hasTorch) {
+    // Auto flash: briefly activate torch during capture, fail silently
+    if (flashMode === 'auto' && track) {
       try {
         await track.applyConstraints({ advanced: [{ torch: true } as CameraConstraintSet] })
         await new Promise(r => setTimeout(r, 200))
       } catch { /**/ }
     }
 
-    // Orientation-aware capture
+    // Capture frame — modern browsers already deliver video in the correct
+    // orientation (OS handles rotation), so draw directly without manual rotation.
+    // canvas dimensions match the video's logical width/height which on phones
+    // already reflects portrait vs landscape correctly.
     const vw = video.videoWidth
     const vh = video.videoHeight
-    const angle = screen.orientation?.angle ?? 0
-    // If screen orientation disagrees with video aspect ratio, rotate the captured frame
-    const screenLandscape = window.innerWidth > window.innerHeight
-    const videoLandscape = vw > vh
-    const needsRotation = screenLandscape !== videoLandscape
-
-    const ctx = canvas.getContext('2d')!
-    if (needsRotation) {
-      canvas.width = vh
-      canvas.height = vw
-      ctx.translate(vh / 2, vw / 2)
-      ctx.rotate(angle === 270 ? -Math.PI / 2 : Math.PI / 2)
-      ctx.drawImage(video, -vw / 2, -vh / 2)
-    } else {
-      canvas.width = vw
-      canvas.height = vh
-      ctx.drawImage(video, 0, 0)
-    }
+    canvas.width = vw
+    canvas.height = vh
+    canvas.getContext('2d')!.drawImage(video, 0, 0)
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.88)
     setCaptured(prev => [...prev, dataUrl])
 
-    if (flashMode === 'auto' && track && hasTorch) {
+    if (flashMode === 'auto' && track) {
       try {
         await track.applyConstraints({ advanced: [{ torch: false } as CameraConstraintSet] })
       } catch { /**/ }
@@ -180,7 +165,6 @@ export function CameraCapture({ onCapture, onClose }: Props) {
   }
 
   function cycleFlash() {
-    if (!hasTorch) return
     setFlashMode(prev => prev === 'off' ? 'auto' : prev === 'auto' ? 'torch' : 'off')
   }
 
@@ -224,7 +208,7 @@ export function CameraCapture({ onCapture, onClose }: Props) {
             {focusPoint && (
               <div
                 className="absolute w-14 h-14 border-2 border-yellow-400 rounded pointer-events-none"
-                style={{ left: focusPoint.x - 28, top: focusPoint.y - 28, transition: 'opacity 0.8s', opacity: 0.9 }}
+                style={{ left: focusPoint.x - 28, top: focusPoint.y - 28, opacity: 0.9 }}
               />
             )}
 
@@ -253,29 +237,28 @@ export function CameraCapture({ onCapture, onClose }: Props) {
 
           {/* Controls */}
           <div className="bg-black flex-shrink-0" style={{ paddingBottom: 'max(0px, env(safe-area-inset-bottom))' }}>
-            {/* Top row: flash + zoom slider */}
+            {/* Top row: flash + zoom */}
             <div className="flex items-center gap-3 px-5 pt-3 pb-1">
-              {/* Flash cycle button */}
+              {/* Flash cycle button — always enabled; fails silently on unsupported hardware */}
               <button
                 onClick={cycleFlash}
-                disabled={!hasTorch}
-                className="flex items-center gap-1.5 flex-shrink-0 disabled:opacity-30"
+                className="flex items-center gap-1.5 flex-shrink-0"
               >
                 <svg
-                  className={`w-5 h-5 ${flashMode !== 'off' ? 'text-yellow-400' : 'text-white/40'}`}
+                  className={`w-5 h-5 ${flashMode !== 'off' ? 'text-yellow-400' : 'text-white/50'}`}
                   fill="currentColor"
                   viewBox="0 0 24 24"
                 >
                   {flashMode === 'off' ? (
                     <g>
-                      <path d="M13 2L3 13h8l-2 9 10-11h-7z" opacity="0.35" />
-                      <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" d="M3 3l18 18" fill="none" />
+                      <path d="M13 2L3 13h8l-2 9 10-11h-7z" opacity="0.4" />
+                      <path stroke="white" strokeWidth="2" strokeLinecap="round" d="M3 3l18 18" fill="none" />
                     </g>
                   ) : (
                     <path d="M13 2L3 13h8l-2 9 10-11h-7z" />
                   )}
                 </svg>
-                <span className={`text-[11px] font-semibold ${flashMode !== 'off' ? 'text-yellow-400' : 'text-white/40'}`}>
+                <span className={`text-[11px] font-semibold ${flashMode !== 'off' ? 'text-yellow-400' : 'text-white/50'}`}>
                   {flashMode === 'off' ? 'Off' : flashMode === 'auto' ? 'Auto' : 'Torch'}
                 </span>
               </button>
