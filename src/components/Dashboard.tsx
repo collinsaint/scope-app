@@ -15,13 +15,46 @@ interface Props {
 export function Dashboard({ onOpenProject, onOpenProjectDetails }: Props) {
   const { projects, deleteProject } = useStore()
   const [showModal, setShowModal] = useState(false)
+  const [search, setSearch] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+  const [filterJobGroup, setFilterJobGroup] = useState('')
+  const [filterSuperintendent, setFilterSuperintendent] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+
+  const jobGroupOptions = [...new Set(projects.map(p => p.jobGroup).filter(Boolean))] as string[]
+  const superintendentOptions = [...new Set(projects.map(p => p.superintendent).filter(Boolean))] as string[]
+  const statusOptions = [...new Set(projects.map(p => p.projectStatus).filter(Boolean))] as string[]
+
+  const activeFilterCount = [filterJobGroup, filterSuperintendent, filterStatus].filter(Boolean).length
+
+  const filtered = projects.filter(p => {
+    if (search) {
+      const q = search.toLowerCase()
+      if (!p.name.toLowerCase().includes(q) && !(p.address ?? '').toLowerCase().includes(q) && !(p.projectCode ?? '').toLowerCase().includes(q)) return false
+    }
+    if (filterJobGroup && p.jobGroup !== filterJobGroup) return false
+    if (filterSuperintendent && p.superintendent !== filterSuperintendent) return false
+    if (filterStatus && p.projectStatus !== filterStatus) return false
+    return true
+  })
+
+  function clearFilters() {
+    setFilterJobGroup('')
+    setFilterSuperintendent('')
+    setFilterStatus('')
+  }
 
   return (
     <div className="flex-1 overflow-y-auto p-8">
-      <div className="flex items-center justify-between mb-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Projects</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{projects.length} project{projects.length !== 1 ? 's' : ''}</p>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {filtered.length !== projects.length
+              ? `${filtered.length} of ${projects.length} project${projects.length !== 1 ? 's' : ''}`
+              : `${projects.length} project${projects.length !== 1 ? 's' : ''}`}
+          </p>
         </div>
         <button
           onClick={() => setShowModal(true)}
@@ -33,6 +66,98 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails }: Props) {
           New project
         </button>
       </div>
+
+      {/* Search + Filter bar */}
+      {projects.length > 0 && (
+        <div className="mb-5 flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            {/* Search */}
+            <div className="relative flex-1">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search projects…"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Filter toggle */}
+            <button
+              onClick={() => setShowFilters(v => !v)}
+              className={`relative flex items-center gap-1.5 px-3 py-2 text-sm border rounded-lg transition-colors flex-shrink-0 ${
+                showFilters || activeFilterCount > 0
+                  ? 'border-blue-400 bg-blue-50 text-blue-700'
+                  : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+              </svg>
+              Filter
+              {activeFilterCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Filter dropdowns */}
+          {showFilters && (
+            <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <select
+                value={filterJobGroup}
+                onChange={e => setFilterJobGroup(e.target.value)}
+                className={`text-sm border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${filterJobGroup ? 'border-blue-400 text-blue-700' : 'border-slate-200 text-slate-600'}`}
+              >
+                <option value="">All Job Groups</option>
+                {jobGroupOptions.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+
+              <select
+                value={filterSuperintendent}
+                onChange={e => setFilterSuperintendent(e.target.value)}
+                className={`text-sm border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${filterSuperintendent ? 'border-blue-400 text-blue-700' : 'border-slate-200 text-slate-600'}`}
+              >
+                <option value="">All Superintendents</option>
+                {superintendentOptions.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+
+              <select
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}
+                className={`text-sm border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${filterStatus ? 'border-blue-400 text-blue-700' : 'border-slate-200 text-slate-600'}`}
+              >
+                <option value="">All Statuses</option>
+                {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={clearFilters}
+                  className="text-xs text-slate-500 hover:text-red-500 px-2 py-1.5 transition-colors"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {projects.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -51,9 +176,25 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails }: Props) {
             Create project
           </button>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </div>
+          <h2 className="text-base font-medium text-slate-700 mb-1">No projects match</h2>
+          <p className="text-sm text-slate-400 mb-4">Try adjusting your search or filters.</p>
+          <button
+            onClick={() => { setSearch(''); clearFilters() }}
+            className="text-sm text-blue-600 font-medium hover:underline"
+          >
+            Clear all
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((p) => (
+          {filtered.map((p) => (
             <ProjectCard key={p.id} project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onDelete={deleteProject} />
           ))}
           <button

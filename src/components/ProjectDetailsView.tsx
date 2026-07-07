@@ -87,8 +87,8 @@ export function ProjectDetailsView({ project }: Props) {
     <div className="flex-1 overflow-auto px-6 py-6">
       <div className="max-w-5xl space-y-6">
 
-        {/* Project Info + Applicant Info side by side */}
-        <div className="grid grid-cols-2 gap-4 items-start">
+        {/* Project Info + Applicant Info side by side on desktop, stacked on mobile */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
 
           {/* Project Info */}
           <div className="bg-white border border-slate-200 rounded-xl p-5">

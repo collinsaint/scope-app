@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import type { ScopeItem, Walk, WalkNote, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, WalkItemOverride } from '../types'
 import { useStore } from '../store/useStore'
 import { buildWalkReportPdfBlob, openWalkReportPdf } from '../lib/exportReport'
-import { downloadWalkPhotos, buildPhotosZipBlob } from '../lib/downloadPhotos'
+import { downloadWalkPhotos, buildPhotosZipBlob, downloadSelectedPhotos } from '../lib/downloadPhotos'
 import { uploadPhotoToOneDrive } from '../lib/oneDrive'
 import { useViewMode } from '../hooks/useViewMode'
 import { CameraCapture } from './CameraCapture'
@@ -1547,6 +1547,17 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                         </button>
                       </div>
                       <button
+                        onClick={() => {
+                          if (!project) return
+                          const selected = (walk.roomPhotos ?? []).filter(p => bulkSelectedIds.has(p.id))
+                          downloadSelectedPhotos(selected, walk.name, project.name)
+                        }}
+                        disabled={bulkSelectedIds.size === 0}
+                        className="px-2.5 py-1 text-xs bg-violet-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
+                      >
+                        Download ({bulkSelectedIds.size})
+                      </button>
+                      <button
                         onClick={bulkDeleteSelected}
                         disabled={bulkSelectedIds.size === 0}
                         className="px-2.5 py-1 text-xs bg-red-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
@@ -1733,6 +1744,17 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                         </div>
                       )}
                       <button
+                        onClick={() => {
+                          if (!project) return
+                          const selected = (walk.roomPhotos ?? []).filter(p => bulkSelectedIds.has(p.id))
+                          downloadSelectedPhotos(selected, walk.name, project.name)
+                        }}
+                        disabled={bulkSelectedIds.size === 0}
+                        className="px-2.5 py-1 text-xs bg-violet-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
+                      >
+                        Download ({bulkSelectedIds.size})
+                      </button>
+                      <button
                         onClick={bulkDeleteSelected}
                         disabled={bulkSelectedIds.size === 0}
                         className="px-2.5 py-1 text-xs bg-red-600 text-white rounded disabled:opacity-40 whitespace-nowrap"
@@ -1819,6 +1841,25 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
               {expandedPhoto.index + 1} / {expandedPhoto.photos.length}
             </div>
           )}
+
+          {/* Download current photo */}
+          <button
+            className="absolute top-4 left-4 w-9 h-9 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-white/30 transition-colors"
+            onClick={e => {
+              e.stopPropagation()
+              const photo = expandedPhoto!.photos[expandedPhoto!.index]
+              const ext = photo.data.startsWith('data:image/webp') ? 'webp' : photo.data.startsWith('data:image/png') ? 'png' : 'jpg'
+              const a = document.createElement('a')
+              a.href = photo.data
+              a.download = `photo_${String(expandedPhoto!.index + 1).padStart(2, '0')}.${ext}`
+              a.click()
+            }}
+            title="Download photo"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </button>
 
           {/* Close */}
           <button
