@@ -292,8 +292,15 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
   const [generalNoteDeleteConfirm, setGeneralNoteDeleteConfirm] = useState<string | null>(null)
   const [removeRoomConfirm, setRemoveRoomConfirm] = useState(false)
   useEffect(() => { setRemoveRoomConfirm(false) }, [roomFilter])
+  const [photoModal, setPhotoModal] = useState<{ room: string } | null>(null)
+  const [photoDeleteConfirm, setPhotoDeleteConfirm] = useState<string | null>(null)
+  const [showAllPhotos, setShowAllPhotos] = useState(false)
+  const [allPhotoDeleteConfirm, setAllPhotoDeleteConfirm] = useState<string | null>(null)
+  const [activePhotoRoom, setActivePhotoRoom] = useState<string>('_general_')
+  const [expandedPhoto, setExpandedPhoto] = useState<{ photos: WalkRoomPhoto[]; index: number } | null>(null)
+  const gallerySwipeX = useRef<number | null>(null)
 
-  // Keyboard navigation for gallery
+  // Keyboard navigation for gallery — must be after expandedPhoto declaration
   useEffect(() => {
     if (!expandedPhoto) return
     function onKey(e: KeyboardEvent) {
@@ -304,13 +311,6 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [expandedPhoto])
-  const [photoModal, setPhotoModal] = useState<{ room: string } | null>(null)
-  const [photoDeleteConfirm, setPhotoDeleteConfirm] = useState<string | null>(null)
-  const [showAllPhotos, setShowAllPhotos] = useState(false)
-  const [allPhotoDeleteConfirm, setAllPhotoDeleteConfirm] = useState<string | null>(null)
-  const [activePhotoRoom, setActivePhotoRoom] = useState<string>('_general_')
-  const [expandedPhoto, setExpandedPhoto] = useState<{ photos: WalkRoomPhoto[]; index: number } | null>(null)
-  const gallerySwipeX = useRef<number | null>(null)
   const [showCamera, setShowCamera] = useState(false)
   const [photoUploadProgress, setPhotoUploadProgress] = useState<{ done: number; total: number } | null>(null)
   const [bulkActive, setBulkActive] = useState(false)
