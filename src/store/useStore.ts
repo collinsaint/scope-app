@@ -10,9 +10,11 @@ interface StoreState {
   superintendents: Superintendent[]
   oneDrive: OneDriveSettings
   viewMode: 'auto' | 'desktop' | 'mobile'
+  walkPresets: string[]
 
   setOneDrive: (settings: Partial<OneDriveSettings>) => void
   setViewMode: (mode: 'auto' | 'desktop' | 'mobile') => void
+  setWalkPreset: (index: number, text: string) => void
 
   addProject: (project: Project) => void
   replaceProject: (project: Project) => void
@@ -70,11 +72,19 @@ export const useStore = create<StoreState>()(
         rootFolderName: 'ProScope',
       },
       viewMode: 'auto',
+      walkPresets: ['', '', '', '', '', ''],
 
       setOneDrive: (settings) =>
         set((s) => ({ oneDrive: { ...s.oneDrive, ...settings } })),
 
       setViewMode: (mode) => set({ viewMode: mode }),
+
+      setWalkPreset: (index, text) =>
+        set((s) => {
+          const presets = [...s.walkPresets]
+          presets[index] = text.slice(0, 20)
+          return { walkPresets: presets }
+        }),
 
       addProject: (project) =>
         set((s) => ({ projects: [...s.projects, project] })),

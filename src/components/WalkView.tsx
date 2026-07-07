@@ -278,7 +278,7 @@ interface Props {
 }
 
 export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, onAddRoom }: Props) {
-  const { updateWalkItem, addWalkGroupNote, deleteWalkGroupNote, addWalkRoomPhoto, deleteWalkRoomPhoto, bulkDeleteWalkRoomPhotos, updateWalkRoomPhoto, addWalkGeneralNote, deleteWalkGeneralNote, deleteWalkCustomRoom, addWalkCustomRoom, projects, oneDrive } = useStore()
+  const { updateWalkItem, addWalkGroupNote, deleteWalkGroupNote, addWalkRoomPhoto, deleteWalkRoomPhoto, bulkDeleteWalkRoomPhotos, updateWalkRoomPhoto, addWalkGeneralNote, deleteWalkGeneralNote, deleteWalkCustomRoom, addWalkCustomRoom, projects, oneDrive, walkPresets } = useStore()
   const { isMobile } = useViewMode()
   const project = projects.find(p => p.id === projectId)
   const [search, setSearch] = useState('')
@@ -1326,17 +1326,41 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">Proposed Quantity <span className="text-slate-400 font-normal">(optional)</span></label>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder="0.00"
-                  value={groupNotePrompt.qty}
-                  onChange={e => setGroupNotePrompt(p => p ? { ...p, qty: e.target.value } : null)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
+              <div className="flex gap-3">
+                <div className="flex-1 min-w-0">
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Proposed Quantity <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0.00"
+                    value={groupNotePrompt.qty}
+                    onChange={e => setGroupNotePrompt(p => p ? { ...p, qty: e.target.value } : null)}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+                {walkPresets.some(p => p.trim()) && (
+                  <div className="flex-1 min-w-0">
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Presets</label>
+                    <div className="grid grid-cols-2 gap-1">
+                      {walkPresets.map((preset, i) =>
+                        preset.trim() ? (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setGroupNotePrompt(p => p ? { ...p, text: p.text + preset + ' ' } : null)}
+                            className="px-2 py-1.5 text-[11px] font-medium border border-slate-200 rounded-lg text-slate-700 bg-slate-50 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-800 transition-colors truncate text-left leading-tight"
+                            title={preset}
+                          >
+                            {preset}
+                          </button>
+                        ) : (
+                          <div key={i} />
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1902,17 +1926,41 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">Proposed Quantity <span className="text-slate-400 font-normal">(optional)</span></label>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder="0.00"
-                  value={generalNotePrompt.qty}
-                  onChange={e => setGeneralNotePrompt(p => p ? { ...p, qty: e.target.value } : null)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
+              <div className="flex gap-3">
+                <div className="flex-1 min-w-0">
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Proposed Quantity <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0.00"
+                    value={generalNotePrompt.qty}
+                    onChange={e => setGeneralNotePrompt(p => p ? { ...p, qty: e.target.value } : null)}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                {walkPresets.some(p => p.trim()) && (
+                  <div className="flex-1 min-w-0">
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Presets</label>
+                    <div className="grid grid-cols-2 gap-1">
+                      {walkPresets.map((preset, i) =>
+                        preset.trim() ? (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setGeneralNotePrompt(p => p ? { ...p, text: p.text + preset + ' ' } : null)}
+                            className="px-2 py-1.5 text-[11px] font-medium border border-slate-200 rounded-lg text-slate-700 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-800 transition-colors truncate text-left leading-tight"
+                            title={preset}
+                          >
+                            {preset}
+                          </button>
+                        ) : (
+                          <div key={i} />
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
