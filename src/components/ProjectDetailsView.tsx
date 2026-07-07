@@ -378,6 +378,24 @@ export function ProjectDetailsView({ project }: Props) {
           </div>
         </div>
 
+        {/* Database storage size */}
+        {(() => {
+          const bytes = new TextEncoder().encode(JSON.stringify(project)).length
+          const kb = bytes / 1024
+          const display = kb >= 1024
+            ? `${(kb / 1024).toFixed(2)} MB`
+            : `${kb.toFixed(1)} KB`
+          return (
+            <div className="bg-white border border-slate-200 rounded-xl p-5">
+              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Database Storage</h2>
+              <div className="grid grid-cols-2 gap-y-4 gap-x-8">
+                <Detail label="Project Size" value={display} />
+                <Detail label="Raw Size" value={`${bytes.toLocaleString()} bytes`} />
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Demo reset — only shown for the demo project */}
         {project.isDemo && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">

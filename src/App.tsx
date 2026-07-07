@@ -67,6 +67,10 @@ export default function App() {
         // No projects in Supabase yet — show demo so dashboard isn't empty
         seedDemoProject()
       }
+      // Admin always sees the demo project regardless of other projects
+      if (user?.email === 'admin@proscope.app') {
+        seedDemoProject()
+      }
       loadingFromSupabase.current = false
       setSyncing(false)
     }
