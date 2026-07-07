@@ -291,12 +291,25 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
   const [generalNoteDeleteConfirm, setGeneralNoteDeleteConfirm] = useState<string | null>(null)
   const [removeRoomConfirm, setRemoveRoomConfirm] = useState(false)
   useEffect(() => { setRemoveRoomConfirm(false) }, [roomFilter])
+
+  // Keyboard navigation for gallery
+  useEffect(() => {
+    if (!expandedPhoto) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'ArrowLeft') setExpandedPhoto(p => p && p.index > 0 ? { ...p, index: p.index - 1 } : p)
+      else if (e.key === 'ArrowRight') setExpandedPhoto(p => p && p.index < p.photos.length - 1 ? { ...p, index: p.index + 1 } : p)
+      else if (e.key === 'Escape') setExpandedPhoto(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [expandedPhoto])
   const [photoModal, setPhotoModal] = useState<{ room: string } | null>(null)
   const [photoDeleteConfirm, setPhotoDeleteConfirm] = useState<string | null>(null)
   const [showAllPhotos, setShowAllPhotos] = useState(false)
   const [allPhotoDeleteConfirm, setAllPhotoDeleteConfirm] = useState<string | null>(null)
   const [activePhotoRoom, setActivePhotoRoom] = useState<string>('_general_')
-  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
+  const [expandedPhoto, setExpandedPhoto] = useState<{ photos: WalkRoomPhoto[]; index: number } | null>(null)
+  const gallerySwipeX = useRef<number | null>(null)
   const [showCamera, setShowCamera] = useState(false)
   const [photoUploadProgress, setPhotoUploadProgress] = useState<{ done: number; total: number } | null>(null)
   const [bulkActive, setBulkActive] = useState(false)
@@ -1444,7 +1457,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                             src={photo.data}
                             alt=""
                             className={`w-full aspect-square object-cover ${bulkActive ? 'cursor-pointer' : 'cursor-zoom-in'}`}
-                            onClick={e => { if (!bulkActive) { e.stopPropagation(); setExpandedPhoto(photo.data) } }}
+                            onClick={e => { if (!bulkActive) { e.stopPropagation(); setExpandedPhoto({ photos: allPhotos, index: allPhotos.findIndex(p => p.id === photo.id) }) } }}
                           />
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
                             <p className="text-[9px] text-white font-medium leading-tight truncate">{photo.room === '_general_' ? 'General' : roomLabel(photo.room)}</p>
@@ -1629,7 +1642,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                             src={photo.data}
                             alt=""
                             className={`w-full aspect-square object-cover ${bulkActive ? 'cursor-pointer' : 'cursor-zoom-in'}`}
-                            onClick={e => { if (!bulkActive) { e.stopPropagation(); setExpandedPhoto(photo.data) } }}
+                            onClick={e => { if (!bulkActive) { e.stopPropagation(); setExpandedPhoto({ photos: modalPhotos, index: modalPhotos.findIndex(p => p.id === photo.id) }) } }}
                           />
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
                             <p className="text-[9px] text-white/80 leading-tight">{formatNoteDate(photo.createdAt)}</p>
@@ -1746,23 +1759,87 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
         )
       })()}
 
-      {/* Expanded photo overlay */}
-      {expandedPhoto && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85"
-          onClick={() => setExpandedPhoto(null)}
-        >
-          <img src={expandedPhoto} alt="" className="max-w-full max-h-full object-contain p-4" />
-          <button
-            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-white/30 transition-colors"
-            onClick={() => setExpandedPhoto(null)}
+      {/* Gallery viewer */}
+      {expandedPhoto && (() => {
+        const { photos, index } = expandedPhoto
+        const photo = photos[index]
+        const canPrev = index > 0
+        const canNext = index < photos.length - 1
+        return (
+          <div
+            className="fixed inset-0 z-[60] bg-black/92 flex items-center justify-center select-none"
+            onTouchStart={e => { gallerySwipeX.current = e.touches[0].clientX }}
+            onTouchEnd={e => {
+              if (gallerySwipeX.current === null) return
+              const dx = e.changedTouches[0].clientX - gallerySwipeX.current
+              gallerySwipeX.current = null
+              if (dx > 50 && canPrev) setExpandedPhoto({ photos, index: index - 1 })
+              else if (dx < -50 && canNext) setExpandedPhoto({ photos, index: index + 1 })
+            }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-      )}
+            {/* Tap backdrop to close */}
+            <div className="absolute inset-0" onClick={() => setExpandedPhoto(null)} />
+
+            {/* Photo */}
+            <img
+              src={photo.data}
+              alt=""
+              className="relative max-w-full object-contain pointer-events-none"
+              style={{ maxHeight: 'calc(100dvh - 80px)', padding: '0 48px' }}
+            />
+
+            {/* Counter */}
+            {photos.length > 1 && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs font-semibold px-3 py-1 rounded-full pointer-events-none">
+                {index + 1} / {photos.length}
+              </div>
+            )}
+
+            {/* Close */}
+            <button
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-white/30 transition-colors"
+              onClick={() => setExpandedPhoto(null)}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+
+            {/* Prev */}
+            {canPrev && (
+              <button
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-white/35 transition-colors"
+                onClick={e => { e.stopPropagation(); setExpandedPhoto({ photos, index: index - 1 }) }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6"/>
+                </svg>
+              </button>
+            )}
+
+            {/* Next */}
+            {canNext && (
+              <button
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center hover:bg-white/35 transition-colors"
+                onClick={e => { e.stopPropagation(); setExpandedPhoto({ photos, index: index + 1 }) }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </button>
+            )}
+
+            {/* Dot indicators */}
+            {photos.length > 1 && photos.length <= 20 && (
+              <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5 pointer-events-none">
+                {photos.map((_, i) => (
+                  <div key={i} className={`rounded-full transition-all ${i === index ? 'w-2 h-2 bg-white' : 'w-1.5 h-1.5 bg-white/40'}`} />
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* General Notes modal */}
       {generalNotePrompt && (
