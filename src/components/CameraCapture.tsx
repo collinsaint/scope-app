@@ -1,9 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 
-type FlashMode = 'off' | 'auto' | 'torch'
-
 interface CameraConstraintSet extends MediaTrackConstraintSet {
-  torch?: boolean
   zoom?: number
   pointsOfInterest?: Array<{ x: number; y: number }>
   focusMode?: string
@@ -23,7 +20,6 @@ export function CameraCapture({ onCapture, onClose }: Props) {
   const [captured, setCaptured] = useState<string[]>([])
   const [error, setError] = useState('')
   const [shutterFlash, setShutterFlash] = useState(false)
-  const [flashMode, setFlashMode] = useState<FlashMode>('off')
   const [zoom, setZoom] = useState(1)
   const [maxZoom, setMaxZoom] = useState(5)
   const [hasHwZoom, setHasHwZoom] = useState(false)
@@ -61,15 +57,6 @@ export function CameraCapture({ onCapture, onClose }: Props) {
     }
   }, [])
 
-  // Torch on/off based on flashMode — always attempt, fail silently on unsupported devices
-  useEffect(() => {
-    const track = streamRef.current?.getVideoTracks()[0]
-    if (!track) return
-    try {
-      track.applyConstraints({ advanced: [{ torch: flashMode === 'torch' } as CameraConstraintSet] }).catch(() => {})
-    } catch { /**/ }
-  }, [flashMode])
-
   // Apply zoom (hardware or CSS scale)
   useEffect(() => {
     const track = streamRef.current?.getVideoTracks()[0]
@@ -90,20 +77,6 @@ export function CameraCapture({ onCapture, onClose }: Props) {
     setShutterFlash(true)
     setTimeout(() => setShutterFlash(false), 130)
 
-    const track = streamRef.current?.getVideoTracks()[0]
-
-    // Auto flash: briefly activate torch during capture, fail silently
-    if (flashMode === 'auto' && track) {
-      try {
-        await track.applyConstraints({ advanced: [{ torch: true } as CameraConstraintSet] })
-        await new Promise(r => setTimeout(r, 200))
-      } catch { /**/ }
-    }
-
-    // Capture frame — modern browsers already deliver video in the correct
-    // orientation (OS handles rotation), so draw directly without manual rotation.
-    // canvas dimensions match the video's logical width/height which on phones
-    // already reflects portrait vs landscape correctly.
     const vw = video.videoWidth
     const vh = video.videoHeight
     canvas.width = vw
@@ -112,12 +85,22 @@ export function CameraCapture({ onCapture, onClose }: Props) {
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.88)
     setCaptured(prev => [...prev, dataUrl])
+  }
 
-    if (flashMode === 'auto' && track) {
-      try {
-        await track.applyConstraints({ advanced: [{ torch: false } as CameraConstraintSet] })
-      } catch { /**/ }
-    }
+  async function rotatePhoto(index: number) {
+    const src = captured[index]
+    const img = new Image()
+    img.src = src
+    await new Promise<void>(r => { img.onload = () => r() })
+    const c = document.createElement('canvas')
+    c.width = img.height
+    c.height = img.width
+    const ctx = c.getContext('2d')!
+    ctx.translate(c.width / 2, c.height / 2)
+    ctx.rotate(Math.PI / 2)
+    ctx.drawImage(img, -img.width / 2, -img.height / 2)
+    const rotated = c.toDataURL('image/jpeg', 0.88)
+    setCaptured(prev => prev.map((p, i) => i === index ? rotated : p))
   }
 
   function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
@@ -162,10 +145,6 @@ export function CameraCapture({ onCapture, onClose }: Props) {
         }).catch(() => {})
       } catch { /**/ }
     }
-  }
-
-  function cycleFlash() {
-    setFlashMode(prev => prev === 'off' ? 'auto' : prev === 'auto' ? 'torch' : 'off')
   }
 
   function done() {
@@ -225,10 +204,21 @@ export function CameraCapture({ onCapture, onClose }: Props) {
                 {captured.map((src, i) => (
                   <div key={i} className="relative flex-shrink-0">
                     <img src={src} alt="" className="w-16 h-16 object-cover rounded-lg border-2 border-white/80 shadow" />
+                    {/* Delete */}
                     <button
                       onClick={() => setCaptured(prev => prev.filter((_, j) => j !== i))}
                       className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-[11px] font-bold flex items-center justify-center shadow"
                     >×</button>
+                    {/* Rotate */}
+                    <button
+                      onClick={() => rotatePhoto(i)}
+                      className="absolute -bottom-1.5 -right-1.5 w-5 h-5 bg-slate-700 text-white rounded-full flex items-center justify-center shadow"
+                      title="Rotate 90°"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+                      </svg>
+                    </button>
                   </div>
                 ))}
               </div>
@@ -237,47 +227,20 @@ export function CameraCapture({ onCapture, onClose }: Props) {
 
           {/* Controls */}
           <div className="bg-black flex-shrink-0" style={{ paddingBottom: 'max(0px, env(safe-area-inset-bottom))' }}>
-            {/* Top row: flash + zoom */}
-            <div className="flex items-center gap-3 px-5 pt-3 pb-1">
-              {/* Flash cycle button — always enabled; fails silently on unsupported hardware */}
-              <button
-                onClick={cycleFlash}
-                className="flex items-center gap-1.5 flex-shrink-0"
-              >
-                <svg
-                  className={`w-5 h-5 ${flashMode !== 'off' ? 'text-yellow-400' : 'text-white/50'}`}
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  {flashMode === 'off' ? (
-                    <g>
-                      <path d="M13 2L3 13h8l-2 9 10-11h-7z" opacity="0.4" />
-                      <path stroke="white" strokeWidth="2" strokeLinecap="round" d="M3 3l18 18" fill="none" />
-                    </g>
-                  ) : (
-                    <path d="M13 2L3 13h8l-2 9 10-11h-7z" />
-                  )}
-                </svg>
-                <span className={`text-[11px] font-semibold ${flashMode !== 'off' ? 'text-yellow-400' : 'text-white/50'}`}>
-                  {flashMode === 'off' ? 'Off' : flashMode === 'auto' ? 'Auto' : 'Torch'}
-                </span>
-              </button>
-
-              {/* Zoom slider */}
-              <div className="flex-1 flex items-center gap-2">
-                <span className="text-[10px] text-white/40 flex-shrink-0">1×</span>
-                <input
-                  type="range"
-                  min={1}
-                  max={maxZoom}
-                  step={0.1}
-                  value={zoom}
-                  onChange={e => setZoom(parseFloat(e.target.value))}
-                  className="flex-1"
-                  style={{ accentColor: 'white' }}
-                />
-                <span className="text-[10px] text-white/40 flex-shrink-0 w-7 text-right">{maxZoom}×</span>
-              </div>
+            {/* Zoom slider */}
+            <div className="flex items-center gap-2 px-5 pt-3 pb-1">
+              <span className="text-[10px] text-white/40 flex-shrink-0">1×</span>
+              <input
+                type="range"
+                min={1}
+                max={maxZoom}
+                step={0.1}
+                value={zoom}
+                onChange={e => setZoom(parseFloat(e.target.value))}
+                className="flex-1"
+                style={{ accentColor: 'white' }}
+              />
+              <span className="text-[10px] text-white/40 flex-shrink-0 w-7 text-right">{maxZoom}×</span>
             </div>
 
             {/* Shutter row */}
