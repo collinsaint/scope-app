@@ -1,10 +1,16 @@
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 
+const DOMAIN = '@proscope.app'
+
+function toEmail(username: string) {
+  return username.trim().toLowerCase() + DOMAIN
+}
+
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading, signIn, signUp } = useAuth()
   const [mode, setMode] = useState<'login' | 'signup'>('login')
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [error, setError] = useState('')
@@ -32,18 +38,21 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     e.preventDefault()
     setError('')
     setInfo('')
+    if (!username.trim()) { setError('Please enter a username.'); return }
     setSubmitting(true)
+
+    const email = toEmail(username)
 
     if (mode === 'login') {
       const err = await signIn(email, password)
-      if (err) setError(err)
+      if (err) setError('Invalid username or password.')
     } else {
       if (!displayName.trim()) { setError('Please enter your name.'); setSubmitting(false); return }
       const err = await signUp(email, password, displayName.trim())
       if (err) {
         setError(err)
       } else {
-        setInfo('Account created! Check your email to confirm, then sign in.')
+        setInfo('Account created! You can now sign in.')
         setMode('login')
       }
     }
@@ -97,14 +106,17 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             )}
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">Email</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">Username</label>
               <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                placeholder="admin"
                 required
-                autoComplete="email"
+                autoComplete="username"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
                 className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -118,7 +130,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                 placeholder="••••••••"
                 required
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                minLength={6}
                 className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
