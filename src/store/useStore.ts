@@ -16,6 +16,7 @@ interface StoreState {
   setViewMode: (mode: 'auto' | 'desktop' | 'mobile') => void
   setWalkPreset: (index: number, text: string) => void
 
+  replaceProjects: (projects: Project[]) => void
   addProject: (project: Project) => void
   replaceProject: (project: Project) => void
   updateProjectItems: (projectId: string, items: ScopeItem[]) => void
@@ -85,6 +86,8 @@ export const useStore = create<StoreState>()(
           presets[index] = text.slice(0, 20)
           return { walkPresets: presets }
         }),
+
+      replaceProjects: (projects) => set({ projects }),
 
       addProject: (project) =>
         set((s) => ({ projects: [...s.projects, project] })),

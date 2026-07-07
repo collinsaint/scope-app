@@ -9,9 +9,11 @@ interface Props {
   onOpenProjectDetails: (id: string) => void
   onOpenProjectScope?: () => void
   activeProjectSubView?: 'scope' | 'details' | 'comments'
+  onSignOut?: () => void
+  userEmail?: string
 }
 
-export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjectScope, activeProjectSubView }: Props) {
+export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjectScope, activeProjectSubView, onSignOut }: Props) {
   const { projects, activeProjectId } = useStore()
   const { toggle } = useViewMode()
   const activeProject = projects.find(p => p.id === activeProjectId)
@@ -79,18 +81,31 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
         <span className="text-[10px] font-medium leading-none">Settings</span>
       </button>
 
-      {/* Web mode toggle */}
-      <button
-        onClick={toggle}
-        className="flex-1 flex flex-col items-center justify-center gap-1 py-3 text-slate-500 active:text-slate-200 transition-colors"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2"/>
-          <line x1="8" y1="21" x2="16" y2="21"/>
-          <line x1="12" y1="17" x2="12" y2="21"/>
-        </svg>
-        <span className="text-[10px] font-medium leading-none">Web Mode</span>
-      </button>
+      {/* Sign out (if logged in) */}
+      {onSignOut ? (
+        <button
+          onClick={onSignOut}
+          className="flex-1 flex flex-col items-center justify-center gap-1 py-3 text-slate-500 active:text-red-400 transition-colors"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          <span className="text-[10px] font-medium leading-none">Sign Out</span>
+        </button>
+      ) : (
+        /* Web mode toggle */
+        <button
+          onClick={toggle}
+          className="flex-1 flex flex-col items-center justify-center gap-1 py-3 text-slate-500 active:text-slate-200 transition-colors"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+          <span className="text-[10px] font-medium leading-none">Web Mode</span>
+        </button>
+      )}
     </nav>
   )
 }
