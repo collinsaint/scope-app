@@ -1,11 +1,11 @@
 {
-  "name": "ProScope",
-  "short_name": "ProScope",
-  "description": "Construction scope tracking",
+  "name": "Verascope",
+  "short_name": "Verascope",
+  "description": "Construction scope tracking software",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#3C3489",
+  "theme_color": "#3C3489",
   "icons": [
     {
       "src": "/favicon.ico",

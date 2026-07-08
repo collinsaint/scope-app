@@ -51,7 +51,7 @@ export function generateReport(project: Project): void {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>ProScope Report — ${project.name}</title>
+<title>Verascope Report — ${project.name}</title>
 <style>
   body { font-family: system-ui, sans-serif; color: #0f172a; padding: 40px; max-width: 960px; margin: 0 auto }
   h1 { font-size: 22px; margin: 0 0 4px }
@@ -70,7 +70,7 @@ export function generateReport(project: Project): void {
   <div class="no-print" style="margin-bottom:24px">
     <button onclick="window.print()" style="padding:8px 20px;background:#1d4ed8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px">Print / Save as PDF</button>
   </div>
-  <h1>ProScope Completion Report</h1>
+  <h1>Verascope Completion Report</h1>
   <p>${project.name} &nbsp;·&nbsp; ${project.address} &nbsp;·&nbsp; Generated ${new Date().toLocaleDateString()}</p>
   <div class="cards">
     <div class="card"><div class="card-label">Total Amount</div><div class="card-value">${fmt(totalRcv)}</div></div>
@@ -86,7 +86,7 @@ export function generateReport(project: Project): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `proscope-report-${project.name.replace(/\s+/g, '-')}.html`
+  a.download = `verascope-report-${project.name.replace(/\s+/g, '-')}.html`
   a.click()
   URL.revokeObjectURL(url)
 }

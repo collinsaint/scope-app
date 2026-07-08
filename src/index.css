@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+/* Verascope brand — violet palette overrides Tailwind's default blue */
+@theme {
+  --color-blue-50:  #EEEDFE;
+  --color-blue-100: #CECBF6;
+  --color-blue-200: #AFA9EC;
+  --color-blue-300: #AFA9EC;
+  --color-blue-400: #7F77DD;
+  --color-blue-500: #534AB7;
+  --color-blue-600: #3C3489;
+  --color-blue-700: #534AB7;
+  --color-blue-800: #26215C;
+  --color-blue-900: #1A1747;
+}
+
 @layer base {
   body {
     @apply bg-slate-100 text-slate-900 antialiased;

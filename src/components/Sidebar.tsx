@@ -36,12 +36,12 @@ export function Sidebar({ view, onNavigate, onSignOut, userEmail }: Props) {
         {/* Brand */}
         <div className="flex items-center gap-2.5 px-4 py-4 border-b border-slate-700/60 flex-shrink-0">
           <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-              <polyline points="9 22 9 12 15 12 15 22"/>
+            <svg width="18" height="18" viewBox="0 0 36 36" role="img" aria-label="Verascope">
+              <circle cx="18" cy="18" r="9" fill="none" stroke="#EEEDFE" strokeWidth="2.4"/>
+              <circle cx="18" cy="18" r="3" fill="#EEEDFE"/>
             </svg>
           </div>
-          <span className="text-slate-100 font-semibold text-[15px] tracking-tight">ProScope</span>
+          <span className="text-slate-100 font-medium text-[15px]">Verascope</span>
         </div>
 
         {/* Nav */}

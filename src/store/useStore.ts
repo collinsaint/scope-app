@@ -70,7 +70,7 @@ export const useStore = create<StoreState>()(
         connected: false,
         accountName: null,
         accountEmail: null,
-        rootFolderName: 'ProScope',
+        rootFolderName: 'Verascope',
       },
       viewMode: 'auto',
       walkPresets: ['', '', '', '', '', ''],

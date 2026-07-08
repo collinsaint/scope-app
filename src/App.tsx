@@ -121,8 +121,9 @@ export default function App() {
       <div className="flex items-center justify-center bg-slate-900" style={{ height: '100dvh' }}>
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+            <svg width="22" height="22" viewBox="0 0 36 36" role="img" aria-label="Verascope">
+              <circle cx="18" cy="18" r="9" fill="none" stroke="#EEEDFE" strokeWidth="2.4"/>
+              <circle cx="18" cy="18" r="3" fill="#EEEDFE"/>
             </svg>
           </div>
           <p className="text-slate-400 text-sm">Loading…</p>
