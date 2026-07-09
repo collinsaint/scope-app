@@ -50,22 +50,22 @@ function activityLabel(a: string): string {
 
 function activityColorClass(a: string): string {
   const map: Record<string, string> = {
-    'Remove and Replace': 'bg-blue-100 text-blue-700',
-    'Remove': 'bg-rose-100 text-rose-700',
-    'Replace': 'bg-emerald-100 text-emerald-700',
+    'Remove and Replace': 'bg-slate-200 text-slate-700',
+    'Remove': 'bg-slate-100 text-slate-600',
+    'Replace': 'bg-gray-100 text-gray-500',
   }
-  return map[a] ?? 'bg-slate-100 text-slate-500'
+  return map[a] ?? 'bg-slate-50 text-slate-400'
 }
 
 const COVERAGE_PALETTE = [
-  'bg-blue-100 text-blue-700',
-  'bg-emerald-100 text-emerald-700',
-  'bg-amber-100 text-amber-700',
-  'bg-rose-100 text-rose-700',
-  'bg-violet-100 text-violet-700',
-  'bg-cyan-100 text-cyan-700',
-  'bg-orange-100 text-orange-700',
-  'bg-teal-100 text-teal-700',
+  'bg-violet-50 text-violet-500',
+  'bg-purple-50 text-purple-500',
+  'bg-indigo-50 text-indigo-500',
+  'bg-violet-100 text-violet-600',
+  'bg-purple-100 text-purple-600',
+  'bg-fuchsia-50 text-fuchsia-500',
+  'bg-indigo-100 text-indigo-600',
+  'bg-fuchsia-100 text-fuchsia-600',
 ]
 
 function coverageColorClass(coverage: string): string {
@@ -395,7 +395,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                     <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/>
                   </svg>
                 </div>
-                <p className="text-sm font-semibold text-slate-800">Note 1</p>
+                <p className="text-sm font-semibold text-slate-800">Item Note</p>
               </div>
               <button onClick={() => setNoteModalItem(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -448,7 +448,16 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
             ) : (
               withRoomHeaders(visible, roomFilter).map(row =>
                 '_roomHeader' in row ? (
-                  <RoomHeaderRow key={row.id} room={row.room} />
+                  <RoomHeaderRow
+                    key={row.id}
+                    room={row.room}
+                    onCompleteAll={(() => {
+                      const incompleteIds = visibleData.filter(i => i.room === row.room && !i.completed).map(i => i.id)
+                      return incompleteIds.length > 0
+                        ? () => bulkComplete(projectId, incompleteIds)
+                        : undefined
+                    })()}
+                  />
                 ) : row.isHeader ? (
                   <HeaderRow key={row.id} label={row.description} />
                 ) : (
@@ -474,7 +483,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   )
 }
 
-function RoomHeaderRow({ room }: { room: string }) {
+function RoomHeaderRow({ room, onCompleteAll }: { room: string; onCompleteAll?: () => void }) {
   return (
     <tr>
       <td colSpan={COL_COUNT} className="sticky top-[40px] z-[5] px-4 pt-4 pb-2 bg-white border-b border-slate-200">
@@ -483,6 +492,14 @@ function RoomHeaderRow({ room }: { room: string }) {
             {roomLabel(room)}
           </span>
           <div className="flex-1 h-px bg-slate-200" />
+          {onCompleteAll && (
+            <button
+              onClick={onCompleteAll}
+              className="flex-shrink-0 text-[10px] font-medium text-slate-500 px-2 py-1 rounded-md border border-slate-200 bg-white hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors"
+            >
+              Complete All
+            </button>
+          )}
         </div>
       </td>
     </tr>

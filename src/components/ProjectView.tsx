@@ -173,18 +173,8 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
 
           <div className="flex-1 min-w-0">
             {isMobile ? (
-              <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+              <div className="flex items-center min-w-0 overflow-hidden">
                 <h1 className="text-sm font-semibold text-white truncate min-w-0">{project.name}</h1>
-                <button
-                  onClick={() => { (project.sketches?.length ?? 0) > 0 ? setShowSketchViewer(true) : (setSketchLabel(SKETCH_LABELS[0]), setShowSketchUpload(true)) }}
-                  className="flex-shrink-0 relative flex items-center gap-1 px-2 py-1.5 rounded-lg border border-slate-700 text-slate-300 text-xs font-medium"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  Sketch
-                  {(project.sketches?.length ?? 0) > 0 && (
-                    <span className="ml-0.5 bg-blue-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">{project.sketches!.length}</span>
-                  )}
-                </button>
               </div>
             ) : (
               <>
@@ -252,9 +242,19 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
             </div>
           )}
 
-          {/* Mobile compact actions — walk toggle + comments + export */}
+          {/* Mobile compact actions — sketch + walk toggle + comments + export */}
           {isMobile && (
             <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => { (project.sketches?.length ?? 0) > 0 ? setShowSketchViewer(true) : (setSketchLabel(SKETCH_LABELS[0]), setShowSketchUpload(true)) }}
+                className={`relative p-2 rounded-lg border transition-colors ${(project.sketches?.length ?? 0) > 0 ? 'border-blue-500 text-blue-400' : 'border-slate-700 text-slate-400'}`}
+                title="Sketch"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                {(project.sketches?.length ?? 0) > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[9px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center leading-none">{project.sketches!.length}</span>
+                )}
+              </button>
               <button
                 onClick={() => setShowTotals(v => !v)}
                 className={`p-2 rounded-lg border text-xs font-bold transition-colors ${showTotals ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-700 text-slate-400'}`}

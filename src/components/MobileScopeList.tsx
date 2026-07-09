@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import type { ScopeItem, Subcontractor } from '../types'
 import { useStore } from '../store/useStore'
-import { compressPhoto } from '../lib/compressPhoto'
 import { uploadPhotoToOneDrive } from '../lib/oneDrive'
+import { CameraCapture } from './CameraCapture'
 
 interface Props {
   projectId: string
@@ -35,22 +35,22 @@ function activityLabel(a: string): string {
 
 function activityColorClass(a: string): string {
   const map: Record<string, string> = {
-    'Remove and Replace': 'bg-blue-100 text-blue-700',
-    'Remove': 'bg-rose-100 text-rose-700',
-    'Replace': 'bg-emerald-100 text-emerald-700',
+    'Remove and Replace': 'bg-slate-200 text-slate-700',
+    'Remove': 'bg-slate-100 text-slate-600',
+    'Replace': 'bg-gray-100 text-gray-500',
   }
-  return map[a] ?? 'bg-slate-100 text-slate-500'
+  return map[a] ?? 'bg-slate-50 text-slate-400'
 }
 
 const COVERAGE_PALETTE = [
-  'bg-blue-100 text-blue-700',
-  'bg-emerald-100 text-emerald-700',
-  'bg-amber-100 text-amber-700',
-  'bg-rose-100 text-rose-700',
-  'bg-violet-100 text-violet-700',
-  'bg-cyan-100 text-cyan-700',
-  'bg-orange-100 text-orange-700',
-  'bg-teal-100 text-teal-700',
+  'bg-violet-50 text-violet-500',
+  'bg-purple-50 text-purple-500',
+  'bg-indigo-50 text-indigo-500',
+  'bg-violet-100 text-violet-600',
+  'bg-purple-100 text-purple-600',
+  'bg-fuchsia-50 text-fuchsia-500',
+  'bg-indigo-100 text-indigo-600',
+  'bg-fuchsia-100 text-fuchsia-600',
 ]
 
 function coverageColorClass(coverage: string): string {
@@ -59,8 +59,45 @@ function coverageColorClass(coverage: string): string {
   return COVERAGE_PALETTE[hash % COVERAGE_PALETTE.length]
 }
 
+// Stamps project name + timestamp onto a photo (mirrors WalkView behavior)
+async function stampPhoto(file: File, projectName: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const objUrl = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(objUrl)
+      const MAX_DIM = 2048
+      const scale = Math.min(1, MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight))
+      const w = Math.round(img.naturalWidth * scale)
+      const h = Math.round(img.naturalHeight * scale)
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, w, h)
+      const ts = new Date().toLocaleString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true,
+      })
+      const label = `${projectName}  ·  ${ts}`
+      const fontSize = Math.max(14, Math.round(w / 50))
+      const pad = Math.round(fontSize * 0.6)
+      ctx.font = `600 ${fontSize}px system-ui, sans-serif`
+      const tw = ctx.measureText(label).width
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'
+      ctx.fillRect(w - tw - pad * 2, h - fontSize - pad * 2, tw + pad * 2, fontSize + pad * 2)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText(label, w - tw - pad, h - pad)
+      const webp = canvas.toDataURL('image/webp', 0.88)
+      resolve(webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/jpeg', 0.88))
+    }
+    img.onerror = reject
+    img.src = objUrl
+  })
+}
+
 export function MobileScopeList({ projectId, items, subcontractors, roomFilter, onOpenComment }: Props) {
-  const { toggleItem, assignSubcontractor, addPhoto, removePhoto, oneDrive } = useStore()
+  const { toggleItem, assignSubcontractor, addPhoto, removePhoto, oneDrive, bulkComplete } = useStore()
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
   const [coverageFilter, setCoverageFilter] = useState('all')
   const [search, setSearch] = useState('')
@@ -69,12 +106,11 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [photoModalItemId, setPhotoModalItemId] = useState<string | null>(null)
   const [noteModalItem, setNoteModalItem] = useState<{ description: string; note: string } | null>(null)
+  const [showCamera, setShowCamera] = useState(false)
   const [photoUploading, setPhotoUploading] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const cameraRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
 
-  // Auto-focus search input when popup opens
   useEffect(() => {
     if (showSearch) {
       setSearchDraft(search)
@@ -101,7 +137,6 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   const completedCount = dataItems.filter(i => i.completed).length
   const pct = dataItems.length ? Math.round(completedCount / dataItems.length * 100) : 0
 
-  // Group filtered items by room for sticky room headers
   const groupedByRoom: Array<{ room: string; roomItems: ScopeItem[] }> = []
   for (const item of filtered) {
     const last = groupedByRoom[groupedByRoom.length - 1]
@@ -113,6 +148,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   }
 
   const photoModalItem = photoModalItemId ? dataItems.find(i => i.id === photoModalItemId) ?? null : null
+  const project = useStore.getState().projects.find(p => p.id === projectId)
 
   function toggleExpand(id: string) {
     setExpandedIds(prev => {
@@ -128,21 +164,37 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   }
 
   async function handlePhotoFiles(files: FileList | null) {
-    if (!files || !photoModalItemId) return
+    if (!files || !photoModalItemId || !project) return
     setPhotoUploading(true)
-    const project = useStore.getState().projects.find(p => p.id === projectId)
     for (const file of Array.from(files)) {
-      const url = URL.createObjectURL(file)
       try {
-        const dataUrl = await compressPhoto(url)
-        addPhoto(projectId, photoModalItemId, dataUrl)
-        if (oneDrive.connected && project) {
+        const data = await stampPhoto(file, project.name)
+        addPhoto(projectId, photoModalItemId, data)
+        if (oneDrive.connected) {
           const fileName = `${photoModalItemId}_${Date.now()}.jpg`
-          uploadPhotoToOneDrive(oneDrive.rootFolderName, project.name, dataUrl, fileName).catch(() => {})
+          uploadPhotoToOneDrive(oneDrive.rootFolderName, project.name, data, fileName).catch(() => {})
         }
-      } catch { /* skip */ } finally {
-        URL.revokeObjectURL(url)
-      }
+      } catch { /* skip */ }
+    }
+    setPhotoUploading(false)
+  }
+
+  async function handleCameraCapture(dataUrls: string[]) {
+    setShowCamera(false)
+    if (!dataUrls.length || !photoModalItemId || !project) return
+    setPhotoUploading(true)
+    for (const dataUrl of dataUrls) {
+      try {
+        const res = await fetch(dataUrl)
+        const blob = await res.blob()
+        const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' })
+        const stamped = await stampPhoto(file, project.name)
+        addPhoto(projectId, photoModalItemId, stamped)
+        if (oneDrive.connected) {
+          const fileName = `${photoModalItemId}_${Date.now()}.jpg`
+          uploadPhotoToOneDrive(oneDrive.rootFolderName, project.name, stamped, fileName).catch(() => {})
+        }
+      } catch { /* skip */ }
     }
     setPhotoUploading(false)
   }
@@ -150,7 +202,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
 
-      {/* Search popup modal */}
+      {/* Search popup */}
       {showSearch && (
         <div className="fixed inset-0 z-50 flex flex-col bg-black/40" onClick={() => setShowSearch(false)}>
           <div className="bg-white px-4 pt-safe-top pt-4 pb-3 shadow-lg" onClick={e => e.stopPropagation()}>
@@ -168,16 +220,10 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                   className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              <button
-                onClick={commitSearch}
-                className="px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl flex-shrink-0"
-              >
+              <button onClick={commitSearch} className="px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl flex-shrink-0">
                 Search
               </button>
-              <button
-                onClick={() => { setSearchDraft(''); setSearch(''); setShowSearch(false) }}
-                className="p-2.5 text-slate-400"
-              >
+              <button onClick={() => { setSearchDraft(''); setSearch(''); setShowSearch(false) }} className="p-2.5 text-slate-400">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
@@ -187,11 +233,11 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
         </div>
       )}
 
-      {/* Photo modal */}
+      {/* Photo modal — centered */}
       {photoModalItem && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setPhotoModalItemId(null)} />
-          <div className="relative bg-white rounded-t-2xl max-h-[80vh] flex flex-col">
+          <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl flex flex-col max-h-[80vh]">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
               <div>
                 <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Photos</p>
@@ -204,7 +250,6 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
               </button>
             </div>
             <div className="overflow-y-auto flex-1 p-5 space-y-4">
-              {/* Existing photos */}
               {photoModalItem.photos.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {photoModalItem.photos.map((src, i) => (
@@ -218,10 +263,9 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                   ))}
                 </div>
               )}
-              {/* Camera + upload buttons */}
               <div className="flex gap-3">
                 <button
-                  onClick={() => cameraRef.current?.click()}
+                  onClick={() => setShowCamera(true)}
                   disabled={photoUploading}
                   className="flex-1 flex flex-col items-center justify-center gap-2 py-5 border-2 border-dashed border-blue-300 bg-blue-50 rounded-xl text-blue-600 disabled:opacity-50"
                 >
@@ -243,20 +287,25 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                 </button>
               </div>
             </div>
-            {/* Hidden file inputs */}
-            <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
-              onChange={e => { handlePhotoFiles(e.target.files); e.target.value = '' }} />
             <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden"
               onChange={e => { handlePhotoFiles(e.target.files); e.target.value = '' }} />
           </div>
         </div>
       )}
 
-      {/* Note 1 modal */}
+      {/* Camera (CameraCapture — fullscreen, z-[60]) */}
+      {showCamera && (
+        <CameraCapture
+          onCapture={handleCameraCapture}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
+
+      {/* Item Note modal — centered */}
       {noteModalItem && (
-        <div className="fixed inset-0 z-50 flex items-end">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setNoteModalItem(null)} />
-          <div className="relative bg-white rounded-t-2xl w-full">
+          <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0">
@@ -264,7 +313,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                     <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/>
                   </svg>
                 </div>
-                <span className="text-sm font-semibold text-slate-800">Note 1</span>
+                <span className="text-sm font-semibold text-slate-800">Item Note</span>
               </div>
               <button onClick={() => setNoteModalItem(null)} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -272,7 +321,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                 </svg>
               </button>
             </div>
-            <div className="px-5 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+            <div className="px-5 py-4">
               <p className="text-[11px] text-slate-400 mb-2 font-medium">{noteModalItem.description}</p>
               <p className="text-sm text-slate-700 leading-relaxed">{noteModalItem.note}</p>
             </div>
@@ -289,13 +338,13 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
       </div>
 
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 bg-white border-b border-slate-100 flex-shrink-0">
-        <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-white border-b border-slate-100 flex-shrink-0 overflow-x-auto scrollbar-hide">
+        <div className="flex items-center gap-1 flex-shrink-0">
           {(['all', 'pending', 'complete'] as const).map(f => (
             <button
               key={f}
               onClick={() => setStatusFilter(f)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
                 statusFilter === f ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'
               }`}
             >
@@ -307,28 +356,24 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
           <select
             value={coverageFilter}
             onChange={e => setCoverageFilter(e.target.value)}
-            className="px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-600 focus:outline-none"
+            className="px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-600 focus:outline-none flex-shrink-0"
           >
             <option value="all">All Coverage</option>
             {coverageOptions.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
+        {/* Search icon only */}
         <button
           onClick={() => setShowSearch(true)}
-          className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-colors ${
+          className={`ml-auto p-2 rounded-full border transition-colors flex-shrink-0 ${
             search ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-500 bg-white'
           }`}
+          title="Search"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          {search ? 'Clear' : 'Search'}
         </button>
-        {search && (
-          <button onClick={() => setSearch('')} className="text-[11px] text-slate-400 underline">
-            Clear
-          </button>
-        )}
       </div>
 
       {/* Card list */}
@@ -339,11 +384,22 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
           <div>
             {groupedByRoom.map(group => (
               <div key={group.room}>
-                {/* Sticky room header */}
+                {/* Sticky room header with Complete All button */}
                 <div className="sticky top-0 z-10 px-4 py-2 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
                   <span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest flex-1 min-w-0 truncate">
                     {roomLabel(group.room)}
                   </span>
+                  {group.roomItems.some(i => !i.completed) && (
+                    <button
+                      onClick={() => {
+                        const ids = group.roomItems.filter(i => !i.completed).map(i => i.id)
+                        if (ids.length) bulkComplete(projectId, ids)
+                      }}
+                      className="text-[10px] font-medium text-slate-500 px-2 py-1 rounded-md border border-slate-300 bg-white hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors flex-shrink-0 whitespace-nowrap"
+                    >
+                      Complete All
+                    </button>
+                  )}
                 </div>
 
                 <div className="divide-y divide-slate-100">
@@ -368,14 +424,11 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                             )}
                           </button>
 
-                          {/* Info */}
+                          {/* Description + pills */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className={`text-sm font-medium leading-snug ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                                {item.description}
-                              </p>
-                              <span className="text-[11px] text-slate-400 flex-shrink-0">#{item.rowNum}</span>
-                            </div>
+                            <p className={`text-sm font-medium leading-snug ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                              {item.description}
+                            </p>
                             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1.5">
                               {item.activity && (
                                 <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${activityColorClass(item.activity)}`}>
@@ -393,11 +446,11 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                           </div>
 
                           {/* Action buttons */}
-                          <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+                          <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
                             {/* Photo button */}
                             <button
                               onClick={() => setPhotoModalItemId(item.id)}
-                              className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-colors ${
+                              className={`flex items-center justify-center gap-0.5 px-1.5 py-1.5 rounded-lg text-[11px] font-medium border transition-colors ${
                                 item.photos.length > 0
                                   ? 'border-blue-200 bg-blue-50 text-blue-600'
                                   : 'border-slate-200 text-slate-400 bg-white'
@@ -407,22 +460,38 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                 <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
                                 <circle cx="12" cy="13" r="4"/>
                               </svg>
-                              {item.photos.length > 0 ? item.photos.length : ''}
+                              {item.photos.length > 0 && <span>{item.photos.length}</span>}
                             </button>
 
-                            {/* Note 1 button — only if note exists */}
+                            {/* Comment button */}
+                            <button
+                              onClick={() => onOpenComment(item.id)}
+                              className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-colors ${
+                                item.comment
+                                  ? 'border-blue-200 bg-blue-50 text-blue-600'
+                                  : 'border-slate-200 text-slate-400 bg-white'
+                              }`}
+                              title={item.comment || 'Add comment'}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                              </svg>
+                            </button>
+
+                            {/* Item Note button — only if note exists */}
                             {item.note && (
                               <button
                                 onClick={() => setNoteModalItem({ description: item.description, note: item.note })}
                                 className="flex items-center justify-center w-8 h-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600"
+                                title="Item Note"
                               >
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                   <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/>
                                 </svg>
                               </button>
                             )}
 
-                            {/* Expand chevron for comment/sub */}
+                            {/* Expand chevron (subcontractor) */}
                             <button onClick={() => toggleExpand(item.id)} className="flex-shrink-0 text-slate-300 p-1">
                               <svg
                                 width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -433,22 +502,17 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                               </svg>
                             </button>
                           </div>
+
+                          {/* Line item # — always far right */}
+                          <span className="text-[11px] text-slate-400 flex-shrink-0 mt-0.5 ml-0.5">#{item.rowNum}</span>
                         </div>
 
-                        {/* Expanded panel — comment + subcontractor */}
+                        {/* Expanded panel — subcontractor + comment preview */}
                         {expanded && (
                           <div className="px-4 pb-3 pt-2 bg-slate-50/60 border-t border-slate-100 space-y-2.5">
-                            <div className="flex flex-wrap gap-2">
-                              <button
-                                onClick={() => onOpenComment(item.id)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 bg-white"
-                              >
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-                                </svg>
-                                {item.comment ? 'Edit comment' : 'Add comment'}
-                              </button>
-                              {subcontractors.length > 0 && (
+                            {subcontractors.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[11px] text-slate-400">Assign:</span>
                                 <select
                                   value={item.subcontractorId ?? ''}
                                   onChange={e => assignSubcontractor(projectId, [item.id], e.target.value || null)}
@@ -457,9 +521,9 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                   <option value="">No subcontractor</option>
                                   {subcontractors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                 </select>
-                              )}
-                              {sub && <span className="self-center text-[11px] text-purple-500 font-medium">{sub.name}</span>}
-                            </div>
+                                {sub && <span className="text-[11px] text-purple-500 font-medium">{sub.name}</span>}
+                              </div>
+                            )}
                             {item.comment && (
                               <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
                                 <p className="text-xs text-amber-800 leading-relaxed">{item.comment}</p>
