@@ -256,6 +256,13 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
           {isMobile && (
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
+                onClick={() => setShowTotals(v => !v)}
+                className={`p-2 rounded-lg border text-xs font-bold transition-colors ${showTotals ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-700 text-slate-400'}`}
+                title="Toggle totals"
+              >
+                $
+              </button>
+              <button
                 onClick={() => setShowWalkBar(v => !v)}
                 className={`p-2 rounded-lg border transition-colors ${showWalkBar ? 'bg-slate-700 text-white border-slate-700' : 'border-slate-700 text-slate-400'}`}
                 title="Toggle walk selector"
@@ -272,13 +279,6 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                 title="Comments"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-              </button>
-              <button
-                onClick={() => setShowTotals(v => !v)}
-                className={`p-2 rounded-lg border text-xs font-bold transition-colors ${showTotals ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-700 text-slate-400'}`}
-                title="Toggle totals"
-              >
-                $
               </button>
               <button onClick={() => generateReport(project)} className="p-2 rounded-lg bg-blue-600 text-white" title="Export">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>

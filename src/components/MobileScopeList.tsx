@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { ScopeItem, Subcontractor } from '../types'
 import { useStore } from '../store/useStore'
-import { PhotoUploader } from './PhotoUploader'
+import { compressPhoto } from '../lib/compressPhoto'
+import { uploadPhotoToOneDrive } from '../lib/oneDrive'
 
 interface Props {
   projectId: string
@@ -23,12 +24,63 @@ function roomLabel(r: string) {
   return r.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
+function activityLabel(a: string): string {
+  const map: Record<string, string> = {
+    'Remove and Replace': 'R&R',
+    'Remove': 'Remove',
+    'Replace': 'Replace',
+  }
+  return map[a] ?? a
+}
+
+function activityColorClass(a: string): string {
+  const map: Record<string, string> = {
+    'Remove and Replace': 'bg-blue-100 text-blue-700',
+    'Remove': 'bg-rose-100 text-rose-700',
+    'Replace': 'bg-emerald-100 text-emerald-700',
+  }
+  return map[a] ?? 'bg-slate-100 text-slate-500'
+}
+
+const COVERAGE_PALETTE = [
+  'bg-blue-100 text-blue-700',
+  'bg-emerald-100 text-emerald-700',
+  'bg-amber-100 text-amber-700',
+  'bg-rose-100 text-rose-700',
+  'bg-violet-100 text-violet-700',
+  'bg-cyan-100 text-cyan-700',
+  'bg-orange-100 text-orange-700',
+  'bg-teal-100 text-teal-700',
+]
+
+function coverageColorClass(coverage: string): string {
+  let hash = 0
+  for (const ch of coverage) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+  return COVERAGE_PALETTE[hash % COVERAGE_PALETTE.length]
+}
+
 export function MobileScopeList({ projectId, items, subcontractors, roomFilter, onOpenComment }: Props) {
-  const { toggleItem, assignSubcontractor } = useStore()
+  const { toggleItem, assignSubcontractor, addPhoto, removePhoto, oneDrive } = useStore()
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
   const [coverageFilter, setCoverageFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
+  const [searchDraft, setSearchDraft] = useState('')
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [photoModalItemId, setPhotoModalItemId] = useState<string | null>(null)
+  const [noteModalItem, setNoteModalItem] = useState<{ description: string; note: string } | null>(null)
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
+  const galleryRef = useRef<HTMLInputElement>(null)
+
+  // Auto-focus search input when popup opens
+  useEffect(() => {
+    if (showSearch) {
+      setSearchDraft(search)
+      setTimeout(() => searchInputRef.current?.focus(), 50)
+    }
+  }, [showSearch])
 
   const roomFiltered = items.filter(i => {
     if (roomFilter !== 'all' && i.room !== roomFilter) return false
@@ -60,6 +112,8 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
     }
   }
 
+  const photoModalItem = photoModalItemId ? dataItems.find(i => i.id === photoModalItemId) ?? null : null
+
   function toggleExpand(id: string) {
     setExpandedIds(prev => {
       const next = new Set(prev)
@@ -68,17 +122,173 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
     })
   }
 
+  function commitSearch() {
+    setSearch(searchDraft)
+    setShowSearch(false)
+  }
+
+  async function handlePhotoFiles(files: FileList | null) {
+    if (!files || !photoModalItemId) return
+    setPhotoUploading(true)
+    const project = useStore.getState().projects.find(p => p.id === projectId)
+    for (const file of Array.from(files)) {
+      const url = URL.createObjectURL(file)
+      try {
+        const dataUrl = await compressPhoto(url)
+        addPhoto(projectId, photoModalItemId, dataUrl)
+        if (oneDrive.connected && project) {
+          const fileName = `${photoModalItemId}_${Date.now()}.jpg`
+          uploadPhotoToOneDrive(oneDrive.rootFolderName, project.name, dataUrl, fileName).catch(() => {})
+        }
+      } catch { /* skip */ } finally {
+        URL.revokeObjectURL(url)
+      }
+    }
+    setPhotoUploading(false)
+  }
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+
+      {/* Search popup modal */}
+      {showSearch && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black/40" onClick={() => setShowSearch(false)}>
+          <div className="bg-white px-4 pt-safe-top pt-4 pb-3 shadow-lg" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input
+                  ref={searchInputRef}
+                  value={searchDraft}
+                  onChange={e => setSearchDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') commitSearch() }}
+                  placeholder="Search items…"
+                  className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <button
+                onClick={commitSearch}
+                className="px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl flex-shrink-0"
+              >
+                Search
+              </button>
+              <button
+                onClick={() => { setSearchDraft(''); setSearch(''); setShowSearch(false) }}
+                className="p-2.5 text-slate-400"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Photo modal */}
+      {photoModalItem && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setPhotoModalItemId(null)} />
+          <div className="relative bg-white rounded-t-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
+              <div>
+                <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Photos</p>
+                <p className="text-sm font-semibold text-slate-800 mt-0.5 leading-tight line-clamp-1">{photoModalItem.description}</p>
+              </div>
+              <button onClick={() => setPhotoModalItemId(null)} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-5 space-y-4">
+              {/* Existing photos */}
+              {photoModalItem.photos.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {photoModalItem.photos.map((src, i) => (
+                    <div key={i} className="relative">
+                      <img src={src} alt="" className="h-24 w-24 object-cover rounded-xl border border-slate-200" />
+                      <button
+                        onClick={() => removePhoto(projectId, photoModalItem.id, i)}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-[11px] flex items-center justify-center shadow"
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Camera + upload buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => cameraRef.current?.click()}
+                  disabled={photoUploading}
+                  className="flex-1 flex flex-col items-center justify-center gap-2 py-5 border-2 border-dashed border-blue-300 bg-blue-50 rounded-xl text-blue-600 disabled:opacity-50"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                  <span className="text-xs font-semibold">Take Photo</span>
+                </button>
+                <button
+                  onClick={() => galleryRef.current?.click()}
+                  disabled={photoUploading}
+                  className="flex-1 flex flex-col items-center justify-center gap-2 py-5 border-2 border-dashed border-slate-300 bg-slate-50 rounded-xl text-slate-500 disabled:opacity-50"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                  <span className="text-xs font-semibold">{photoUploading ? 'Uploading…' : 'Upload'}</span>
+                </button>
+              </div>
+            </div>
+            {/* Hidden file inputs */}
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+              onChange={e => { handlePhotoFiles(e.target.files); e.target.value = '' }} />
+            <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden"
+              onChange={e => { handlePhotoFiles(e.target.files); e.target.value = '' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Note 1 modal */}
+      {noteModalItem && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setNoteModalItem(null)} />
+          <div className="relative bg-white rounded-t-2xl w-full">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/>
+                  </svg>
+                </div>
+                <span className="text-sm font-semibold text-slate-800">Note 1</span>
+              </div>
+              <button onClick={() => setNoteModalItem(null)} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div className="px-5 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+              <p className="text-[11px] text-slate-400 mb-2 font-medium">{noteModalItem.description}</p>
+              <p className="text-sm text-slate-700 leading-relaxed">{noteModalItem.note}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Progress bar */}
-      <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-3">
+      <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-3 flex-shrink-0">
         <div className="flex-1 h-1.5 bg-slate-200 rounded-full">
           <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
         </div>
-        <span className="text-xs text-slate-500 flex-shrink-0">{completedCount}/{dataItems.length}</span>
+        <span className="text-xs text-slate-500 flex-shrink-0">{completedCount}/{dataItems.length} · {pct}%</span>
       </div>
 
-      {/* Filter + search */}
+      {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 bg-white border-b border-slate-100 flex-shrink-0">
         <div className="flex items-center gap-1">
           {(['all', 'pending', 'complete'] as const).map(f => (
@@ -103,17 +313,22 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
             {coverageOptions.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
-        <div className="relative ml-auto">
-          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <button
+          onClick={() => setShowSearch(true)}
+          className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-colors ${
+            search ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-500 bg-white'
+          }`}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search…"
-            className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-full w-36 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+          {search ? 'Clear' : 'Search'}
+        </button>
+        {search && (
+          <button onClick={() => setSearch('')} className="text-[11px] text-slate-400 underline">
+            Clear
+          </button>
+        )}
       </div>
 
       {/* Card list */}
@@ -124,7 +339,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
           <div>
             {groupedByRoom.map(group => (
               <div key={group.room}>
-                {/* Sticky room header — always shown so user knows which room they're in */}
+                {/* Sticky room header */}
                 <div className="sticky top-0 z-10 px-4 py-2 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
                   <span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest flex-1 min-w-0 truncate">
                     {roomLabel(group.room)}
@@ -153,65 +368,76 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                             )}
                           </button>
 
-                          {/* Info — tappable to expand */}
-                          <button className="flex-1 text-left min-w-0" onClick={() => toggleExpand(item.id)}>
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-2">
                               <p className={`text-sm font-medium leading-snug ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
                                 {item.description}
                               </p>
                               <span className="text-[11px] text-slate-400 flex-shrink-0">#{item.rowNum}</span>
                             </div>
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
-                              {item.activity && <span className="text-[11px] text-slate-400">{item.activity}</span>}
-                              {item.qty > 0 && <span className="text-[11px] text-slate-400">{fmtQty(item.qty)} {item.unit}</span>}
-                              {item.rcv > 0 && <span className="text-[11px] font-semibold text-slate-600">{fmt(item.rcv)}</span>}
-                              {item.coverage && <span className="text-[11px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-medium">{item.coverage}</span>}
-                              {item.photos.length > 0 && (
-                                <span className="flex items-center gap-0.5 text-[11px] text-blue-500">
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-                                  </svg>
-                                  {item.photos.length}
+                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1.5">
+                              {item.activity && (
+                                <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${activityColorClass(item.activity)}`}>
+                                  {activityLabel(item.activity)}
                                 </span>
                               )}
-                              {item.comment && (
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-                                </svg>
+                              {item.qty > 0 && <span className="text-[11px] text-slate-400">{fmtQty(item.qty)} {item.unit}</span>}
+                              {item.rcv > 0 && <span className="text-[11px] font-semibold text-slate-600">{fmt(item.rcv)}</span>}
+                              {item.coverage && (
+                                <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${coverageColorClass(item.coverage)}`}>
+                                  {item.coverage}
+                                </span>
                               )}
-                              {sub && <span className="text-[11px] text-purple-500">{sub.name}</span>}
                             </div>
-                          </button>
+                          </div>
 
-                          {/* Expand chevron */}
-                          <button onClick={() => toggleExpand(item.id)} className="flex-shrink-0 mt-1 text-slate-300 p-1">
-                            <svg
-                              width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                              strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                              className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+                          {/* Action buttons */}
+                          <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+                            {/* Photo button */}
+                            <button
+                              onClick={() => setPhotoModalItemId(item.id)}
+                              className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-colors ${
+                                item.photos.length > 0
+                                  ? 'border-blue-200 bg-blue-50 text-blue-600'
+                                  : 'border-slate-200 text-slate-400 bg-white'
+                              }`}
                             >
-                              <polyline points="6 9 12 15 18 9"/>
-                            </svg>
-                          </button>
-                        </div>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                                <circle cx="12" cy="13" r="4"/>
+                              </svg>
+                              {item.photos.length > 0 ? item.photos.length : ''}
+                            </button>
 
-                        {/* Expanded panel */}
-                        {expanded && (
-                          <div className="px-4 pb-4 pt-2 bg-slate-50/60 border-t border-slate-100 space-y-3">
+                            {/* Note 1 button — only if note exists */}
                             {item.note && (
-                              <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
-                                <svg className="flex-shrink-0 mt-0.5" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <button
+                                onClick={() => setNoteModalItem({ description: item.description, note: item.note })}
+                                className="flex items-center justify-center w-8 h-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                   <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/>
                                 </svg>
-                                <p className="text-xs text-amber-800 leading-relaxed">{item.note}</p>
-                              </div>
+                              </button>
                             )}
 
-                            <div>
-                              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Photos</p>
-                              <PhotoUploader projectId={projectId} itemId={item.id} photos={item.photos} />
-                            </div>
+                            {/* Expand chevron for comment/sub */}
+                            <button onClick={() => toggleExpand(item.id)} className="flex-shrink-0 text-slate-300 p-1">
+                              <svg
+                                width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                                className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+                              >
+                                <polyline points="6 9 12 15 18 9"/>
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
 
+                        {/* Expanded panel — comment + subcontractor */}
+                        {expanded && (
+                          <div className="px-4 pb-3 pt-2 bg-slate-50/60 border-t border-slate-100 space-y-2.5">
                             <div className="flex flex-wrap gap-2">
                               <button
                                 onClick={() => onOpenComment(item.id)}
@@ -232,8 +458,8 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                   {subcontractors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                 </select>
                               )}
+                              {sub && <span className="self-center text-[11px] text-purple-500 font-medium">{sub.name}</span>}
                             </div>
-
                             {item.comment && (
                               <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
                                 <p className="text-xs text-amber-800 leading-relaxed">{item.comment}</p>

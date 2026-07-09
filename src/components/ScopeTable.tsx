@@ -48,6 +48,32 @@ function activityLabel(a: string): string {
   return map[a] ?? a
 }
 
+function activityColorClass(a: string): string {
+  const map: Record<string, string> = {
+    'Remove and Replace': 'bg-blue-100 text-blue-700',
+    'Remove': 'bg-rose-100 text-rose-700',
+    'Replace': 'bg-emerald-100 text-emerald-700',
+  }
+  return map[a] ?? 'bg-slate-100 text-slate-500'
+}
+
+const COVERAGE_PALETTE = [
+  'bg-blue-100 text-blue-700',
+  'bg-emerald-100 text-emerald-700',
+  'bg-amber-100 text-amber-700',
+  'bg-rose-100 text-rose-700',
+  'bg-violet-100 text-violet-700',
+  'bg-cyan-100 text-cyan-700',
+  'bg-orange-100 text-orange-700',
+  'bg-teal-100 text-teal-700',
+]
+
+function coverageColorClass(coverage: string): string {
+  let hash = 0
+  for (const ch of coverage) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+  return COVERAGE_PALETTE[hash % COVERAGE_PALETTE.length]
+}
+
 function pruneOrphanedHeaders(items: ScopeItem[]): ScopeItem[] {
   const result: ScopeItem[] = []
   for (let i = 0; i < items.length; i++) {
@@ -526,7 +552,7 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
         {/* Activity */}
         <td className="px-3 py-3">
           {item.activity ? (
-            <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[11px] font-medium whitespace-nowrap">
+            <span className={`px-2 py-0.5 rounded text-[11px] font-medium whitespace-nowrap ${activityColorClass(item.activity)}`}>
               {activityLabel(item.activity)}
             </span>
           ) : '—'}
@@ -545,9 +571,9 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
         </td>
 
         {/* Coverage */}
-        <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">
+        <td className="px-3 py-3 whitespace-nowrap">
           {item.coverage ? (
-            <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[11px] font-medium">{item.coverage}</span>
+            <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${coverageColorClass(item.coverage)}`}>{item.coverage}</span>
           ) : '—'}
         </td>
 
