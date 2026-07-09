@@ -503,6 +503,21 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: 'proscope-storage',
+      // Strip base64 image data before writing to localStorage — photos/sketches
+      // are synced to Supabase and reloaded on every login, so the local cache
+      // only needs metadata, not the full payloads.
+      partialize: (state) => ({
+        ...state,
+        projects: state.projects.map((p) => ({
+          ...p,
+          items: p.items.map((item) => ({ ...item, photos: [] })),
+          walks: (p.walks ?? []).map((w) => ({
+            ...w,
+            roomPhotos: (w.roomPhotos ?? []).map((ph) => ({ ...ph, data: '' })),
+          })),
+          sketches: (p.sketches ?? []).map((sk) => ({ ...sk, data: '' })),
+        })),
+      }),
     }
   )
 )

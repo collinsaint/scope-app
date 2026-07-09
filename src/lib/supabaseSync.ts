@@ -2,17 +2,25 @@ import { supabase } from './supabase'
 import type { Project } from '../types'
 
 export async function loadProjectsFromSupabase(): Promise<Project[]> {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('data')
-    .order('created_at', { ascending: true })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10_000)
 
-  if (error) {
-    console.error('Failed to load projects:', error.message)
-    return []
+  try {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('data')
+      .order('created_at', { ascending: true })
+      .abortSignal(controller.signal)
+
+    if (error) {
+      console.error('Failed to load projects:', error.message)
+      return []
+    }
+
+    return (data ?? []).map(row => row.data as Project)
+  } finally {
+    clearTimeout(timeout)
   }
-
-  return (data ?? []).map(row => row.data as Project)
 }
 
 export async function syncProjectToSupabase(project: Project, ownerId: string): Promise<void> {

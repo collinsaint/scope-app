@@ -55,24 +55,30 @@ export default function App() {
     async function loadFromSupabase() {
       loadingFromSupabase.current = true
       setSyncing(true)
-      // Clear local state first — prevents another user's localStorage data showing
-      replaceProjects([])
-      const remoteProjects = await loadProjectsFromSupabase()
-      if (remoteProjects.length > 0) {
-        replaceProjects(remoteProjects)
-        // Pre-seed refs so the sync effect sees no diff and skips re-uploading
-        prevProjectsRef.current = remoteProjects
-        prevProjectIdsRef.current = new Set(remoteProjects.map(p => p.id))
-      } else {
-        // No projects in Supabase yet — show demo so dashboard isn't empty
+      try {
+        // Clear local state first — prevents another user's localStorage data showing
+        replaceProjects([])
+        const remoteProjects = await loadProjectsFromSupabase()
+        if (remoteProjects.length > 0) {
+          replaceProjects(remoteProjects)
+          // Pre-seed refs so the sync effect sees no diff and skips re-uploading
+          prevProjectsRef.current = remoteProjects
+          prevProjectIdsRef.current = new Set(remoteProjects.map(p => p.id))
+        } else {
+          // No projects in Supabase yet — show demo so dashboard isn't empty
+          seedDemoProject()
+        }
+        // Admin always sees the demo project regardless of other projects
+        if (user?.email === 'admin@proscope.app') {
+          seedDemoProject()
+        }
+      } catch (err) {
+        console.error('Failed to load from Supabase:', err)
         seedDemoProject()
+      } finally {
+        loadingFromSupabase.current = false
+        setSyncing(false)
       }
-      // Admin always sees the demo project regardless of other projects
-      if (user?.email === 'admin@proscope.app') {
-        seedDemoProject()
-      }
-      loadingFromSupabase.current = false
-      setSyncing(false)
     }
     loadFromSupabase()
   // eslint-disable-next-line react-hooks/exhaustive-deps
