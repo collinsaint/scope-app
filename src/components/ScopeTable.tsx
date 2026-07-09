@@ -75,10 +75,17 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   const [bulkSubId, setBulkSubId] = useState('')
   const [confirmComplete, setConfirmComplete] = useState(false)
   const [confirmUncomplete, setConfirmUncomplete] = useState(false)
+  const [photoModalItem, setPhotoModalItem] = useState<ScopeItem | null>(null)
+  const [noteModalItem, setNoteModalItem] = useState<ScopeItem | null>(null)
   const masterRef = useRef<HTMLInputElement>(null)
 
   // Compute filtering unconditionally — must appear before any early return to keep hook order stable
-  const roomFiltered = items.filter(item => roomFilter === 'all' || item.room === roomFilter)
+  // DRV coverage items are excluded from display and totals everywhere
+  const roomFiltered = items.filter(item => {
+    if (roomFilter !== 'all' && item.room !== roomFilter) return false
+    if (!item.isHeader && item.coverage?.toUpperCase() === 'DRV') return false
+    return true
+  })
   const dataItems = roomFiltered.filter(i => !i.isHeader)
   const completedCount = dataItems.filter(i => i.completed).length
   const pendingCount = dataItems.length - completedCount
@@ -307,6 +314,57 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
         </div>
       )}
 
+      {/* Photo modal */}
+      {photoModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setPhotoModalItem(null)} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <div>
+                <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Photos</p>
+                <p className="text-sm font-semibold text-slate-800 mt-0.5 leading-tight">{photoModalItem.description}</p>
+              </div>
+              <button onClick={() => setPhotoModalItem(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div className="p-5">
+              <PhotoUploader projectId={projectId} itemId={photoModalItem.id} photos={photoModalItem.photos} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Note modal */}
+      {noteModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setNoteModalItem(null)} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/>
+                  </svg>
+                </div>
+                <p className="text-sm font-semibold text-slate-800">Note 1</p>
+              </div>
+              <button onClick={() => setNoteModalItem(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-[11px] text-slate-400 mb-1.5 font-medium">{noteModalItem.description}</p>
+              <p className="text-sm text-slate-700 leading-relaxed">{noteModalItem.note}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="overflow-auto flex-1">
         <table className="w-full text-sm border-collapse">
@@ -357,6 +415,8 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                     onSelect={() => toggleSelect(row.id)}
                     onToggle={() => toggleItem(projectId, row.id)}
                     onOpenComment={() => onOpenComment(row.id)}
+                    onPhotoClick={() => setPhotoModalItem(row)}
+                    onNoteClick={() => setNoteModalItem(row)}
                   />
                 )
               )
@@ -371,12 +431,12 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
 function RoomHeaderRow({ room }: { room: string }) {
   return (
     <tr>
-      <td colSpan={COL_COUNT} className="sticky top-10 z-[5] px-4 pt-5 pb-2 bg-white">
+      <td colSpan={COL_COUNT} className="sticky top-10 z-[5] px-4 pt-4 pb-2 bg-slate-50/80 border-b border-slate-100">
         <div className="flex items-center gap-3">
-          <span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest whitespace-nowrap">
+          <span className="text-[11px] font-bold text-blue-700 uppercase tracking-widest whitespace-nowrap">
             {roomLabel(room)}
           </span>
-          <div className="flex-1 h-px bg-slate-200" />
+          <div className="flex-1 h-px bg-blue-100" />
         </div>
       </td>
     </tr>
@@ -403,10 +463,11 @@ interface RowProps {
   onSelect: () => void
   onToggle: () => void
   onOpenComment: () => void
+  onPhotoClick: () => void
+  onNoteClick: () => void
 }
 
-function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onOpenComment }: RowProps) {
-  const [expanded, setExpanded] = useState(false)
+function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onOpenComment, onPhotoClick, onNoteClick }: RowProps) {
   const [showConfirm, setShowConfirm] = useState(false)
 
   function handleConfirm() {
@@ -464,27 +525,42 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
         </td>
 
         {/* Note */}
-        <td className="px-3 py-3 text-xs text-slate-400 max-w-[220px] whitespace-normal break-words align-top">
-          {item.note || '—'}
+        <td className="px-3 py-3">
+          {item.note ? (
+            <button
+              onClick={onNoteClick}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+              title={item.note}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/>
+              </svg>
+              Note
+            </button>
+          ) : (
+            <span className="text-slate-300">—</span>
+          )}
         </td>
 
         {/* Coverage */}
         <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">
-          {item.coverage || '—'}
+          {item.coverage ? (
+            <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[11px] font-medium">{item.coverage}</span>
+          ) : '—'}
         </td>
 
         {/* Photos */}
         <td className="px-3 py-3">
           <button
-            onClick={() => setExpanded(e => !e)}
+            onClick={onPhotoClick}
             className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11.5px] border transition-colors ${
               item.photos.length > 0
-                ? 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100'
+                ? 'border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100'
                 : 'border-slate-200 bg-white text-slate-400 hover:text-slate-600 hover:border-slate-300 border-dashed'
             }`}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+              <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>
             </svg>
             {item.photos.length > 0 ? `${item.photos.length} photo${item.photos.length !== 1 ? 's' : ''}` : 'Add'}
           </button>
@@ -529,14 +605,6 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
           </button>
         </td>
       </tr>
-
-      {expanded && (
-        <tr className="border-b border-slate-100 bg-slate-50/50">
-          <td colSpan={COL_COUNT} className="px-16 py-3">
-            <PhotoUploader projectId={projectId} itemId={item.id} photos={item.photos} />
-          </td>
-        </tr>
-      )}
 
       {showConfirm && (
         <tr>

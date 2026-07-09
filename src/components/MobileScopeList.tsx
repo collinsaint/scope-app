@@ -21,7 +21,11 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   const [search, setSearch] = useState('')
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
-  const roomFiltered = items.filter(i => roomFilter === 'all' || i.room === roomFilter)
+  const roomFiltered = items.filter(i => {
+    if (roomFilter !== 'all' && i.room !== roomFilter) return false
+    if (!i.isHeader && i.coverage?.toUpperCase() === 'DRV') return false
+    return true
+  })
   const dataItems = roomFiltered.filter(i => !i.isHeader)
 
   const filtered = dataItems.filter(item => {
@@ -116,6 +120,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
                         {item.activity && <span className="text-[11px] text-slate-400">{item.activity}</span>}
                         {item.qty > 0 && <span className="text-[11px] text-slate-400">{item.qty} {item.unit}</span>}
+                        {item.coverage && <span className="text-[11px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-medium">{item.coverage}</span>}
                         {item.rcv > 0 && <span className="text-[11px] font-semibold text-slate-600">{fmt(item.rcv)}</span>}
                         {item.photos.length > 0 && (
                           <span className="flex items-center gap-0.5 text-[11px] text-blue-500">
@@ -150,7 +155,12 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                   {expanded && (
                     <div className="px-4 pb-4 pt-2 bg-slate-50/60 border-t border-slate-100 space-y-3">
                       {item.note && (
-                        <p className="text-xs text-slate-500 italic leading-relaxed">Note: {item.note}</p>
+                        <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                          <svg className="flex-shrink-0 mt-0.5" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/>
+                          </svg>
+                          <p className="text-xs text-amber-800 leading-relaxed">{item.note}</p>
+                        </div>
                       )}
 
                       <div>
