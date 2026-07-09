@@ -56,6 +56,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
   const sketchUploadRef = useRef<HTMLInputElement>(null)
   const [showNewWalk, setShowNewWalk] = useState(false)
   const [showWalkBar, setShowWalkBar] = useState(false)
+  const [showTotals, setShowTotals] = useState(false)
   const [addRoomName, setAddRoomName] = useState<string | null>(null)
   const [activeWalkId, setActiveWalkId] = useState<string | null>(() => {
     const proj = useStore.getState().projects.find(p => p.id === projectId)
@@ -236,6 +237,13 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                 Re-upload scope
                 <input type="file" accept=".xlsx,.xls" className="hidden" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; await onDrop([f]); e.target.value = '' }} />
               </label>
+              <button
+                onClick={() => setShowTotals(v => !v)}
+                className={`flex items-center gap-1 px-3 py-1.5 text-xs border rounded-lg transition-colors font-semibold ${showTotals ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                title="Toggle totals"
+              >
+                $
+              </button>
               <button onClick={() => generateReport(project)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Export report
@@ -264,6 +272,13 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
               </button>
+              <button
+                onClick={() => setShowTotals(v => !v)}
+                className={`p-2 rounded-lg border text-xs font-bold transition-colors ${showTotals ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-700 text-slate-400'}`}
+                title="Toggle totals"
+              >
+                $
+              </button>
               <button onClick={() => generateReport(project)} className="p-2 rounded-lg bg-blue-600 text-white" title="Export">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               </button>
@@ -289,8 +304,8 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
         )}
       </div>
 
-      {/* Summary cards — hidden on details view and walk view */}
-      {activeView !== 'details' && !activeWalkId && (
+      {/* Summary cards — hidden by default, toggled with $ button; also hidden on details/walk view */}
+      {showTotals && activeView !== 'details' && !activeWalkId && (
         <div className="bg-white border-b border-slate-100 flex-shrink-0">
           <SummaryCards items={project.items} />
         </div>

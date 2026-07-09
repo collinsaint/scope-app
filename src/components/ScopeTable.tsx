@@ -18,7 +18,7 @@ function withRoomHeaders(items: ScopeItem[], roomFilter: string): RenderRow[] {
   const result: RenderRow[] = []
   let lastRoom: string | null = null
   for (const item of items) {
-    if (!item.isHeader && item.room !== lastRoom) {
+    if (item.room !== lastRoom) {
       result.push({ _roomHeader: true, room: item.room, id: `__room_${item.room}` })
       lastRoom = item.room
     }
