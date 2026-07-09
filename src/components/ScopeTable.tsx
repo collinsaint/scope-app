@@ -14,8 +14,15 @@ function roomLabel(r: string) {
 }
 
 function withRoomHeaders(items: ScopeItem[], roomFilter: string): RenderRow[] {
-  if (roomFilter !== 'all') return items
   const result: RenderRow[] = []
+  if (roomFilter !== 'all') {
+    // Single room — inject one sticky room header at the top
+    if (items.some(i => !i.isHeader)) {
+      result.push({ _roomHeader: true, room: roomFilter, id: `__room_${roomFilter}` })
+    }
+    result.push(...items)
+    return result
+  }
   let lastRoom: string | null = null
   for (const item of items) {
     if (item.room !== lastRoom) {
@@ -77,6 +84,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   const [confirmUncomplete, setConfirmUncomplete] = useState(false)
   const [photoModalItem, setPhotoModalItem] = useState<ScopeItem | null>(null)
   const [noteModalItem, setNoteModalItem] = useState<ScopeItem | null>(null)
+  const [coverageFilter, setCoverageFilter] = useState('all')
   const masterRef = useRef<HTMLInputElement>(null)
 
   // Compute filtering unconditionally — must appear before any early return to keep hook order stable
@@ -87,6 +95,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
     return true
   })
   const dataItems = roomFiltered.filter(i => !i.isHeader)
+  const coverageOptions = [...new Set(dataItems.map(i => i.coverage).filter(Boolean))] as string[]
   const completedCount = dataItems.filter(i => i.completed).length
   const pendingCount = dataItems.length - completedCount
   const totalCount = dataItems.length
@@ -95,6 +104,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
     if (item.isHeader) return true
     if (statusFilter === 'pending' && item.completed) return false
     if (statusFilter === 'complete' && !item.completed) return false
+    if (coverageFilter !== 'all' && item.coverage !== coverageFilter) return false
     if (search && !item.description.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
@@ -106,7 +116,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   const allSelected = visibleData.length > 0 && visibleData.every(i => effectiveSelected.has(i.id))
   const someSelected = !allSelected && visibleData.some(i => effectiveSelected.has(i.id))
 
-  useEffect(() => { setSelectedIds(new Set()) }, [roomFilter])
+  useEffect(() => { setSelectedIds(new Set()); setCoverageFilter('all') }, [roomFilter])
   useEffect(() => {
     if (masterRef.current) masterRef.current.indeterminate = someSelected
   }, [someSelected])
@@ -183,7 +193,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
               <button
                 key={f}
                 onClick={() => setStatusFilter(f)}
-                className={`px-3 py-1.5 rounded-lg text-xs transition-colors capitalize ${
+                className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${
                   statusFilter === f ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100'
                 }`}
               >
@@ -192,6 +202,16 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
             )
           })}
         </div>
+        {coverageOptions.length > 0 && (
+          <select
+            value={coverageFilter}
+            onChange={e => setCoverageFilter(e.target.value)}
+            className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Coverage</option>
+            {coverageOptions.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Bulk action bar */}
@@ -384,8 +404,8 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
               <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Activity</th>
               <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400 whitespace-nowrap">Qty / Unit</th>
               <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Amount</th>
-              <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Note</th>
               <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400 whitespace-nowrap">Coverage</th>
+              <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Note</th>
               <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Photos</th>
               <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Subcontractor</th>
               <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-400">Status</th>
@@ -431,12 +451,12 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
 function RoomHeaderRow({ room }: { room: string }) {
   return (
     <tr>
-      <td colSpan={COL_COUNT} className="sticky top-10 z-[5] px-4 pt-4 pb-2 bg-slate-50/80 border-b border-slate-100">
+      <td colSpan={COL_COUNT} className="sticky top-[40px] z-[5] px-4 pt-4 pb-2 bg-white border-b border-slate-200">
         <div className="flex items-center gap-3">
-          <span className="text-[11px] font-bold text-blue-700 uppercase tracking-widest whitespace-nowrap">
+          <span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest whitespace-nowrap">
             {roomLabel(room)}
           </span>
-          <div className="flex-1 h-px bg-blue-100" />
+          <div className="flex-1 h-px bg-slate-200" />
         </div>
       </td>
     </tr>
@@ -524,6 +544,13 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
           </span>
         </td>
 
+        {/* Coverage */}
+        <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">
+          {item.coverage ? (
+            <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[11px] font-medium">{item.coverage}</span>
+          ) : '—'}
+        </td>
+
         {/* Note */}
         <td className="px-3 py-3">
           {item.note ? (
@@ -540,13 +567,6 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
           ) : (
             <span className="text-slate-300">—</span>
           )}
-        </td>
-
-        {/* Coverage */}
-        <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">
-          {item.coverage ? (
-            <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[11px] font-medium">{item.coverage}</span>
-          ) : '—'}
         </td>
 
         {/* Photos */}

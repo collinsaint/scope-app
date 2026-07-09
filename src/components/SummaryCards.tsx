@@ -2,7 +2,7 @@ import { useViewMode } from '../hooks/useViewMode'
 import type { ScopeItem } from '../types'
 
 function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 interface Props {
