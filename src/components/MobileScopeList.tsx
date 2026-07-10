@@ -543,7 +543,7 @@ export function MobileScopeList({ projectId, items, roomFilter, onOpenComment }:
           <select
             value={coverageFilter}
             onChange={e => setCoverageFilter(e.target.value)}
-            className="px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-600 focus:outline-none flex-shrink-0"
+            className="px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-600 focus:outline-none flex-shrink-0 max-w-[80px]"
           >
             <option value="all">All Coverage</option>
             {coverageOptions.map(c => <option key={c} value={c}>{c}</option>)}
@@ -678,7 +678,6 @@ export function MobileScopeList({ projectId, items, roomFilter, onOpenComment }:
                                     {activityLabel(item.activity)}
                                   </span>
                                 )}
-                                <span className="text-[11px] text-slate-400">#{item.rowNum}</span>
                                 {item.qty > 0 && <span className="text-[11px] text-slate-400">{fmtQty(item.qty)} {item.unit}</span>}
                                 {item.rcv > 0 && <span className="text-[11px] font-semibold text-slate-600">{fmt(item.rcv)}</span>}
                                 {item.coverage && (
@@ -689,8 +688,9 @@ export function MobileScopeList({ projectId, items, roomFilter, onOpenComment }:
                               </div>
                             </div>
 
-                            {/* Action buttons — order: Note → Comment → Photo */}
-                            <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+                            {/* Action buttons column — order: Note → Comment → Photo, then # below */}
+                            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                              <div className="flex items-center gap-1">
                               {/* Item Note — only if note exists */}
                               {item.note && (
                                 <button
@@ -736,8 +736,10 @@ export function MobileScopeList({ projectId, items, roomFilter, onOpenComment }:
                                   </span>
                                 )}
                               </button>
+                              </div>
+                              {/* # below photo button */}
+                              <span className="text-[11px] text-slate-400 leading-none">#{item.rowNum}</span>
                             </div>
-
                           </div>
                         </div>
                       )

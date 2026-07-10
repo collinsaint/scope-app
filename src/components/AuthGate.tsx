@@ -66,7 +66,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       `}</style>
       <div
         className="flex items-center justify-center px-4"
-        style={{ height: '100dvh', background: '#3C3489' }}
+        style={{ height: '100dvh', background: 'radial-gradient(ellipse 70% 55% at 50% 28%, #5248BE 0%, #3C3489 58%, #2A2472 100%)' }}
       >
         <div className="w-full max-w-sm">
           {/* Animated logo lockup */}
@@ -90,7 +90,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
               />
             </svg>
             <h1
-              className="text-2xl font-medium text-white mt-4 tracking-tight"
+              className="text-2xl font-medium text-white mt-2 tracking-tight"
               style={{ animation: 'vs-fade-up 0.4s ease-out 0.8s both' }}
             >
               Verascope
