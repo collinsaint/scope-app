@@ -11,7 +11,7 @@ import { ContractorSettingsView } from './components/ContractorSettingsView'
 import { UserSettingsView } from './components/UserSettingsView'
 import { VerascopeLoader } from './components/VerascopeLoader'
 import { seedDemoProject } from './lib/seedDemoProject'
-import { loadProjectsFromSupabase, syncProjectToSupabase, deleteProjectFromSupabase } from './lib/supabaseSync'
+import { loadProjectsFromSupabase, syncProjectToSupabase, deleteProjectFromSupabase, loadSettingsFromSupabase, syncSettingsToSupabase } from './lib/supabaseSync'
 
 type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings'
 
@@ -26,13 +26,17 @@ function readSavedView(): AppView {
 
 export default function App() {
   const { user, loading: authLoading, signOut } = useAuth()
-  const { projects, setActiveProject, activeProjectId, replaceProjects } = useStore()
+  const { projects, setActiveProject, activeProjectId, replaceProjects,
+    globalSubcontractors, jobGroups, superintendents, walkPresets,
+    replaceGlobalSubcontractors, replaceJobGroups, replaceSuperintendents, replaceWalkPresets,
+  } = useStore()
   const { isMobile } = useViewMode()
 
   const [view, setView] = useState<AppView>(readSavedView)
   const [projectInitialView, setProjectInitialView] = useState<'scope' | 'details'>('scope')
   const [projectSubView, setProjectSubView] = useState<'scope' | 'details' | 'comments'>('scope')
   const [syncing, setSyncing] = useState(false)
+  const [navigating, setNavigating] = useState(false)
 
   // Persist view to sessionStorage
   useEffect(() => {
@@ -59,7 +63,10 @@ export default function App() {
       try {
         // Clear local state first — prevents another user's localStorage data showing
         replaceProjects([])
-        const remoteProjects = await loadProjectsFromSupabase()
+        const [remoteProjects, remoteSettings] = await Promise.all([
+          loadProjectsFromSupabase(),
+          loadSettingsFromSupabase(),
+        ])
         if (remoteProjects.length > 0) {
           replaceProjects(remoteProjects)
           // Pre-seed refs so the sync effect sees no diff and skips re-uploading
@@ -73,6 +80,11 @@ export default function App() {
         if (user?.email === 'admin@proscope.app') {
           seedDemoProject()
         }
+        // Apply remote settings if they exist
+        if (remoteSettings.globalSubcontractors) replaceGlobalSubcontractors(remoteSettings.globalSubcontractors)
+        if (remoteSettings.jobGroups) replaceJobGroups(remoteSettings.jobGroups)
+        if (remoteSettings.superintendents) replaceSuperintendents(remoteSettings.superintendents)
+        if (remoteSettings.walkPresets) replaceWalkPresets(remoteSettings.walkPresets)
       } catch (err) {
         console.error('Failed to load from Supabase:', err)
         seedDemoProject()
@@ -108,6 +120,16 @@ export default function App() {
     prevProjectIdsRef.current = currentIds
   }, [projects, user])
 
+  // Sync settings changes to Supabase (debounced 1s)
+  useEffect(() => {
+    if (!user || loadingFromSupabase.current) return
+    const timer = setTimeout(() => {
+      syncSettingsToSupabase({ globalSubcontractors, jobGroups, superintendents, walkPresets }, user.id)
+    }, 1000)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalSubcontractors, jobGroups, superintendents, walkPresets, user?.id])
+
   function openProject(id: string, initialView: 'scope' | 'details' = 'scope') {
     setActiveProject(id)
     setProjectInitialView(initialView)
@@ -130,7 +152,7 @@ export default function App() {
   return (
     <AuthGate>
       <div className="flex overflow-hidden bg-slate-100" style={{ height: '100dvh' }}>
-        {syncing && <VerascopeLoader message="Syncing your projects…" />}
+        {(syncing || navigating) && <VerascopeLoader message={navigating ? 'Loading…' : 'Syncing your projects…'} />}
         <Sidebar view={view} onNavigate={navigate} onSignOut={signOut} userEmail={user?.email} />
         <main className={`flex-1 flex flex-col overflow-hidden ${isMobile ? 'pb-[60px]' : ''}`}>
           {view === 'dashboard' ? (
@@ -141,7 +163,14 @@ export default function App() {
           ) : view === 'project' ? (
             <ProjectView
               projectId={activeProjectId ?? ''}
-              onBack={() => { setView('dashboard'); setActiveProject(null) }}
+              onBack={() => {
+                setNavigating(true)
+                setTimeout(() => {
+                  setView('dashboard')
+                  setActiveProject(null)
+                  setNavigating(false)
+                }, 500)
+              }}
               initialView={projectInitialView}
               onSubViewChange={setProjectSubView}
             />

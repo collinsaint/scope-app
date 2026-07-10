@@ -118,5 +118,6 @@ export interface Project {
   applicantEmail?: string
   sketches?: ProjectSketch[]
   walks?: Walk[]
+  roomPhotos?: Record<string, string[]>
   isDemo?: boolean
 }

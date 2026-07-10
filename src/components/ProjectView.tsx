@@ -246,38 +246,26 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
             </div>
           )}
 
-          {/* Mobile compact actions — sketch + walk toggle + comments + export */}
+          {/* Mobile compact actions — floor plan + walk toggle + $ + comments + export */}
           {isMobile && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {/* Sketch */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Floor Plan */}
               <button
                 onClick={() => { (project.sketches?.length ?? 0) > 0 ? setShowSketchViewer(true) : (setSketchLabel(SKETCH_LABELS[0]), setShowSketchUpload(true)) }}
-                className="relative p-2 rounded-lg transition-colors"
+                className="relative flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-lg transition-colors"
                 style={{ border: '1px solid rgba(255,255,255,0.22)', color: (project.sketches?.length ?? 0) > 0 ? '#ffffff' : 'rgba(206,203,246,0.65)' }}
-                title="Sketch"
+                title="Floor Plan"
               >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span className="text-[9px] font-medium leading-none whitespace-nowrap">Floor Plan</span>
                 {(project.sketches?.length ?? 0) > 0 && (
                   <span className="absolute -top-1 -right-1 text-[9px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center leading-none" style={{ background: '#ffffff', color: '#3C3489' }}>{project.sketches!.length}</span>
                 )}
               </button>
-              {/* Totals $ */}
-              <button
-                onClick={() => setShowTotals(v => !v)}
-                className="p-2 rounded-lg text-xs font-bold transition-colors"
-                style={{
-                  border: '1px solid rgba(255,255,255,0.22)',
-                  background: showTotals ? 'rgba(255,255,255,0.2)' : 'transparent',
-                  color: showTotals ? '#ffffff' : 'rgba(206,203,246,0.65)',
-                }}
-                title="Toggle totals"
-              >
-                $
-              </button>
               {/* Walk selector */}
               <button
                 onClick={() => setShowWalkBar(v => !v)}
-                className="p-2 rounded-lg transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
                 style={{
                   border: '1px solid rgba(255,255,255,0.22)',
                   background: showWalkBar ? 'rgba(255,255,255,0.2)' : 'transparent',
@@ -291,10 +279,23 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                   <line x1="3" y1="18" x2="21" y2="18"/>
                 </svg>
               </button>
+              {/* Totals $ — same width as comments button */}
+              <button
+                onClick={() => setShowTotals(v => !v)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-sm font-bold transition-colors"
+                style={{
+                  border: '1px solid rgba(255,255,255,0.22)',
+                  background: showTotals ? 'rgba(255,255,255,0.2)' : 'transparent',
+                  color: showTotals ? '#ffffff' : 'rgba(206,203,246,0.65)',
+                }}
+                title="Toggle totals"
+              >
+                $
+              </button>
               {/* Comments */}
               <button
                 onClick={() => setActiveView(v => v === 'comments' ? 'scope' : 'comments')}
-                className="p-2 rounded-lg transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
                 style={{
                   border: '1px solid rgba(255,255,255,0.22)',
                   background: activeView === 'comments' ? 'rgba(255,255,255,0.2)' : 'transparent',
@@ -307,7 +308,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
               {/* Export */}
               <button
                 onClick={() => generateReport(project)}
-                className="p-2 rounded-lg text-white transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-white transition-colors"
                 style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.22)' }}
                 title="Export"
               >

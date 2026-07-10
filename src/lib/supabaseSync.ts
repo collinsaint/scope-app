@@ -1,5 +1,36 @@
 import { supabase } from './supabase'
-import type { Project } from '../types'
+import type { Project, GlobalSubcontractor, JobGroup, Superintendent } from '../types'
+
+export interface UserSettings {
+  globalSubcontractors: GlobalSubcontractor[]
+  jobGroups: JobGroup[]
+  superintendents: Superintendent[]
+  walkPresets: string[]
+}
+
+export async function loadSettingsFromSupabase(): Promise<Partial<UserSettings>> {
+  try {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('data')
+      .maybeSingle()
+
+    if (error || !data) return {}
+    return (data.data ?? {}) as Partial<UserSettings>
+  } catch {
+    return {}
+  }
+}
+
+export async function syncSettingsToSupabase(settings: UserSettings, userId: string): Promise<void> {
+  try {
+    await supabase
+      .from('user_settings')
+      .upsert({ user_id: userId, data: settings, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+  } catch {
+    // Table may not exist yet — fail silently
+  }
+}
 
 export async function loadProjectsFromSupabase(): Promise<Project[]> {
   const controller = new AbortController()

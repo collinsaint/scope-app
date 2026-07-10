@@ -24,6 +24,8 @@ interface StoreState {
   toggleItem: (projectId: string, itemId: string) => void
   addPhoto: (projectId: string, itemId: string, photo: string) => void
   removePhoto: (projectId: string, itemId: string, index: number) => void
+  addRoomPhoto: (projectId: string, room: string, photo: string) => void
+  removeRoomPhoto: (projectId: string, room: string, index: number) => void
   deleteProject: (projectId: string) => void
   addSubcontractor: (projectId: string, sub: Subcontractor) => void
   deleteSubcontractor: (projectId: string, subId: string) => void
@@ -35,12 +37,16 @@ interface StoreState {
   addGlobalSubcontractor: (sub: GlobalSubcontractor) => void
   updateGlobalSubcontractor: (id: string, updates: Partial<GlobalSubcontractor>) => void
   deleteGlobalSubcontractor: (id: string) => void
+  replaceGlobalSubcontractors: (subs: GlobalSubcontractor[]) => void
   addJobGroup: (group: JobGroup) => void
   updateJobGroup: (id: string, name: string) => void
   deleteJobGroup: (id: string) => void
+  replaceJobGroups: (groups: JobGroup[]) => void
   addSuperintendent: (super_: Superintendent) => void
   updateSuperintendent: (id: string, name: string) => void
   deleteSuperintendent: (id: string) => void
+  replaceSuperintendents: (supers: Superintendent[]) => void
+  replaceWalkPresets: (presets: string[]) => void
   addSketch: (projectId: string, sketch: ProjectSketch) => void
   removeSketch: (projectId: string, label: SketchLabel) => void
   addWalk: (projectId: string, walk: Walk) => void
@@ -156,6 +162,36 @@ export const useStore = create<StoreState>()(
           ),
         })),
 
+      addRoomPhoto: (projectId, room, photo) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId
+              ? p
+              : {
+                  ...p,
+                  roomPhotos: {
+                    ...(p.roomPhotos ?? {}),
+                    [room]: [...(p.roomPhotos?.[room] ?? []), photo],
+                  },
+                }
+          ),
+        })),
+
+      removeRoomPhoto: (projectId, room, index) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId
+              ? p
+              : {
+                  ...p,
+                  roomPhotos: {
+                    ...(p.roomPhotos ?? {}),
+                    [room]: (p.roomPhotos?.[room] ?? []).filter((_, i) => i !== index),
+                  },
+                }
+          ),
+        })),
+
       deleteProject: (projectId) =>
         set((s) => ({
           projects: s.projects.filter((p) => p.id !== projectId),
@@ -253,6 +289,11 @@ export const useStore = create<StoreState>()(
 
       deleteGlobalSubcontractor: (id) =>
         set((s) => ({ globalSubcontractors: s.globalSubcontractors.filter((sub) => sub.id !== id) })),
+
+      replaceGlobalSubcontractors: (subs) => set({ globalSubcontractors: subs }),
+      replaceJobGroups: (groups) => set({ jobGroups: groups }),
+      replaceSuperintendents: (supers) => set({ superintendents: supers }),
+      replaceWalkPresets: (presets) => set({ walkPresets: presets }),
 
       addSketch: (projectId, sketch) =>
         set((s) => ({

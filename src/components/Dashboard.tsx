@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
+import { useViewMode } from '../hooks/useViewMode'
 import { NewProjectModal } from './NewProjectModal'
 import type { Project } from '../types'
 
@@ -14,6 +15,7 @@ interface Props {
 
 export function Dashboard({ onOpenProject, onOpenProjectDetails }: Props) {
   const { projects, deleteProject } = useStore()
+  const { isMobile } = useViewMode()
   const [showModal, setShowModal] = useState(false)
   const [search, setSearch] = useState('')
   const [showFilters, setShowFilters] = useState(false)
@@ -45,7 +47,25 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails }: Props) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-8">
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Mobile top ribbon */}
+      {isMobile && (
+        <div
+          className="flex-shrink-0 flex items-center gap-3 px-4 py-3"
+          style={{ background: '#3C3489', borderBottom: '1px solid rgba(175,169,236,0.25)' }}
+        >
+          <svg width="32" height="32" viewBox="0 0 36 36" role="img" aria-label="Verascope">
+            <circle cx="18" cy="18" r="9.5" fill="none" stroke="#AFA9EC" strokeWidth="4" />
+            <circle cx="18" cy="18" r="2.2" fill="#EEEDFE" />
+          </svg>
+          <div>
+            <p className="text-sm font-semibold text-white leading-none tracking-tight">Verascope</p>
+            <p className="text-[10px] leading-none mt-1" style={{ color: '#AFA9EC' }}>Every item, verified</p>
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto p-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -210,6 +230,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails }: Props) {
       )}
 
       {showModal && <NewProjectModal onClose={() => setShowModal(false)} onCreated={onOpenProject} />}
+      </div>
     </div>
   )
 }
