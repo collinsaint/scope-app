@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { VerascopeLoader } from './VerascopeLoader'
 
 const DOMAIN = '@proscope.app'
 
@@ -17,21 +18,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [info, setInfo] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center bg-slate-900" style={{ height: '100dvh' }}>
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center">
-            <svg width="22" height="22" viewBox="0 0 36 36" role="img" aria-label="Verascope">
-              <circle cx="18" cy="18" r="9" fill="none" stroke="#EEEDFE" strokeWidth="2.4"/>
-              <circle cx="18" cy="18" r="3" fill="#EEEDFE"/>
-            </svg>
-          </div>
-          <p className="text-slate-400 text-sm">Loading…</p>
-        </div>
-      </div>
-    )
-  }
+  if (loading) return <VerascopeLoader message="Loading…" />
 
   if (user) return <>{children}</>
 
@@ -61,107 +48,162 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex items-center justify-center bg-slate-900 px-4" style={{ height: '100dvh' }}>
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center mb-3 shadow-lg">
-            <svg width="32" height="32" viewBox="0 0 36 36" role="img" aria-label="Verascope">
-              <circle cx="18" cy="18" r="9" fill="none" stroke="#EEEDFE" strokeWidth="2.4"/>
-              <circle cx="18" cy="18" r="3" fill="#EEEDFE"/>
+    <>
+      <style>{`
+        @keyframes vs-draw-ring {
+          from { stroke-dashoffset: 59.69; }
+          to   { stroke-dashoffset: 0; }
+        }
+        @keyframes vs-dot-pop {
+          0%   { transform: scale(0); opacity: 0; }
+          70%  { transform: scale(1.25); opacity: 1; }
+          100% { transform: scale(1);   opacity: 1; }
+        }
+        @keyframes vs-fade-up {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+      <div
+        className="flex items-center justify-center px-4"
+        style={{ height: '100dvh', background: '#3C3489' }}
+      >
+        <div className="w-full max-w-sm">
+          {/* Animated logo lockup */}
+          <div className="flex flex-col items-center mb-8">
+            <svg width="64" height="64" viewBox="0 0 36 36" role="img" aria-label="Verascope">
+              <circle
+                cx="18" cy="18" r="9.5"
+                fill="none"
+                stroke="#AFA9EC"
+                strokeWidth="4"
+                strokeDasharray="59.69"
+                style={{ animation: 'vs-draw-ring 0.6s cubic-bezier(0.4,0,0.2,1) 0.1s both' }}
+              />
+              <circle
+                cx="18" cy="18" r="2.2"
+                fill="#EEEDFE"
+                style={{
+                  transformOrigin: '18px 18px',
+                  animation: 'vs-dot-pop 0.35s cubic-bezier(0.34,1.56,0.64,1) 0.65s both',
+                }}
+              />
             </svg>
+            <h1
+              className="text-2xl font-medium text-white mt-4 tracking-tight"
+              style={{ animation: 'vs-fade-up 0.4s ease-out 0.8s both' }}
+            >
+              Verascope
+            </h1>
+            <p
+              className="text-sm mt-1"
+              style={{ color: '#AFA9EC', animation: 'vs-fade-up 0.4s ease-out 1.0s both' }}
+            >
+              Every item, verified
+            </p>
           </div>
-          <h1 className="text-2xl font-medium text-white">Verascope</h1>
-          <p className="text-slate-400 text-sm mt-1">Every item, verified</p>
-        </div>
 
-        {/* Card */}
-        <div className="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700">
-          <h2 className="text-base font-semibold text-white mb-5">
-            {mode === 'login' ? 'Sign in to your account' : 'Create an account'}
-          </h2>
+          {/* Card */}
+          <div
+            className="rounded-2xl p-6 shadow-2xl"
+            style={{
+              background: 'rgba(0,0,0,0.22)',
+              border: '1px solid rgba(206,203,246,0.18)',
+              animation: 'vs-fade-up 0.4s ease-out 0.9s both',
+            }}
+          >
+            <h2 className="text-base font-semibold text-white mb-5">
+              {mode === 'login' ? 'Sign in to your account' : 'Create an account'}
+            </h2>
 
-          {error && (
-            <div className="mb-4 px-3 py-2.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-300 text-sm">
-              {error}
-            </div>
-          )}
-          {info && (
-            <div className="mb-4 px-3 py-2.5 rounded-lg bg-green-500/15 border border-green-500/30 text-green-300 text-sm">
-              {info}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {mode === 'signup' && (
-              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">Full Name</label>
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={e => setDisplayName(e.target.value)}
-                  placeholder="John Smith"
-                  required
-                  className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+            {error && (
+              <div className="mb-4 px-3 py-2.5 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>
+                {error}
+              </div>
+            )}
+            {info && (
+              <div className="mb-4 px-3 py-2.5 rounded-lg text-sm" style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#86efac' }}>
+                {info}
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">Username</label>
-              <input
-                type="text"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                placeholder="admin"
-                required
-                autoComplete="username"
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-                className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              {mode === 'signup' && (
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: '#AFA9EC' }}>Full Name</label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={e => setDisplayName(e.target.value)}
+                    placeholder="John Smith"
+                    required
+                    className="w-full px-3 py-2.5 rounded-lg text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2"
+                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(206,203,246,0.25)', focusRingColor: '#AFA9EC' } as React.CSSProperties}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: '#AFA9EC' }}>Username</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  placeholder="admin"
+                  required
+                  autoComplete="username"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="w-full px-3 py-2.5 rounded-lg text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30"
+                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(206,203,246,0.25)' }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: '#AFA9EC' }}>Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  className="w-full px-3 py-2.5 rounded-lg text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30"
+                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(206,203,246,0.25)' }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full py-2.5 text-sm font-semibold rounded-lg transition-colors mt-1 disabled:opacity-50"
+                style={{ background: 'rgba(255,255,255,0.18)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.25)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
+              >
+                {submitting ? 'Please wait…' : mode === 'login' ? 'Sign In' : 'Create Account'}
+              </button>
+            </form>
+
+            <div className="mt-5 text-center text-sm" style={{ color: 'rgba(206,203,246,0.55)' }}>
+              {mode === 'login' ? (
+                <>Don't have an account?{' '}
+                  <button onClick={() => { setMode('signup'); setError(''); setInfo('') }} className="font-medium" style={{ color: '#CECBF6' }}>
+                    Sign up
+                  </button>
+                </>
+              ) : (
+                <>Already have an account?{' '}
+                  <button onClick={() => { setMode('login'); setError(''); setInfo('') }} className="font-medium" style={{ color: '#CECBF6' }}>
+                    Sign in
+                  </button>
+                </>
+              )}
             </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors mt-1"
-            >
-              {submitting ? 'Please wait…' : mode === 'login' ? 'Sign In' : 'Create Account'}
-            </button>
-          </form>
-
-          <div className="mt-5 text-center text-sm text-slate-500">
-            {mode === 'login' ? (
-              <>Don't have an account?{' '}
-                <button onClick={() => { setMode('signup'); setError(''); setInfo('') }} className="text-blue-400 hover:text-blue-300 font-medium">
-                  Sign up
-                </button>
-              </>
-            ) : (
-              <>Already have an account?{' '}
-                <button onClick={() => { setMode('login'); setError(''); setInfo('') }} className="text-blue-400 hover:text-blue-300 font-medium">
-                  Sign in
-                </button>
-              </>
-            )}
           </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }

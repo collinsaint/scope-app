@@ -153,7 +153,10 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
       <input {...getInputProps()} />
 
       {/* Header */}
-      <div className={`flex-shrink-0 sticky top-0 z-20 ${isMobile ? 'bg-slate-900 border-b border-slate-700/60' : 'bg-white border-b border-slate-100'}`}>
+      <div
+        className={`flex-shrink-0 sticky top-0 z-20 ${isMobile ? '' : 'bg-white border-b border-slate-100'}`}
+        style={isMobile ? { background: '#3C3489', borderBottom: '1px solid rgba(175,169,236,0.25)' } : undefined}
+      >
         {/* Row 1: back + name + actions */}
         <div className="flex items-center gap-2 px-4 py-3">
           <button
@@ -164,7 +167,8 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                 onBack()
               }
             }}
-            className={`transition-colors flex-shrink-0 p-1 ${isMobile ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`transition-colors flex-shrink-0 p-1 ${isMobile ? 'hover:text-white/90' : 'text-slate-400 hover:text-slate-600'}`}
+            style={isMobile ? { color: 'rgba(206,203,246,0.7)' } : undefined}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
@@ -245,26 +249,40 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
           {/* Mobile compact actions — sketch + walk toggle + comments + export */}
           {isMobile && (
             <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Sketch */}
               <button
                 onClick={() => { (project.sketches?.length ?? 0) > 0 ? setShowSketchViewer(true) : (setSketchLabel(SKETCH_LABELS[0]), setShowSketchUpload(true)) }}
-                className={`relative p-2 rounded-lg border transition-colors ${(project.sketches?.length ?? 0) > 0 ? 'border-blue-500 text-blue-400' : 'border-slate-700 text-slate-400'}`}
+                className="relative p-2 rounded-lg transition-colors"
+                style={{ border: '1px solid rgba(255,255,255,0.22)', color: (project.sketches?.length ?? 0) > 0 ? '#ffffff' : 'rgba(206,203,246,0.65)' }}
                 title="Sketch"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                 {(project.sketches?.length ?? 0) > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[9px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center leading-none">{project.sketches!.length}</span>
+                  <span className="absolute -top-1 -right-1 text-[9px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center leading-none" style={{ background: '#ffffff', color: '#3C3489' }}>{project.sketches!.length}</span>
                 )}
               </button>
+              {/* Totals $ */}
               <button
                 onClick={() => setShowTotals(v => !v)}
-                className={`p-2 rounded-lg border text-xs font-bold transition-colors ${showTotals ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-700 text-slate-400'}`}
+                className="p-2 rounded-lg text-xs font-bold transition-colors"
+                style={{
+                  border: '1px solid rgba(255,255,255,0.22)',
+                  background: showTotals ? 'rgba(255,255,255,0.2)' : 'transparent',
+                  color: showTotals ? '#ffffff' : 'rgba(206,203,246,0.65)',
+                }}
                 title="Toggle totals"
               >
                 $
               </button>
+              {/* Walk selector */}
               <button
                 onClick={() => setShowWalkBar(v => !v)}
-                className={`p-2 rounded-lg border transition-colors ${showWalkBar ? 'bg-slate-700 text-white border-slate-700' : 'border-slate-700 text-slate-400'}`}
+                className="p-2 rounded-lg transition-colors"
+                style={{
+                  border: '1px solid rgba(255,255,255,0.22)',
+                  background: showWalkBar ? 'rgba(255,255,255,0.2)' : 'transparent',
+                  color: showWalkBar ? '#ffffff' : 'rgba(206,203,246,0.65)',
+                }}
                 title="Toggle walk selector"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -273,14 +291,26 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                   <line x1="3" y1="18" x2="21" y2="18"/>
                 </svg>
               </button>
+              {/* Comments */}
               <button
                 onClick={() => setActiveView(v => v === 'comments' ? 'scope' : 'comments')}
-                className={`p-2 rounded-lg border transition-colors ${activeView === 'comments' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-700 text-slate-400'}`}
+                className="p-2 rounded-lg transition-colors"
+                style={{
+                  border: '1px solid rgba(255,255,255,0.22)',
+                  background: activeView === 'comments' ? 'rgba(255,255,255,0.2)' : 'transparent',
+                  color: activeView === 'comments' ? '#ffffff' : 'rgba(206,203,246,0.65)',
+                }}
                 title="Comments"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
               </button>
-              <button onClick={() => generateReport(project)} className="p-2 rounded-lg bg-blue-600 text-white" title="Export">
+              {/* Export */}
+              <button
+                onClick={() => generateReport(project)}
+                className="p-2 rounded-lg text-white transition-colors"
+                style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.22)' }}
+                title="Export"
+              >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               </button>
             </div>
@@ -293,12 +323,18 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
             <select
               value={activeWalkId ?? ''}
               onChange={e => { setActiveWalkId(e.target.value || null); setActiveView('scope') }}
-              className="flex-1 px-2.5 py-1.5 text-xs border border-slate-700 rounded-lg text-slate-200 bg-slate-800 focus:outline-none"
+              className="flex-1 px-2.5 py-1.5 text-xs rounded-lg text-white focus:outline-none"
+              style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)' }}
             >
-              <option value="">Main Scope</option>
-              {(project.walks ?? []).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              <option value="" style={{ background: '#3C3489' }}>Main Scope</option>
+              {(project.walks ?? []).map(w => <option key={w.id} value={w.id} style={{ background: '#3C3489' }}>{w.name}</option>)}
             </select>
-            <button onClick={() => setShowNewWalk(true)} className="p-2 border border-slate-700 rounded-lg text-slate-400" title="New Walk">
+            <button
+              onClick={() => setShowNewWalk(true)}
+              className="p-2 rounded-lg text-white/70 transition-colors"
+              style={{ border: '1px solid rgba(255,255,255,0.2)' }}
+              title="New Walk"
+            >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
           </div>

@@ -36,18 +36,24 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
       {/* Settings picker sheet */}
       {showSettingsPicker && (
         <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowSettingsPicker(false)} />
           <div
-            className="fixed inset-0 z-40"
-            onClick={() => setShowSettingsPicker(false)}
-          />
-          <div
-            className="fixed left-0 right-0 z-40 bg-slate-800 border-t border-slate-700 shadow-xl"
-            style={{ bottom: 'calc(60px + env(safe-area-inset-bottom))' }}
+            className="fixed left-0 right-0 z-40 shadow-xl"
+            style={{
+              bottom: 'calc(60px + env(safe-area-inset-bottom))',
+              background: '#26215C',
+              borderTop: '1px solid rgba(175,169,236,0.2)',
+            }}
           >
             <div className="p-3 flex flex-col gap-1">
               <button
                 onClick={() => goToSettings('contractor-settings')}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors text-left ${view === 'contractor-settings' ? 'bg-blue-600/20 text-blue-300' : 'text-slate-200 hover:bg-slate-700'}`}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors text-left ${
+                  view === 'contractor-settings'
+                    ? 'text-white bg-white/15'
+                    : 'hover:bg-white/10'
+                }`}
+                style={{ color: view === 'contractor-settings' ? '#fff' : 'rgba(206,203,246,0.8)' }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
@@ -56,7 +62,12 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
               </button>
               <button
                 onClick={() => goToSettings('user-settings')}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors text-left ${view === 'user-settings' ? 'bg-blue-600/20 text-blue-300' : 'text-slate-200 hover:bg-slate-700'}`}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors text-left ${
+                  view === 'user-settings'
+                    ? 'text-white bg-white/15'
+                    : 'hover:bg-white/10'
+                }`}
+                style={{ color: view === 'user-settings' ? '#fff' : 'rgba(206,203,246,0.8)' }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
@@ -69,15 +80,19 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
       )}
 
       <nav
-        className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700/60 z-50 flex items-stretch"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)', minHeight: '60px' }}
+        className="fixed bottom-0 left-0 right-0 z-50 flex items-stretch"
+        style={{
+          background: '#3C3489',
+          borderTop: '1px solid rgba(175,169,236,0.25)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          minHeight: '60px',
+        }}
       >
         {/* Dashboard */}
         <button
           onClick={() => { onNavigate('dashboard'); setShowSettingsPicker(false) }}
-          className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${
-            view === 'dashboard' ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'
-          }`}
+          className="flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors"
+          style={{ color: view === 'dashboard' ? '#ffffff' : 'rgba(206,203,246,0.55)' }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
@@ -90,7 +105,8 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
         {view === 'project' && onOpenProjectScope && (
           <button
             onClick={() => { onOpenProjectScope(); setShowSettingsPicker(false) }}
-            className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${isScopeActive ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'}`}
+            className="flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors"
+            style={{ color: isScopeActive ? '#ffffff' : 'rgba(206,203,246,0.55)' }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
@@ -103,7 +119,8 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
         {activeProject && (
           <button
             onClick={() => { onOpenProjectDetails(activeProjectId!); setShowSettingsPicker(false) }}
-            className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${isDetailsActive ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'}`}
+            className="flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors"
+            style={{ color: isDetailsActive ? '#ffffff' : 'rgba(206,203,246,0.55)' }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
@@ -115,9 +132,8 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
         {/* Settings — opens picker */}
         <button
           onClick={handleSettingsPress}
-          className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${
-            isSettings || showSettingsPicker ? 'text-blue-400' : 'text-slate-400 active:text-slate-200'
-          }`}
+          className="flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors"
+          style={{ color: isSettings || showSettingsPicker ? '#ffffff' : 'rgba(206,203,246,0.55)' }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3"/>
@@ -129,7 +145,8 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
         {/* Web Mode */}
         <button
           onClick={() => { toggle(); setShowSettingsPicker(false) }}
-          className="flex-1 flex flex-col items-center justify-center gap-1 py-3 text-slate-500 active:text-slate-200 transition-colors"
+          className="flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors"
+          style={{ color: 'rgba(206,203,246,0.55)' }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="2" y="3" width="20" height="14" rx="2"/>

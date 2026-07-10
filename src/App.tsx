@@ -9,6 +9,7 @@ import { Dashboard } from './components/Dashboard'
 import { ProjectView } from './components/ProjectView'
 import { ContractorSettingsView } from './components/ContractorSettingsView'
 import { UserSettingsView } from './components/UserSettingsView'
+import { VerascopeLoader } from './components/VerascopeLoader'
 import { seedDemoProject } from './lib/seedDemoProject'
 import { loadProjectsFromSupabase, syncProjectToSupabase, deleteProjectFromSupabase } from './lib/supabaseSync'
 
@@ -123,32 +124,13 @@ export default function App() {
   }
 
   if (authLoading) {
-    return (
-      <div className="flex items-center justify-center bg-slate-900" style={{ height: '100dvh' }}>
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center">
-            <svg width="22" height="22" viewBox="0 0 36 36" role="img" aria-label="Verascope">
-              <circle cx="18" cy="18" r="9" fill="none" stroke="#EEEDFE" strokeWidth="2.4"/>
-              <circle cx="18" cy="18" r="3" fill="#EEEDFE"/>
-            </svg>
-          </div>
-          <p className="text-slate-400 text-sm">Loading…</p>
-        </div>
-      </div>
-    )
+    return <VerascopeLoader message="Loading…" />
   }
 
   return (
     <AuthGate>
       <div className="flex overflow-hidden bg-slate-100" style={{ height: '100dvh' }}>
-        {syncing && (
-          <div className="fixed top-3 right-3 z-[100] bg-slate-800 text-white text-xs px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 pointer-events-none">
-            <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M21 12a9 9 0 11-6.219-8.56"/>
-            </svg>
-            Syncing…
-          </div>
-        )}
+        {syncing && <VerascopeLoader message="Syncing your projects…" />}
         <Sidebar view={view} onNavigate={navigate} onSignOut={signOut} userEmail={user?.email} />
         <main className={`flex-1 flex flex-col overflow-hidden ${isMobile ? 'pb-[60px]' : ''}`}>
           {view === 'dashboard' ? (

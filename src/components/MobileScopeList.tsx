@@ -96,14 +96,15 @@ async function stampPhoto(file: File, projectName: string): Promise<string> {
   })
 }
 
-export function MobileScopeList({ projectId, items, subcontractors, roomFilter, onOpenComment }: Props) {
-  const { toggleItem, assignSubcontractor, addPhoto, removePhoto, oneDrive, bulkComplete } = useStore()
+export function MobileScopeList({ projectId, items, roomFilter, onOpenComment }: Props) {
+  const { toggleItem, addPhoto, removePhoto, oneDrive, bulkComplete, bulkUncomplete } = useStore()
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
   const [coverageFilter, setCoverageFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [searchDraft, setSearchDraft] = useState('')
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  // Track rooms the user explicitly bulk-completed (so Undo All is available)
+  const [bulkCompletedRooms, setBulkCompletedRooms] = useState<Set<string>>(new Set())
   const [photoModalItemId, setPhotoModalItemId] = useState<string | null>(null)
   const [noteModalItem, setNoteModalItem] = useState<{ description: string; note: string } | null>(null)
   const [showCamera, setShowCamera] = useState(false)
@@ -149,14 +150,6 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
 
   const photoModalItem = photoModalItemId ? dataItems.find(i => i.id === photoModalItemId) ?? null : null
   const project = useStore.getState().projects.find(p => p.id === projectId)
-
-  function toggleExpand(id: string) {
-    setExpandedIds(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
 
   function commitSearch() {
     setSearch(searchDraft)
@@ -384,28 +377,63 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
           <div>
             {groupedByRoom.map(group => (
               <div key={group.room}>
-                {/* Sticky room header with Complete All button */}
-                <div className="sticky top-0 z-10 px-4 py-2 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
-                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest flex-1 min-w-0 truncate">
-                    {roomLabel(group.room)}
-                  </span>
-                  {group.roomItems.some(i => !i.completed) && (
-                    <button
-                      onClick={() => {
-                        const ids = group.roomItems.filter(i => !i.completed).map(i => i.id)
-                        if (ids.length) bulkComplete(projectId, ids)
-                      }}
-                      className="text-[10px] font-medium text-slate-500 px-2 py-1 rounded-md border border-slate-300 bg-white hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors flex-shrink-0 whitespace-nowrap"
+                {/* Sticky room header */}
+                {(() => {
+                  const allDone = group.roomItems.length > 0 && group.roomItems.every(i => i.completed)
+                  const wasBulkCompleted = bulkCompletedRooms.has(group.room)
+                  return (
+                    <div
+                      className="sticky top-0 z-10 px-4 py-2 border-b flex items-center gap-2 transition-colors"
+                      style={
+                        allDone
+                          ? { background: '#dcfce7', borderColor: '#bbf7d0' }
+                          : { background: '#f1f5f9', borderColor: '#e2e8f0' }
+                      }
                     >
-                      Complete All
-                    </button>
-                  )}
-                </div>
+                      <span
+                        className="text-[11px] font-bold uppercase tracking-widest flex-1 min-w-0 truncate"
+                        style={{ color: allDone ? '#15803d' : '#475569' }}
+                      >
+                        {roomLabel(group.room)}
+                      </span>
+                      {allDone && (wasBulkCompleted || true) ? (
+                        /* Show Undo All when all items are complete */
+                        <button
+                          onClick={() => {
+                            const ids = group.roomItems.map(i => i.id)
+                            bulkUncomplete(projectId, ids)
+                            setBulkCompletedRooms(prev => {
+                              const next = new Set(prev)
+                              next.delete(group.room)
+                              return next
+                            })
+                          }}
+                          className="text-[10px] font-medium px-2 py-1 rounded-md border transition-colors flex-shrink-0 whitespace-nowrap"
+                          style={{ color: '#15803d', borderColor: '#86efac', background: '#f0fdf4' }}
+                        >
+                          Undo All
+                        </button>
+                      ) : !allDone ? (
+                        /* Show Complete All when there are incomplete items */
+                        <button
+                          onClick={() => {
+                            const ids = group.roomItems.filter(i => !i.completed).map(i => i.id)
+                            if (ids.length) {
+                              bulkComplete(projectId, ids)
+                              setBulkCompletedRooms(prev => new Set(prev).add(group.room))
+                            }
+                          }}
+                          className="text-[10px] font-medium text-slate-500 px-2 py-1 rounded-md border border-slate-300 bg-white hover:bg-green-50 hover:border-green-300 hover:text-green-600 transition-colors flex-shrink-0 whitespace-nowrap"
+                        >
+                          Complete All
+                        </button>
+                      ) : null}
+                    </div>
+                  )
+                })()}
 
                 <div className="divide-y divide-slate-100">
                   {group.roomItems.map(item => {
-                    const expanded = expandedIds.has(item.id)
-                    const sub = subcontractors.find(s => s.id === item.subcontractorId)
                     return (
                       <div key={item.id} className={item.completed ? 'bg-green-50/40' : 'bg-white'}>
                         {/* Card row */}
@@ -445,25 +473,29 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                             </div>
                           </div>
 
-                          {/* Action buttons */}
+                          {/* Action buttons — all w-8 h-8 */}
                           <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
-                            {/* Photo button */}
+                            {/* Photo */}
                             <button
                               onClick={() => setPhotoModalItemId(item.id)}
-                              className={`flex items-center justify-center gap-0.5 px-1.5 py-1.5 rounded-lg text-[11px] font-medium border transition-colors ${
+                              className={`relative flex items-center justify-center w-8 h-8 rounded-lg border transition-colors ${
                                 item.photos.length > 0
                                   ? 'border-blue-200 bg-blue-50 text-blue-600'
                                   : 'border-slate-200 text-slate-400 bg-white'
                               }`}
                             >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
                                 <circle cx="12" cy="13" r="4"/>
                               </svg>
-                              {item.photos.length > 0 && <span>{item.photos.length}</span>}
+                              {item.photos.length > 0 && (
+                                <span className="absolute -top-1 -right-1 text-[9px] font-bold bg-blue-500 text-white w-3.5 h-3.5 rounded-full flex items-center justify-center leading-none">
+                                  {item.photos.length}
+                                </span>
+                              )}
                             </button>
 
-                            {/* Comment button */}
+                            {/* Comment */}
                             <button
                               onClick={() => onOpenComment(item.id)}
                               className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-colors ${
@@ -471,66 +503,28 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                   ? 'border-blue-200 bg-blue-50 text-blue-600'
                                   : 'border-slate-200 text-slate-400 bg-white'
                               }`}
-                              title={item.comment || 'Add comment'}
                             >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
                               </svg>
                             </button>
 
-                            {/* Item Note button — only if note exists */}
+                            {/* Item Note — only if note exists */}
                             {item.note && (
                               <button
                                 onClick={() => setNoteModalItem({ description: item.description, note: item.note })}
                                 className="flex items-center justify-center w-8 h-8 rounded-lg border border-amber-200 bg-amber-50 text-amber-600"
-                                title="Item Note"
                               >
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                   <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/>
                                 </svg>
                               </button>
                             )}
-
-                            {/* Expand chevron (subcontractor) */}
-                            <button onClick={() => toggleExpand(item.id)} className="flex-shrink-0 text-slate-300 p-1">
-                              <svg
-                                width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                                className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
-                              >
-                                <polyline points="6 9 12 15 18 9"/>
-                              </svg>
-                            </button>
                           </div>
 
                           {/* Line item # — always far right */}
-                          <span className="text-[11px] text-slate-400 flex-shrink-0 mt-0.5 ml-0.5">#{item.rowNum}</span>
+                          <span className="text-[11px] text-slate-400 flex-shrink-0 mt-0.5 ml-1">#{item.rowNum}</span>
                         </div>
-
-                        {/* Expanded panel — subcontractor + comment preview */}
-                        {expanded && (
-                          <div className="px-4 pb-3 pt-2 bg-slate-50/60 border-t border-slate-100 space-y-2.5">
-                            {subcontractors.length > 0 && (
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-[11px] text-slate-400">Assign:</span>
-                                <select
-                                  value={item.subcontractorId ?? ''}
-                                  onChange={e => assignSubcontractor(projectId, [item.id], e.target.value || null)}
-                                  className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 bg-white focus:outline-none"
-                                >
-                                  <option value="">No subcontractor</option>
-                                  {subcontractors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                                {sub && <span className="text-[11px] text-purple-500 font-medium">{sub.name}</span>}
-                              </div>
-                            )}
-                            {item.comment && (
-                              <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
-                                <p className="text-xs text-amber-800 leading-relaxed">{item.comment}</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                     )
                   })}
