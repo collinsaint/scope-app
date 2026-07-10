@@ -130,7 +130,7 @@ export function MobileScopeList({ projectId, items, roomFilter, onOpenComment }:
   const [search, setSearch] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [searchDraft, setSearchDraft] = useState('')
-  const [bulkCompletedRooms, setBulkCompletedRooms] = useState<Set<string>>(new Set())
+  const [, setBulkCompletedRooms] = useState<Set<string>>(new Set())
   // Item-level photo modal
   const [photoModalItemId, setPhotoModalItemId] = useState<string | null>(null)
   // Room-level photo modal
