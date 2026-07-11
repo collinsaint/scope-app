@@ -3,12 +3,12 @@ import type { Project, GlobalSubcontractor, JobGroup, Superintendent } from '../
 
 // User-level settings (personal, per-user)
 export interface UserSettings {
-  globalSubcontractors: GlobalSubcontractor[]
   walkPresets: string[]
 }
 
 // Org-level settings (shared across the whole contractor org)
 export interface OrgSettings {
+  globalSubcontractors: GlobalSubcontractor[]
   jobGroups: JobGroup[]
   superintendents: Superintendent[]
 }

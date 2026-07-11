@@ -99,10 +99,10 @@ export default function App() {
           seedDemoProject()
         }
         // Apply user-level settings
-        if (remoteSettings.globalSubcontractors) replaceGlobalSubcontractors(remoteSettings.globalSubcontractors)
         if (remoteSettings.walkPresets) replaceWalkPresets(remoteSettings.walkPresets)
-        // Apply org-level settings (jobGroups + superintendents belong to the org, not the user)
+        // Apply org-level settings (shared across the contractor org)
         const orgSettings = await loadOrgSettingsForUser(user!.id)
+        if (orgSettings.globalSubcontractors) replaceGlobalSubcontractors(orgSettings.globalSubcontractors)
         if (orgSettings.jobGroups) replaceJobGroups(orgSettings.jobGroups)
         if (orgSettings.superintendents) replaceSuperintendents(orgSettings.superintendents)
       } catch (err) {
@@ -144,26 +144,26 @@ export default function App() {
     prevProjectIdsRef.current = currentIds
   }, [projects, user])
 
-  // Sync user-level settings (globalSubcontractors, walkPresets)
+  // Sync user-level settings (walkPresets only — globalSubcontractors moved to org-level)
   useEffect(() => {
     if (!user || loadingFromSupabase.current) return
     const timer = setTimeout(() => {
-      syncSettingsToSupabase({ globalSubcontractors, walkPresets }, user.id)
+      syncSettingsToSupabase({ walkPresets }, user.id)
     }, 1000)
     return () => clearTimeout(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [globalSubcontractors, walkPresets, user?.id])
+  }, [walkPresets, user?.id])
 
-  // Sync org-level settings (jobGroups, superintendents) — only when user belongs to a contractor org
+  // Sync org-level settings (globalSubcontractors, jobGroups, superintendents) — shared across the contractor org
   useEffect(() => {
     const orgId = orgIdRef.current
     if (!orgId || loadingFromSupabase.current) return
     const timer = setTimeout(() => {
-      syncOrgSettingsToSupabase({ jobGroups, superintendents }, orgId)
+      syncOrgSettingsToSupabase({ globalSubcontractors, jobGroups, superintendents }, orgId)
     }, 1000)
     return () => clearTimeout(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobGroups, superintendents])
+  }, [globalSubcontractors, jobGroups, superintendents])
 
   function openProject(id: string, initialView: 'scope' | 'details' = 'scope') {
     setActiveProject(id)
