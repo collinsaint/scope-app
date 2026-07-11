@@ -3,8 +3,7 @@ import { useStore } from './store/useStore'
 import { useViewMode } from './hooks/useViewMode'
 import { useAuth } from './hooks/useAuth'
 import { useCurrentUser } from './hooks/useCurrentUser'
-import { AuthGate } from './components/AuthGate'
-import { OrgOnboarding } from './components/OrgOnboarding'
+import { LandingPage } from './components/LandingPage'
 import { Sidebar } from './components/Sidebar'
 import { MobileNav } from './components/MobileNav'
 import { Dashboard } from './components/Dashboard'
@@ -157,13 +156,13 @@ export default function App() {
     return <VerascopeLoader message="Loading…" />
   }
 
-  // Logged-in user with no org yet — show onboarding
-  if (user && currentUser && !currentUser.contractorOrg && !currentUser.subcontractorOrg) {
-    return <OrgOnboarding user={user} onComplete={refreshCurrentUser} />
+  // Not logged in, or logged in with no org — show unified landing page
+  if (!user || (currentUser && !currentUser.contractorOrg && !currentUser.subcontractorOrg)) {
+    return <LandingPage user={user ?? null} onOrgCreated={refreshCurrentUser} />
   }
 
   return (
-    <AuthGate>
+    <>
       <div className="flex overflow-hidden bg-slate-100" style={{ height: '100dvh' }}>
         {(syncing || navigating) && <VerascopeLoader message={navigating ? 'Loading…' : 'Syncing your projects…'} />}
         <Sidebar view={view} onNavigate={navigate} onSignOut={signOut} userEmail={user?.email} />
@@ -204,6 +203,6 @@ export default function App() {
           />
         )}
       </div>
-    </AuthGate>
+    </>
   )
 }
