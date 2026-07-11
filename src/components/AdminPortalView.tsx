@@ -48,8 +48,29 @@ interface OrgOption {
   type: string
 }
 
+interface UserRow {
+  user_id: string
+  email: string
+  org_id: string
+  org_name: string
+  org_type: string
+  role: string
+  joined_at: string
+  last_sign_in: string | null
+}
+
+const CONTRACTOR_ROLES = ['admin', 'manager', 'superintendent']
+const SUBCONTRACTOR_ROLES = ['manager', 'crew']
+
+const ROLE_DISPLAY: Record<string, string> = {
+  admin:          'Admin',
+  manager:        'Manager',
+  superintendent: 'Superintendent',
+  crew:           'Crew',
+}
+
 export function AdminPortalView() {
-  const [tab, setTab] = useState<'invite' | 'projects' | 'invitations'>('invite')
+  const [tab, setTab] = useState<'invite' | 'users' | 'projects' | 'invitations'>('invite')
 
   // ── Invite form ──────────────────────────────────────────────
   const [companyName, setCompanyName] = useState('')
@@ -66,6 +87,15 @@ export function AdminPortalView() {
   // ── Invitations list ─────────────────────────────────────────
   const [invites, setInvites] = useState<Invite[]>([])
   const [invitesLoading, setInvitesLoading] = useState(true)
+
+  // ── All users ────────────────────────────────────────────────
+  const [users, setUsers] = useState<UserRow[]>([])
+  const [usersLoading, setUsersLoading] = useState(true)
+  const [usersError, setUsersError] = useState('')
+  const [editingUserId, setEditingUserId] = useState<string | null>(null)
+  const [editingRole, setEditingRole] = useState('')
+  const [savingRole, setSavingRole] = useState(false)
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
 
   // ── All projects ─────────────────────────────────────────────
   const [projects, setProjects] = useState<ProjectRow[]>([])
@@ -100,6 +130,18 @@ export function AdminPortalView() {
     setProjectsLoading(false)
   }, [])
 
+  const loadUsers = useCallback(async () => {
+    setUsersLoading(true)
+    setUsersError('')
+    const { data, error } = await supabase.rpc('admin_get_users')
+    if (error) {
+      setUsersError('Could not load users. Make sure admin_user_functions.sql has been run in the Supabase SQL editor.')
+    } else {
+      setUsers((data as UserRow[]) ?? [])
+    }
+    setUsersLoading(false)
+  }, [])
+
   const loadOrgs = useCallback(async (type: 'contractor' | 'subcontractor') => {
     const { data } = await supabase
       .from('organizations')
@@ -113,11 +155,32 @@ export function AdminPortalView() {
   useEffect(() => {
     loadInvites()
     loadProjects()
-  }, [loadInvites, loadProjects])
+    loadUsers()
+  }, [loadInvites, loadProjects, loadUsers])
 
   useEffect(() => {
     loadOrgs(orgType)
   }, [orgType, loadOrgs])
+
+  async function handleDeleteUser(userId: string, email: string) {
+    if (!confirm(`Delete user ${email}?\n\nThis removes them from their organization and deletes their account. This cannot be undone.`)) return
+    setDeletingUserId(userId)
+    const { error } = await supabase.rpc('admin_delete_user', { target_user_id: userId })
+    if (error) alert(`Failed to delete user: ${error.message}`)
+    else await loadUsers()
+    setDeletingUserId(null)
+  }
+
+  async function handleSaveRole(userId: string) {
+    setSavingRole(true)
+    const { error } = await supabase.rpc('admin_update_user_role', { target_user_id: userId, new_role: editingRole })
+    if (error) alert(`Failed to update role: ${error.message}`)
+    else {
+      setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, role: editingRole } : u))
+      setEditingUserId(null)
+    }
+    setSavingRole(false)
+  }
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault()
@@ -203,7 +266,7 @@ export function AdminPortalView() {
 
       {/* Tabs */}
       <div className="flex gap-1 px-6 pt-4 border-b border-slate-100 bg-white flex-shrink-0">
-        {([['invite', 'Invite Users'], ['projects', 'All Projects'], ['invitations', 'Invitations']] as const).map(([id, label]) => (
+        {([['invite', 'Invite Users'], ['users', 'All Users'], ['projects', 'All Projects'], ['invitations', 'Invitations']] as const).map(([id, label]) => (
           <button
             key={id}
             onClick={() => setTab(id)}
@@ -214,6 +277,11 @@ export function AdminPortalView() {
             }`}
           >
             {label}
+            {id === 'users' && users.length > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-200 text-slate-600 text-[10px] font-bold">
+                {users.length}
+              </span>
+            )}
             {id === 'invitations' && pendingInvites.length > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] font-bold">
                 {pendingInvites.length}
@@ -332,6 +400,143 @@ export function AdminPortalView() {
                 </button>
               </form>
             </div>
+          </div>
+        )}
+
+        {/* ── USERS TAB ── */}
+        {tab === 'users' && (
+          <div className="space-y-4">
+            {usersLoading ? (
+              <div className="flex items-center gap-2 py-12 justify-center text-slate-400 text-sm">
+                <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0"/>
+                </svg>
+                Loading users…
+              </div>
+            ) : usersError ? (
+              <div className="section-card p-6 max-w-lg">
+                <div className="flex gap-3">
+                  <svg className="text-amber-500 flex-shrink-0 mt-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800 mb-1">User functions not applied</p>
+                    <p className="text-xs text-slate-500 mb-3">{usersError}</p>
+                    <p className="text-xs text-slate-500">Run <code className="px-1 py-0.5 bg-slate-100 rounded text-[11px]">supabase/admin_user_functions.sql</code> in the Supabase SQL Editor.</p>
+                  </div>
+                </div>
+              </div>
+            ) : users.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-sm">No users have joined yet.</div>
+            ) : (
+              <>
+                <p className="text-xs text-slate-400">{users.length} active user{users.length !== 1 ? 's' : ''}</p>
+                <div className="section-card overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50/60">
+                        <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Email</th>
+                        <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider hidden sm:table-cell">Company</th>
+                        <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Role</th>
+                        <th className="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider hidden lg:table-cell">Last Active</th>
+                        <th className="px-5 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {users.map(u => {
+                        const isEditing = editingUserId === u.user_id
+                        const isDeleting = deletingUserId === u.user_id
+                        const roleOptions = u.org_type === 'contractor' ? CONTRACTOR_ROLES : SUBCONTRACTOR_ROLES
+                        return (
+                          <tr key={u.user_id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-5 py-3.5">
+                              <p className="font-medium text-slate-800 truncate max-w-[200px]">{u.email}</p>
+                              <p className="text-[11px] text-slate-400 mt-0.5 sm:hidden">{u.org_name}</p>
+                            </td>
+                            <td className="px-5 py-3.5 hidden sm:table-cell">
+                              <div>
+                                <p className="text-slate-700 truncate max-w-[160px]">{u.org_name}</p>
+                                <span className="text-[10px] font-medium text-slate-400 capitalize">{u.org_type}</span>
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5">
+                              {isEditing ? (
+                                <select
+                                  value={editingRole}
+                                  onChange={e => setEditingRole(e.target.value)}
+                                  className="input-base !py-1 !text-xs w-36"
+                                >
+                                  {roleOptions.map(r => (
+                                    <option key={r} value={r}>{ROLE_DISPLAY[r] ?? r}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border bg-slate-50 border-slate-200 text-slate-600 capitalize">
+                                  {ROLE_DISPLAY[u.role] ?? u.role}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-5 py-3.5 hidden lg:table-cell">
+                              <span className="text-slate-400 text-xs">
+                                {u.last_sign_in
+                                  ? new Date(u.last_sign_in).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                  : 'Never'}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center justify-end gap-2">
+                                {isEditing ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleSaveRole(u.user_id)}
+                                      disabled={savingRole}
+                                      className="btn-primary btn-sm"
+                                    >
+                                      {savingRole ? 'Saving…' : 'Save'}
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingUserId(null)}
+                                      className="btn-ghost btn-sm"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => { setEditingUserId(u.user_id); setEditingRole(u.role) }}
+                                      className="btn-ghost btn-sm border border-slate-200"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteUser(u.user_id, u.email)}
+                                      disabled={isDeleting}
+                                      className="text-slate-300 hover:text-red-400 transition-colors p-1 disabled:opacity-40"
+                                      title="Delete user"
+                                    >
+                                      {isDeleting ? (
+                                        <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0"/>
+                                        </svg>
+                                      ) : (
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                                        </svg>
+                                      )}
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         )}
 
