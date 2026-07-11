@@ -20,7 +20,29 @@ function fmtQty(n: number) {
   return Number(n.toFixed(2)).toLocaleString('en-US', { maximumFractionDigits: 2 })
 }
 
-function roomLabel(r: string) {
+const SPANISH_ROOMS: Record<string, string> = {
+  '_general_': 'General', general: 'General',
+  bedroom: 'Dormitorio', master_bedroom: 'Dormitorio Principal',
+  bathroom: 'Baño', master_bathroom: 'Baño Principal', half_bath: 'Medio Baño',
+  kitchen: 'Cocina', living_room: 'Sala de Estar', dining_room: 'Comedor',
+  family_room: 'Sala Familiar', den: 'Sala', office: 'Oficina',
+  garage: 'Garaje', laundry: 'Lavandería', laundry_room: 'Lavandería',
+  basement: 'Sótano', attic: 'Ático', hallway: 'Pasillo', closet: 'Armario',
+  entry: 'Entrada', entryway: 'Entrada', foyer: 'Vestíbulo',
+  porch: 'Porche', patio: 'Patio', deck: 'Terraza',
+  exterior: 'Exterior', interior: 'Interior', roof: 'Techo',
+  storage: 'Almacenamiento', utility_room: 'Cuarto de Servicio',
+  sunroom: 'Solario', mudroom: 'Entrada de Servicio',
+  staircase: 'Escalera', stairs: 'Escalera',
+}
+
+function roomLabel(r: string, spanish = false) {
+  if (spanish) {
+    const key = r.toLowerCase()
+    if (SPANISH_ROOMS[key]) return SPANISH_ROOMS[key]
+    const m = key.match(/^(.+?)_(\d+)$/)
+    if (m && SPANISH_ROOMS[m[1]]) return `${SPANISH_ROOMS[m[1]]} ${m[2]}`
+  }
   return r.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
@@ -427,7 +449,7 @@ export function MobileScopeList({ projectId, items, roomFilter }: Props) {
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
               <div>
                 <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">Room Photos</p>
-                <p className="text-sm font-semibold text-slate-800 mt-0.5">{roomLabel(roomPhotoModal)}</p>
+                <p className="text-sm font-semibold text-slate-800 mt-0.5">{roomLabel(roomPhotoModal, spanishMode)}</p>
               </div>
               <button onClick={() => setRoomPhotoModal(null)} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -626,7 +648,7 @@ export function MobileScopeList({ projectId, items, roomFilter }: Props) {
                           className="text-[11px] font-bold uppercase tracking-widest flex-1 min-w-0 truncate"
                           style={{ color: allDone ? '#15803d' : '#3C3489' }}
                         >
-                          {roomLabel(group.room)}
+                          {roomLabel(group.room, spanishMode)}
                         </span>
 
                         {/* Room Photos button */}

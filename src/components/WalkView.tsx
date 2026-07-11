@@ -12,7 +12,29 @@ const WALK_COL_COUNT = 7
 
 type RenderRow = ScopeItem | { _roomHeader: true; room: string; id: string } | { _groupNote: true; note: WalkGroupNote; id: string }
 
-function roomLabel(r: string) {
+const SPANISH_ROOMS: Record<string, string> = {
+  '_general_': 'General', general: 'General',
+  bedroom: 'Dormitorio', master_bedroom: 'Dormitorio Principal',
+  bathroom: 'Baño', master_bathroom: 'Baño Principal', half_bath: 'Medio Baño',
+  kitchen: 'Cocina', living_room: 'Sala de Estar', dining_room: 'Comedor',
+  family_room: 'Sala Familiar', den: 'Sala', office: 'Oficina',
+  garage: 'Garaje', laundry: 'Lavandería', laundry_room: 'Lavandería',
+  basement: 'Sótano', attic: 'Ático', hallway: 'Pasillo', closet: 'Armario',
+  entry: 'Entrada', entryway: 'Entrada', foyer: 'Vestíbulo',
+  porch: 'Porche', patio: 'Patio', deck: 'Terraza',
+  exterior: 'Exterior', interior: 'Interior', roof: 'Techo',
+  storage: 'Almacenamiento', utility_room: 'Cuarto de Servicio',
+  sunroom: 'Solario', mudroom: 'Entrada de Servicio',
+  staircase: 'Escalera', stairs: 'Escalera',
+}
+
+function roomLabel(r: string, spanish = false) {
+  if (spanish) {
+    const key = r.toLowerCase()
+    if (SPANISH_ROOMS[key]) return SPANISH_ROOMS[key]
+    const m = key.match(/^(.+?)_(\d+)$/)
+    if (m && SPANISH_ROOMS[m[1]]) return `${SPANISH_ROOMS[m[1]]} ${m[2]}`
+  }
   return r.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
@@ -283,6 +305,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
   const { updateWalkItem, addWalkGroupNote, deleteWalkGroupNote, addWalkRoomPhoto, deleteWalkRoomPhoto, bulkDeleteWalkRoomPhotos, updateWalkRoomPhoto, addWalkGeneralNote, deleteWalkGeneralNote, deleteWalkCustomRoom, addWalkCustomRoom, projects, oneDrive, walkPresets } = useStore()
   const { isMobile } = useViewMode()
   const project = projects.find(p => p.id === projectId)
+  const spanishMode = project?.spanishMode ?? false
   const [search, setSearch] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [qtyPrompt, setQtyPrompt] = useState<{ itemId: string; value: string } | null>(null)
@@ -737,7 +760,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
             {isCustomRoom && (
               removeRoomConfirm ? (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg">
-                  <span className="text-xs text-red-700 font-medium whitespace-nowrap">Remove "{roomLabel(roomFilter)}"?</span>
+                  <span className="text-xs text-red-700 font-medium whitespace-nowrap">Remove "{roomLabel(roomFilter, spanishMode)}"?</span>
                   <button onClick={() => setRemoveRoomConfirm(false)} className="px-2 py-0.5 text-[11px] border border-slate-200 rounded text-slate-600 hover:bg-white transition-colors">Cancel</button>
                   <button
                     onClick={() => { deleteWalkCustomRoom(projectId, walk.id, roomFilter); setRemoveRoomConfirm(false); onRoomDeleted?.() }}
@@ -792,7 +815,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
             const photoCnt = roomPhotos.filter(p => p.room === roomFilter).length
             return (
               <div className="sticky top-0 z-10 px-3 py-2 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex-1 min-w-0 truncate">{roomLabel(roomFilter)}</span>
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex-1 min-w-0 truncate">{roomLabel(roomFilter, spanishMode)}</span>
                 <button
                   onClick={() => openPhotoModal(roomFilter)}
                   className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 text-[10px] font-medium border rounded-md transition-colors ${photoCnt > 0 ? 'border-violet-300 text-violet-700 bg-violet-50' : 'border-slate-300 text-slate-500 bg-white'}`}
@@ -845,7 +868,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                   const isRowCustom = customRooms.includes(row.room)
                   return (
                     <div key={row.id} className="sticky top-0 z-10 px-3 py-2 flex items-center gap-2" style={{ background: '#EEEDFE', borderBottom: '1px solid #CECBF6' }}>
-                      <span className="text-[11px] font-bold uppercase tracking-wider flex-1 min-w-0 truncate" style={{ color: '#3C3489' }}>{roomLabel(row.room)}</span>
+                      <span className="text-[11px] font-bold uppercase tracking-wider flex-1 min-w-0 truncate" style={{ color: '#3C3489' }}>{roomLabel(row.room, spanishMode)}</span>
                       <button
                         onClick={() => openPhotoModal(row.room)}
                         className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 text-[10px] font-medium border rounded-md transition-colors ${
@@ -1032,7 +1055,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                     <td colSpan={WALK_COL_COUNT} className="sticky top-10 z-[5] px-4 pt-5 pb-2 bg-white">
                       <div className="flex items-center gap-3">
                         <span className="text-[11px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ color: '#3C3489' }}>
-                          {roomLabel(row.room)}
+                          {roomLabel(row.room, spanishMode)}
                         </span>
                         <div className="flex-1 h-px" style={{ background: '#CECBF6' }} />
                         {(() => {
@@ -1274,7 +1297,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
             <div className="flex flex-col gap-4 p-6 pb-3 overflow-y-auto flex-1">
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Add Group Note</h3>
-                <p className="text-xs text-slate-400 mt-0.5">{roomLabel(groupNotePrompt.room)}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{roomLabel(groupNotePrompt.room, spanishMode)}</p>
               </div>
 
               {/* Existing group notes — scrollable list */}
@@ -1487,7 +1510,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                             onClick={e => { if (!bulkActive) { e.stopPropagation(); setExpandedPhoto({ photos: allPhotos, index: allPhotos.findIndex(p => p.id === photo.id) }) } }}
                           />
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
-                            <p className="text-[9px] text-white font-medium leading-tight truncate">{photo.room === '_general_' ? 'General' : roomLabel(photo.room)}</p>
+                            <p className="text-[9px] text-white font-medium leading-tight truncate">{roomLabel(photo.room, spanishMode)}</p>
                             <p className="text-[8px] text-white/70 leading-tight">{formatNoteDate(photo.createdAt)}</p>
                           </div>
                           {!bulkActive && (allPhotoDeleteConfirm === photo.id ? (
@@ -1535,7 +1558,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                         >
                           <option value="">Move to room…</option>
                           {availableRooms.map(r => (
-                            <option key={r} value={r}>{r === '_general_' ? 'General Photos' : roomLabel(r)}</option>
+                            <option key={r} value={r}>{r === '_general_' ? 'General Photos' : roomLabel(r, spanishMode)}</option>
                           ))}
                         </select>
                         <button
@@ -1623,7 +1646,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
               <div className="px-6 py-4 border-b border-slate-100 flex-shrink-0 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900">Photos</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">{roomLabel(photoModal.room)} &nbsp;·&nbsp; {modalPhotos.length} photo{modalPhotos.length !== 1 ? 's' : ''}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{roomLabel(photoModal.room, spanishMode)} &nbsp;·&nbsp; {modalPhotos.length} photo{modalPhotos.length !== 1 ? 's' : ''}</p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {bulkActive ? (
@@ -1731,7 +1754,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                           >
                             <option value="">Move to room…</option>
                             {otherRooms.map(r => (
-                              <option key={r} value={r}>{r === '_general_' ? 'General Photos' : roomLabel(r)}</option>
+                              <option key={r} value={r}>{r === '_general_' ? 'General Photos' : roomLabel(r, spanishMode)}</option>
                             ))}
                           </select>
                           <button
@@ -2066,7 +2089,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                         )}
                       </span>
                       <span className={`text-sm font-medium leading-tight ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
-                        {r === '_general_' ? 'General Photos' : roomLabel(r)}
+                        {r === '_general_' ? 'General Photos' : roomLabel(r, spanishMode)}
                       </span>
                     </button>
                   )
