@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
 const DOMAIN = '@proscope.app'
@@ -21,13 +20,9 @@ const ANIM = `
   }
 `
 
-interface Props {
-  onOrgCreated: () => void
-}
+type Tab = 'signin' | 'signup'
 
-type Tab = 'signin' | 'signup' | 'create'
-
-export function LandingPage({ onOrgCreated }: Props) {
+export function LandingPage() {
   const [tab, setTab] = useState<Tab>('signin')
   const [showPassword, setShowPassword] = useState(false)
   const { signIn, signUp } = useAuth()
@@ -44,17 +39,9 @@ export function LandingPage({ onOrgCreated }: Props) {
   const [suError, setSuError] = useState('')
   const [suLoading, setSuLoading] = useState(false)
 
-  // ── Create Company ───────────────────────────────
-  const [ccDisplayName, setCcDisplayName] = useState('')
-  const [ccUsername, setCcUsername] = useState('')
-  const [ccPassword, setCcPassword] = useState('')
-  const [ccCompany, setCcCompany] = useState('')
-  const [ccError, setCcError] = useState('')
-  const [ccLoading, setCcLoading] = useState(false)
-
   function switchTab(t: Tab) {
     setTab(t)
-    setSiError(''); setSuError(''); setCcError('')
+    setSiError(''); setSuError('')
   }
 
   async function handleSignIn(e: React.FormEvent) {
@@ -83,43 +70,6 @@ export function LandingPage({ onOrgCreated }: Props) {
     // On success: auth state change in useAuth → App re-renders → shows InviteCodeGate
   }
 
-  async function handleCreateCompany(e: React.FormEvent) {
-    e.preventDefault()
-    setCcError('')
-    if (!ccDisplayName.trim()) { setCcError('Enter your full name.'); return }
-    if (!ccUsername.trim()) { setCcError('Choose a username.'); return }
-    if (!ccPassword.trim()) { setCcError('Choose a password.'); return }
-    const company = ccCompany.trim()
-    if (!company) { setCcError('Enter your company name.'); return }
-    setCcLoading(true)
-    try {
-      const err = await signUp(toEmail(ccUsername), ccPassword, ccDisplayName.trim())
-      if (err) { setCcError(err); return }
-
-      const { data: { session } } = await supabase.auth.getSession()
-      const uid = session?.user?.id ?? null
-      if (!uid) { setCcError('Sign-up succeeded but could not get user ID. Please sign in.'); return }
-
-      const { data: org, error: orgErr } = await supabase
-        .from('organizations')
-        .insert({ name: company, type: 'contractor', created_by: uid })
-        .select()
-        .single()
-      if (orgErr || !org) throw new Error(orgErr?.message ?? 'Failed to create organization')
-
-      const { error: memErr } = await supabase
-        .from('org_members')
-        .insert({ org_id: org.id, user_id: uid, role: 'admin' })
-      if (memErr) throw new Error(memErr.message)
-
-      onOrgCreated()
-    } catch (err) {
-      setCcError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
-      setCcLoading(false)
-    }
-  }
-
   const inputClass = "w-full px-3 py-2.5 rounded-lg text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30"
   const inputStyle = { background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(206,203,246,0.25)' }
   const labelClass = "block text-xs font-medium mb-1.5"
@@ -129,7 +79,6 @@ export function LandingPage({ onOrgCreated }: Props) {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'signin', label: 'Sign In' },
     { key: 'signup', label: 'Sign Up' },
-    { key: 'create', label: 'Create Company' },
   ]
 
   return (
@@ -252,38 +201,6 @@ export function LandingPage({ onOrgCreated }: Props) {
                 </form>
               )}
 
-              {/* ── Create Company ── */}
-              {tab === 'create' && (
-                <form onSubmit={handleCreateCompany} className="flex flex-col gap-4">
-                  <h2 className="text-base font-semibold text-white mb-1">Create your account & company</h2>
-                  {ccError && <div className="px-3 py-2.5 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>{ccError}</div>}
-                  <div>
-                    <label className={labelClass} style={labelStyle}>Full Name</label>
-                    <input type="text" value={ccDisplayName} onChange={e => setCcDisplayName(e.target.value)} placeholder="John Smith" className={inputClass} style={inputStyle} />
-                  </div>
-                  <div>
-                    <label className={labelClass} style={labelStyle}>Username</label>
-                    <input type="text" value={ccUsername} onChange={e => setCcUsername(e.target.value)} placeholder="jsmith" autoCapitalize="off" autoCorrect="off" spellCheck={false} className={inputClass} style={inputStyle} />
-                  </div>
-                  <div>
-                    <label className={labelClass} style={labelStyle}>Password</label>
-                    <input type="password" value={ccPassword} onChange={e => setCcPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className={inputClass} style={inputStyle} />
-                  </div>
-                  <div style={{ height: 1, background: 'rgba(206,203,246,0.12)', margin: '0 -4px' }} />
-                  <div>
-                    <label className={labelClass} style={labelStyle}>Company Name</label>
-                    <input type="text" value={ccCompany} onChange={e => setCcCompany(e.target.value)} placeholder="Acme Construction" className={inputClass} style={inputStyle} />
-                  </div>
-                  <p className="text-xs" style={{ color: 'rgba(206,203,246,0.45)' }}>
-                    You'll be set up as the Admin. Invite your team from settings.
-                  </p>
-                  <button type="submit" disabled={ccLoading} className="w-full py-2.5 text-sm font-semibold rounded-lg transition-colors mt-1 disabled:opacity-50" style={btnStyle}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}>
-                    {ccLoading ? 'Setting up…' : 'Create Account & Company'}
-                  </button>
-                </form>
-              )}
             </div>
           </div>
         </div>

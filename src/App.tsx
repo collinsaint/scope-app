@@ -56,7 +56,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return
     const isAdmin = user.email === 'admin@proscope.app'
-    const isContrAdmin = isAdmin || currentUser?.contractorRole === 'admin'
+    const isContrAdmin = isAdmin || currentUser?.contractorRole === 'admin' || currentUser?.contractorRole === 'manager'
     if (view === 'admin-portal' && !isAdmin) setView('dashboard')
     if (view === 'contractor-settings' && !isContrAdmin) setView('dashboard')
   }, [user?.id, currentUser?.contractorRole])  // eslint-disable-line react-hooks/exhaustive-deps
@@ -172,10 +172,10 @@ export default function App() {
   }
 
   const isAppAdmin = user?.email === 'admin@proscope.app'
-  const isContractorAdmin = isAppAdmin || currentUser?.contractorRole === 'admin'
+  const isContractorAdmin = isAppAdmin || currentUser?.contractorRole === 'admin' || currentUser?.contractorRole === 'manager'
 
   if (!user) {
-    return <LandingPage onOrgCreated={refreshCurrentUser} />
+    return <LandingPage />
   }
 
   // Logged in but no org → invite code gate (unless app admin)
