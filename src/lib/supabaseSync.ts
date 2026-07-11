@@ -1,11 +1,16 @@
 import { supabase } from './supabase'
 import type { Project, GlobalSubcontractor, JobGroup, Superintendent } from '../types'
 
+// User-level settings (personal, per-user)
 export interface UserSettings {
   globalSubcontractors: GlobalSubcontractor[]
+  walkPresets: string[]
+}
+
+// Org-level settings (shared across the whole contractor org)
+export interface OrgSettings {
   jobGroups: JobGroup[]
   superintendents: Superintendent[]
-  walkPresets: string[]
 }
 
 export async function loadSettingsFromSupabase(): Promise<Partial<UserSettings>> {
@@ -28,7 +33,38 @@ export async function syncSettingsToSupabase(settings: UserSettings, userId: str
       .from('user_settings')
       .upsert({ user_id: userId, data: settings, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
   } catch {
-    // Table may not exist yet — fail silently
+    // silent
+  }
+}
+
+export async function loadOrgSettingsForUser(userId: string): Promise<Partial<OrgSettings>> {
+  try {
+    // Look up the user's contractor org (subcontractor orgs don't use these settings)
+    const { data: member } = await supabase
+      .from('org_members')
+      .select('org_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (!member?.org_id) return {}
+
+    const { data } = await supabase
+      .from('org_settings')
+      .select('data')
+      .eq('org_id', member.org_id)
+      .maybeSingle()
+    return (data?.data ?? {}) as Partial<OrgSettings>
+  } catch {
+    return {}
+  }
+}
+
+export async function syncOrgSettingsToSupabase(settings: OrgSettings, orgId: string): Promise<void> {
+  try {
+    await supabase
+      .from('org_settings')
+      .upsert({ org_id: orgId, data: settings, updated_at: new Date().toISOString() }, { onConflict: 'org_id' })
+  } catch {
+    // silent
   }
 }
 

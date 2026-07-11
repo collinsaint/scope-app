@@ -14,7 +14,7 @@ import { AdminPortalView } from './components/AdminPortalView'
 import { InviteCodeGate } from './components/InviteCodeGate'
 import { VerascopeLoader } from './components/VerascopeLoader'
 import { seedDemoProject } from './lib/seedDemoProject'
-import { loadProjectsFromSupabase, syncProjectToSupabase, deleteProjectFromSupabase, loadSettingsFromSupabase, syncSettingsToSupabase } from './lib/supabaseSync'
+import { loadProjectsFromSupabase, syncProjectToSupabase, deleteProjectFromSupabase, loadSettingsFromSupabase, syncSettingsToSupabase, loadOrgSettingsForUser, syncOrgSettingsToSupabase } from './lib/supabaseSync'
 
 type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings' | 'admin-portal'
 
@@ -98,11 +98,13 @@ export default function App() {
         if (user?.email === 'admin@proscope.app') {
           seedDemoProject()
         }
-        // Apply remote settings if they exist
+        // Apply user-level settings
         if (remoteSettings.globalSubcontractors) replaceGlobalSubcontractors(remoteSettings.globalSubcontractors)
-        if (remoteSettings.jobGroups) replaceJobGroups(remoteSettings.jobGroups)
-        if (remoteSettings.superintendents) replaceSuperintendents(remoteSettings.superintendents)
         if (remoteSettings.walkPresets) replaceWalkPresets(remoteSettings.walkPresets)
+        // Apply org-level settings (jobGroups + superintendents belong to the org, not the user)
+        const orgSettings = await loadOrgSettingsForUser(user!.id)
+        if (orgSettings.jobGroups) replaceJobGroups(orgSettings.jobGroups)
+        if (orgSettings.superintendents) replaceSuperintendents(orgSettings.superintendents)
       } catch (err) {
         console.error('Failed to load from Supabase:', err)
         seedDemoProject()
@@ -142,15 +144,26 @@ export default function App() {
     prevProjectIdsRef.current = currentIds
   }, [projects, user])
 
-  // Sync settings changes to Supabase (debounced 1s)
+  // Sync user-level settings (globalSubcontractors, walkPresets)
   useEffect(() => {
     if (!user || loadingFromSupabase.current) return
     const timer = setTimeout(() => {
-      syncSettingsToSupabase({ globalSubcontractors, jobGroups, superintendents, walkPresets }, user.id)
+      syncSettingsToSupabase({ globalSubcontractors, walkPresets }, user.id)
     }, 1000)
     return () => clearTimeout(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [globalSubcontractors, jobGroups, superintendents, walkPresets, user?.id])
+  }, [globalSubcontractors, walkPresets, user?.id])
+
+  // Sync org-level settings (jobGroups, superintendents) — only when user belongs to a contractor org
+  useEffect(() => {
+    const orgId = orgIdRef.current
+    if (!orgId || loadingFromSupabase.current) return
+    const timer = setTimeout(() => {
+      syncOrgSettingsToSupabase({ jobGroups, superintendents }, orgId)
+    }, 1000)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobGroups, superintendents])
 
   function openProject(id: string, initialView: 'scope' | 'details' = 'scope') {
     setActiveProject(id)

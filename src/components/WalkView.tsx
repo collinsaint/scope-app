@@ -844,8 +844,8 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                   const photoCnt = roomPhotos.filter(p => p.room === row.room).length
                   const isRowCustom = customRooms.includes(row.room)
                   return (
-                    <div key={row.id} className="sticky top-0 z-10 px-3 py-2 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex-1 min-w-0 truncate">{roomLabel(row.room)}</span>
+                    <div key={row.id} className="sticky top-0 z-10 px-3 py-2 flex items-center gap-2" style={{ background: '#EEEDFE', borderBottom: '1px solid #CECBF6' }}>
+                      <span className="text-[11px] font-bold uppercase tracking-wider flex-1 min-w-0 truncate" style={{ color: '#3C3489' }}>{roomLabel(row.room)}</span>
                       <button
                         onClick={() => openPhotoModal(row.room)}
                         className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 text-[10px] font-medium border rounded-md transition-colors ${
@@ -1031,10 +1031,10 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                   <tr key={row.id}>
                     <td colSpan={WALK_COL_COUNT} className="sticky top-10 z-[5] px-4 pt-5 pb-2 bg-white">
                       <div className="flex items-center gap-3">
-                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest whitespace-nowrap">
+                        <span className="text-[11px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ color: '#3C3489' }}>
                           {roomLabel(row.room)}
                         </span>
-                        <div className="flex-1 h-px bg-slate-200" />
+                        <div className="flex-1 h-px" style={{ background: '#CECBF6' }} />
                         {(() => {
                           const cnt = roomPhotos.filter(p => p.room === row.room).length
                           return (

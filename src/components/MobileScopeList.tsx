@@ -619,12 +619,12 @@ export function MobileScopeList({ projectId, items, roomFilter }: Props) {
                         style={
                           allDone
                             ? { background: '#dcfce7', borderColor: '#bbf7d0' }
-                            : { background: '#f1f5f9', borderColor: '#e2e8f0' }
+                            : { background: '#EEEDFE', borderColor: '#CECBF6' }
                         }
                       >
                         <span
                           className="text-[11px] font-bold uppercase tracking-widest flex-1 min-w-0 truncate"
-                          style={{ color: allDone ? '#15803d' : '#475569' }}
+                          style={{ color: allDone ? '#15803d' : '#3C3489' }}
                         >
                           {roomLabel(group.room)}
                         </span>
