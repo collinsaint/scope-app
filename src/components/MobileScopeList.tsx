@@ -9,7 +9,6 @@ interface Props {
   items: ScopeItem[]
   subcontractors: Subcontractor[]
   roomFilter: string
-  onOpenComment: (itemId: string) => void
 }
 
 function fmt(n: number) {
@@ -123,8 +122,8 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   a.click()
 }
 
-export function MobileScopeList({ projectId, items, roomFilter, onOpenComment }: Props) {
-  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete } = useStore()
+export function MobileScopeList({ projectId, items, roomFilter }: Props) {
+  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote } = useStore()
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
   const [coverageFilter, setCoverageFilter] = useState('all')
   const [search, setSearch] = useState('')
@@ -142,6 +141,10 @@ export function MobileScopeList({ projectId, items, roomFilter, onOpenComment }:
   const [photoUploading, setPhotoUploading] = useState(false)
   // Full-screen photo viewer
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null)
+  // Comment bottom sheet
+  const [commentModalItemId, setCommentModalItemId] = useState<string | null>(null)
+  const [commentDraft, setCommentDraft] = useState('')
+  const [commentDeleteConfirm, setCommentDeleteConfirm] = useState<number | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
   const roomGalleryRef = useRef<HTMLInputElement>(null)
@@ -169,8 +172,11 @@ export function MobileScopeList({ projectId, items, roomFilter, onOpenComment }:
     return true
   })
 
-  const completedCount = dataItems.filter(i => i.completed).length
-  const pct = dataItems.length ? Math.round(completedCount / dataItems.length * 100) : 0
+  const progressItems = coverageFilter !== 'all'
+    ? dataItems.filter(i => i.coverage === coverageFilter)
+    : dataItems
+  const completedCount = progressItems.filter(i => i.completed).length
+  const pct = progressItems.length ? Math.round(completedCount / progressItems.length * 100) : 0
 
   const groupedByRoom: Array<{ room: string; roomItems: ScopeItem[] }> = []
   for (const item of filtered) {
@@ -521,7 +527,10 @@ export function MobileScopeList({ projectId, items, roomFilter, onOpenComment }:
         <div className="flex-1 h-1.5 bg-slate-200 rounded-full">
           <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
         </div>
-        <span className="text-xs text-slate-500 flex-shrink-0">{completedCount}/{dataItems.length} · {pct}%</span>
+        <span className="text-xs text-slate-500 flex-shrink-0">
+          {coverageFilter !== 'all' && <span className="text-blue-500 font-medium">{coverageFilter} · </span>}
+          {completedCount}/{progressItems.length} · {pct}%
+        </span>
       </div>
 
       {/* Filter bar */}
@@ -545,7 +554,7 @@ export function MobileScopeList({ projectId, items, roomFilter, onOpenComment }:
             onChange={e => setCoverageFilter(e.target.value)}
             className="px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-600 focus:outline-none flex-shrink-0 max-w-[80px]"
           >
-            <option value="all">All Coverage</option>
+            <option value="all">Coverage</option>
             {coverageOptions.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
@@ -705,9 +714,9 @@ export function MobileScopeList({ projectId, items, roomFilter, onOpenComment }:
 
                               {/* Comment */}
                               <button
-                                onClick={() => onOpenComment(item.id)}
+                                onClick={() => { setCommentModalItemId(item.id); setCommentDraft(''); setCommentDeleteConfirm(null) }}
                                 className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-colors ${
-                                  item.comment
+                                  (item.comment || (item.commentNotes?.length ?? 0) > 0)
                                     ? 'border-blue-200 bg-blue-50 text-blue-600'
                                     : 'border-slate-200 text-slate-400 bg-white'
                                 }`}
@@ -751,6 +760,100 @@ export function MobileScopeList({ projectId, items, roomFilter, onOpenComment }:
           </div>
         )}
       </div>
+
+      {/* Comment bottom sheet */}
+      {commentModalItemId && (() => {
+        const item = dataItems.find(i => i.id === commentModalItemId)
+        const notes = item?.commentNotes ?? []
+        return (
+          <div className="fixed inset-0 z-50 flex items-end pb-[calc(60px+env(safe-area-inset-bottom))]">
+            <div className="absolute inset-0 bg-black/40" onClick={() => { setCommentModalItemId(null); setCommentDraft(''); setCommentDeleteConfirm(null) }} />
+            <div className="relative bg-white rounded-t-2xl shadow-xl w-full flex flex-col max-h-[80dvh] overflow-y-auto">
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-slate-900">Comments</h3>
+                  {item && <p className="text-xs text-slate-400 mt-0.5 truncate">#{item.rowNum} · {item.description}</p>}
+                </div>
+                <button onClick={() => { setCommentModalItemId(null); setCommentDraft(''); setCommentDeleteConfirm(null) }} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 flex-shrink-0">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+
+              <div className="p-5 flex flex-col gap-4">
+                {/* Previous notes */}
+                {notes.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs font-medium text-slate-500">Previous notes</p>
+                    <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+                      {notes.map((n, i) => (
+                        <div key={i} className="rounded-lg border border-slate-100 bg-slate-50 overflow-hidden">
+                          {commentDeleteConfirm === i ? (
+                            <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                              <p className="text-xs text-slate-700">Delete this note?</p>
+                              <div className="flex gap-1.5 flex-shrink-0">
+                                <button onClick={() => setCommentDeleteConfirm(null)} className="px-2.5 py-1 text-[11px] border border-slate-200 rounded text-slate-600">Cancel</button>
+                                <button onClick={() => { deleteCommentNote(projectId, commentModalItemId, i); setCommentDeleteConfirm(null) }} className="px-2.5 py-1 text-[11px] bg-red-600 text-white rounded font-medium">Delete</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-start justify-between gap-3 px-3 py-2.5">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-slate-700 leading-snug break-words">{n.text}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">{new Date(n.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</p>
+                              </div>
+                              <button onClick={() => setCommentDeleteConfirm(i)} className="flex-shrink-0 text-slate-300 hover:text-red-500 transition-colors mt-0.5 p-1" title="Delete note">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                                </svg>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* New note */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">New note</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Write a comment or note about this line item…"
+                    value={commentDraft}
+                    onChange={e => setCommentDraft(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => { setCommentModalItemId(null); setCommentDraft(''); setCommentDeleteConfirm(null) }}
+                    className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!commentDraft.trim()) return
+                      addCommentNote(projectId, commentModalItemId, { text: commentDraft.trim(), createdAt: new Date().toISOString() })
+                      setCommentDraft('')
+                    }}
+                    disabled={!commentDraft.trim()}
+                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Add Note
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

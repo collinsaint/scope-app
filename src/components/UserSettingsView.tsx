@@ -2,7 +2,7 @@ import { useStore } from '../store/useStore'
 import { useAuth } from '../hooks/useAuth'
 
 export function UserSettingsView() {
-  const { walkPresets, setWalkPreset } = useStore()
+  const { walkPresets, setWalkPreset, darkMode, setDarkMode } = useStore()
   const { user, signOut } = useAuth()
 
   return (
@@ -30,6 +30,27 @@ export function UserSettingsView() {
                 />
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* Appearance */}
+        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100">
+            <h2 className="text-sm font-semibold text-slate-800">Appearance</h2>
+          </div>
+          <div className="px-5 py-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-700">Dark Mode</p>
+              <p className="text-xs text-slate-400 mt-0.5">Use a dark color theme throughout the app</p>
+            </div>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${darkMode ? 'bg-blue-600' : 'bg-slate-200'}`}
+              role="switch"
+              aria-checked={darkMode}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${darkMode ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
           </div>
         </section>
 

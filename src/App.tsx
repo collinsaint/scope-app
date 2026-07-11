@@ -29,8 +29,13 @@ export default function App() {
   const { projects, setActiveProject, activeProjectId, replaceProjects,
     globalSubcontractors, jobGroups, superintendents, walkPresets,
     replaceGlobalSubcontractors, replaceJobGroups, replaceSuperintendents, replaceWalkPresets,
+    darkMode,
   } = useStore()
   const { isMobile } = useViewMode()
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode)
+  }, [darkMode])
 
   const [view, setView] = useState<AppView>(readSavedView)
   const [projectInitialView, setProjectInitialView] = useState<'scope' | 'details'>('scope')
@@ -187,6 +192,7 @@ export default function App() {
             onOpenProjectDetails={(id) => openProject(id, 'details')}
             onOpenProjectScope={activeProjectId ? () => openProject(activeProjectId, 'scope') : undefined}
             activeProjectSubView={projectSubView}
+            onSignOut={signOut}
           />
         )}
       </div>

@@ -38,7 +38,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails }: Props) {
     if (filterSuperintendent && p.superintendent !== filterSuperintendent) return false
     if (filterStatus && p.projectStatus !== filterStatus) return false
     return true
-  })
+  }).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
 
   function clearFilters() {
     setFilterJobGroup('')

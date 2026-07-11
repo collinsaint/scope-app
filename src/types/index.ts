@@ -38,9 +38,15 @@ export interface ScopeItem {
   isHeader?: boolean
   subcontractorId?: string
   comment?: string
+  commentNotes?: CommentNote[]
 }
 
 export interface WalkNote {
+  text: string
+  createdAt: string
+}
+
+export interface CommentNote {
   text: string
   createdAt: string
 }

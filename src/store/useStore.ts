@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Project, ScopeItem, Subcontractor, GlobalSubcontractor, JobGroup, Superintendent, ProjectSketch, SketchLabel, Walk, WalkItemOverride, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, OneDriveSettings } from '../types'
+import type { Project, ScopeItem, Subcontractor, GlobalSubcontractor, JobGroup, Superintendent, ProjectSketch, SketchLabel, Walk, WalkItemOverride, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, OneDriveSettings, CommentNote } from '../types'
 
 interface StoreState {
   projects: Project[]
@@ -11,9 +11,11 @@ interface StoreState {
   oneDrive: OneDriveSettings
   viewMode: 'auto' | 'desktop' | 'mobile'
   walkPresets: string[]
+  darkMode: boolean
 
   setOneDrive: (settings: Partial<OneDriveSettings>) => void
   setViewMode: (mode: 'auto' | 'desktop' | 'mobile') => void
+  setDarkMode: (dark: boolean) => void
   setWalkPreset: (index: number, text: string) => void
 
   replaceProjects: (projects: Project[]) => void
@@ -33,6 +35,8 @@ interface StoreState {
   bulkComplete: (projectId: string, itemIds: string[]) => void
   bulkUncomplete: (projectId: string, itemIds: string[]) => void
   setComment: (projectId: string, itemId: string, comment: string) => void
+  addCommentNote: (projectId: string, itemId: string, note: CommentNote) => void
+  deleteCommentNote: (projectId: string, itemId: string, index: number) => void
   updateProjectDetails: (projectId: string, details: { name: string; address: string; projectCode?: string; superintendent?: string; projectStatus?: string; jobGroup?: string; applicantName?: string; applicantPhone?: string; applicantEmail?: string }) => void
   addGlobalSubcontractor: (sub: GlobalSubcontractor) => void
   updateGlobalSubcontractor: (id: string, updates: Partial<GlobalSubcontractor>) => void
@@ -80,11 +84,13 @@ export const useStore = create<StoreState>()(
       },
       viewMode: 'auto',
       walkPresets: ['', '', '', '', '', ''],
+      darkMode: false,
 
       setOneDrive: (settings) =>
         set((s) => ({ oneDrive: { ...s.oneDrive, ...settings } })),
 
       setViewMode: (mode) => set({ viewMode: mode }),
+      setDarkMode: (dark) => set({ darkMode: dark }),
 
       setWalkPreset: (index, text) =>
         set((s) => {
@@ -274,6 +280,36 @@ export const useStore = create<StoreState>()(
                     item.id === itemId ? { ...item, comment: comment || undefined } : item
                   ),
                 }
+          ),
+        })),
+
+      addCommentNote: (projectId, itemId, note) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId ? p : {
+              ...p,
+              items: p.items.map((item) =>
+                item.id !== itemId ? item : {
+                  ...item,
+                  commentNotes: [...(item.commentNotes ?? []), note],
+                }
+              ),
+            }
+          ),
+        })),
+
+      deleteCommentNote: (projectId, itemId, index) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId ? p : {
+              ...p,
+              items: p.items.map((item) =>
+                item.id !== itemId ? item : {
+                  ...item,
+                  commentNotes: (item.commentNotes ?? []).filter((_, i) => i !== index),
+                }
+              ),
+            }
           ),
         })),
 

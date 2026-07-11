@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Verascope brand — violet palette overrides Tailwind's default blue */
 @theme {
   --color-blue-50:  #EEEDFE;
