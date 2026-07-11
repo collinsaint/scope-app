@@ -11,6 +11,8 @@ function fmt(n: number) {
 interface Props {
   onOpenProject: (id: string) => void
   onOpenProjectDetails: (id: string) => void
+  isAppAdmin?: boolean
+  onNavigateAdmin?: () => void
 }
 
 const statusConfig: Record<string, { dot: string; pill: string }> = {
@@ -21,7 +23,7 @@ const statusConfig: Record<string, { dot: string; pill: string }> = {
   'Closed':           { dot: 'bg-slate-300',   pill: 'bg-slate-50 border-slate-200 text-slate-600' },
 }
 
-export function Dashboard({ onOpenProject, onOpenProjectDetails }: Props) {
+export function Dashboard({ onOpenProject, onOpenProjectDetails, isAppAdmin, onNavigateAdmin }: Props) {
   const { projects, deleteProject } = useStore()
   const { isMobile } = useViewMode()
   const [showModal, setShowModal] = useState(false)
@@ -70,6 +72,17 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails }: Props) {
             <p className="text-sm font-semibold text-white leading-none tracking-tight">Verascope</p>
             <p className="text-[10px] leading-none mt-1" style={{ color: '#AFA9EC' }}>Every item, verified</p>
           </div>
+          {isAppAdmin && onNavigateAdmin && (
+            <button
+              onClick={onNavigateAdmin}
+              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/[0.08] text-white/60 hover:bg-white/[0.14] hover:text-white transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              Admin Portal
+            </button>
+          )}
         </div>
       )}
 
