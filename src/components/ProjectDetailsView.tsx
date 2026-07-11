@@ -85,83 +85,49 @@ export function ProjectDetailsView({ project }: Props) {
 
   return (
     <div className="flex-1 overflow-auto px-6 py-6">
-      <div className="max-w-5xl space-y-6">
+      <div className="max-w-5xl space-y-5">
 
-        {/* Project Info + Applicant Info side by side on desktop, stacked on mobile */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
 
           {/* Project Info */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
-            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Project Info</h2>
+          <div className="section-card p-5">
+            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-4">Project Info</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Project Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={e => { setName(e.target.value); setSaved(false) }}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-                />
+                <label className="label-base">Project Name</label>
+                <input type="text" value={name} onChange={e => { setName(e.target.value); setSaved(false) }} className="input-base" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Address</label>
-                <input
-                  type="text"
-                  value={address}
-                  onChange={e => { setAddress(e.target.value); setSaved(false) }}
-                  placeholder="No address"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-                />
+                <label className="label-base">Address</label>
+                <input type="text" value={address} onChange={e => { setAddress(e.target.value); setSaved(false) }} placeholder="No address" className="input-base" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Project ID</label>
-                <input
-                  type="text"
-                  value={projectCode}
-                  onChange={e => { setProjectCode(e.target.value); setSaved(false) }}
-                  placeholder="—"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-                />
+                <label className="label-base">Project ID</label>
+                <input type="text" value={projectCode} onChange={e => { setProjectCode(e.target.value); setSaved(false) }} placeholder="—" className="input-base" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Job Group</label>
-                <select
-                  value={jobGroup}
-                  onChange={e => { setJobGroup(e.target.value); setSaved(false) }}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 bg-white"
-                >
+                <label className="label-base">Job Group</label>
+                <select value={jobGroup} onChange={e => { setJobGroup(e.target.value); setSaved(false) }} className="input-base">
                   <option value="">— None —</option>
-                  {jobGroups.map(g => (
-                    <option key={g.id} value={g.name}>{g.name}</option>
-                  ))}
+                  {jobGroups.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
                 </select>
                 {jobGroups.length === 0 && (
                   <p className="text-[11px] text-slate-400 mt-1">No job groups yet — add them in Contractor Settings.</p>
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Superintendent</label>
-                <select
-                  value={superintendent}
-                  onChange={e => { setSuperintendent(e.target.value); setSaved(false) }}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 bg-white"
-                >
+                <label className="label-base">Superintendent</label>
+                <select value={superintendent} onChange={e => { setSuperintendent(e.target.value); setSaved(false) }} className="input-base">
                   <option value="">— None —</option>
-                  {superintendents.map(s => (
-                    <option key={s.id} value={s.name}>{s.name}</option>
-                  ))}
+                  {superintendents.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                 </select>
                 {superintendents.length === 0 && (
                   <p className="text-[11px] text-slate-400 mt-1">No superintendents yet — add them in Contractor Settings.</p>
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Project Status</label>
-                <select
-                  value={projectStatus}
-                  onChange={e => { setProjectStatus(e.target.value); setSaved(false) }}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 bg-white"
-                >
+                <label className="label-base">Project Status</label>
+                <select value={projectStatus} onChange={e => { setProjectStatus(e.target.value); setSaved(false) }} className="input-base">
                   <option value="">— None —</option>
                   <option value="Site Visit">Site Visit</option>
                   <option value="Pre-Construction">Pre-Construction</option>
@@ -174,54 +140,32 @@ export function ProjectDetailsView({ project }: Props) {
           </div>
 
           {/* Applicant Info */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5">
-            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Applicant Info</h2>
+          <div className="section-card p-5">
+            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-4">Applicant Info</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Applicant Name</label>
-                <input
-                  type="text"
-                  value={applicantName}
-                  onChange={e => { setApplicantName(e.target.value); setSaved(false) }}
-                  placeholder="—"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-                />
+                <label className="label-base">Applicant Name</label>
+                <input type="text" value={applicantName} onChange={e => { setApplicantName(e.target.value); setSaved(false) }} placeholder="—" className="input-base" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Applicant Phone #</label>
-                <input
-                  type="tel"
-                  value={applicantPhone}
-                  onChange={e => { setApplicantPhone(e.target.value); setSaved(false) }}
-                  placeholder="—"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-                />
+                <label className="label-base">Applicant Phone #</label>
+                <input type="tel" value={applicantPhone} onChange={e => { setApplicantPhone(e.target.value); setSaved(false) }} placeholder="—" className="input-base" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Applicant Email</label>
-                <input
-                  type="email"
-                  value={applicantEmail}
-                  onChange={e => { setApplicantEmail(e.target.value); setSaved(false) }}
-                  placeholder="—"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-                />
+                <label className="label-base">Applicant Email</label>
+                <input type="email" value={applicantEmail} onChange={e => { setApplicantEmail(e.target.value); setSaved(false) }} placeholder="—" className="input-base" />
               </div>
             </div>
           </div>
 
         </div>
 
-        {/* Save button — spans full width below both cards */}
+        {/* Save button */}
         <div className="flex items-center gap-3">
           <button
             onClick={handleSave}
             disabled={!isDirty}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              isDirty
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-            }`}
+            className={isDirty ? 'btn-primary' : 'btn-primary opacity-40 cursor-not-allowed'}
           >
             Save changes
           </button>
@@ -236,8 +180,8 @@ export function ProjectDetailsView({ project }: Props) {
         </div>
 
         {/* Display Options */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Display Options</h2>
+        <div className="section-card p-5">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-4">Display Options</h2>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-700">Spanish Mode</p>
@@ -255,8 +199,8 @@ export function ProjectDetailsView({ project }: Props) {
         </div>
 
         {/* Financial summary */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Financial Summary</h2>
+        <div className="section-card p-5">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-4">Financial Summary</h2>
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div>
               <p className="text-[11px] text-slate-400 mb-0.5">Total Amount</p>
@@ -264,7 +208,7 @@ export function ProjectDetailsView({ project }: Props) {
             </div>
             <div>
               <p className="text-[11px] text-slate-400 mb-0.5">Completed Amount</p>
-              <p className="text-base font-semibold text-green-600">{fmt(completedAmount)}</p>
+              <p className="text-base font-semibold text-emerald-600">{fmt(completedAmount)}</p>
             </div>
             <div>
               <p className="text-[11px] text-slate-400 mb-0.5">Remaining Amount</p>
@@ -276,15 +220,15 @@ export function ProjectDetailsView({ project }: Props) {
               <span className="text-xs text-slate-400">{completed.length} of {dataItems.length} items complete</span>
               <span className="text-xs font-semibold text-slate-600">{pct}%</span>
             </div>
-            <div className="h-2 bg-slate-100 rounded-full">
+            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
               <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
             </div>
           </div>
         </div>
 
         {/* Scope details */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Scope Details</h2>
+        <div className="section-card p-5">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-4">Scope Details</h2>
           <div className="grid grid-cols-2 gap-y-4 gap-x-8">
             <Detail label="Source File" value={project.fileName} />
             <Detail label="Created" value={new Date(project.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} />
@@ -296,27 +240,23 @@ export function ProjectDetailsView({ project }: Props) {
         </div>
 
         {/* Project Sketches */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">Project Sketches</h2>
+        <div className="section-card p-5">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-1">Project Sketches</h2>
           <p className="text-xs text-slate-400 mb-4">Upload up to 3 PDF or image files. Each must have a unique level name.</p>
 
-          {/* Uploaded sketches */}
           {sketches.length > 0 && (
             <div className="space-y-2 mb-4">
               {SKETCH_LABELS.filter(l => usedLabels.has(l)).map(label => {
                 const sk = sketches.find(s => s.label === label)!
                 return (
-                  <div key={label} className="flex items-center gap-3 px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg">
+                  <div key={label} className="flex items-center gap-3 px-4 py-3 bg-blue-50/60 border border-blue-100 rounded-[9px]">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
                       <polyline points="14 2 14 8 20 8"/>
                     </svg>
                     <span className="text-xs font-semibold text-slate-700 w-24 flex-shrink-0">{label}</span>
                     <span className="text-xs text-slate-400 flex-1 truncate">{sk.fileName}</span>
-                    <button
-                      onClick={() => removeSketch(project.id, label)}
-                      className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0"
-                    >
+                    <button onClick={() => removeSketch(project.id, label)} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
                       </svg>
@@ -327,22 +267,19 @@ export function ProjectDetailsView({ project }: Props) {
             </div>
           )}
 
-          {/* Upload form */}
           {availableLabels.length > 0 ? (
             <div className="flex items-center gap-2">
               <select
                 value={sketchLabel}
                 onChange={e => setSketchLabel(e.target.value as SketchLabel)}
-                className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 bg-white"
+                className="input-base w-auto"
               >
-                {availableLabels.map(l => (
-                  <option key={l} value={l}>{l}</option>
-                ))}
+                {availableLabels.map(l => <option key={l} value={l}>{l}</option>)}
               </select>
               <button
                 onClick={() => sketchInputRef.current?.click()}
                 disabled={sketchUploading}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                className="btn-primary"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
@@ -377,19 +314,19 @@ export function ProjectDetailsView({ project }: Props) {
         </div>
 
         {/* Rooms */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Rooms / Areas ({rooms.length})</h2>
+        <div className="section-card p-5">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-4">Rooms / Areas ({rooms.length})</h2>
           <div className="flex flex-wrap gap-2">
             {rooms.map(r => {
               const roomItems = dataItems.filter(i => i.room === r)
               const roomDone = roomItems.filter(i => i.completed).length
               const roomPct = roomItems.length ? Math.round(roomDone / roomItems.length * 100) : 0
               return (
-                <div key={r} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
+                <div key={r} className="flex items-center gap-2 px-3 py-1.5 bg-blue-50/60 border border-blue-100 rounded-[9px]">
                   <span className="text-xs font-medium text-slate-700">{r}</span>
                   <span className="text-[10px] text-slate-400">{roomItems.length} items</span>
                   {roomPct > 0 && (
-                    <span className={`text-[10px] font-semibold ${roomPct === 100 ? 'text-green-500' : 'text-blue-500'}`}>{roomPct}%</span>
+                    <span className={`text-[10px] font-semibold ${roomPct === 100 ? 'text-emerald-500' : 'text-blue-500'}`}>{roomPct}%</span>
                   )}
                 </div>
               )
@@ -397,16 +334,14 @@ export function ProjectDetailsView({ project }: Props) {
           </div>
         </div>
 
-        {/* Database storage size */}
+        {/* Database storage */}
         {(() => {
           const bytes = new TextEncoder().encode(JSON.stringify(project)).length
           const kb = bytes / 1024
-          const display = kb >= 1024
-            ? `${(kb / 1024).toFixed(2)} MB`
-            : `${kb.toFixed(1)} KB`
+          const display = kb >= 1024 ? `${(kb / 1024).toFixed(2)} MB` : `${kb.toFixed(1)} KB`
           return (
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
-              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Database Storage</h2>
+            <div className="section-card p-5">
+              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-4">Database Storage</h2>
               <div className="grid grid-cols-2 gap-y-4 gap-x-8">
                 <Detail label="Project Size" value={display} />
                 <Detail label="Raw Size" value={`${bytes.toLocaleString()} bytes`} />
@@ -415,26 +350,21 @@ export function ProjectDetailsView({ project }: Props) {
           )
         })()}
 
-        {/* Demo reset — only shown for the demo project */}
+        {/* Demo reset */}
         {project.isDemo && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
-            <h2 className="text-xs font-semibold text-amber-600 uppercase tracking-widest mb-1">Demo Project</h2>
+          <div className="bg-amber-50 border border-amber-200 rounded-[14px] p-5">
+            <h2 className="text-xs font-semibold text-amber-600 uppercase tracking-[0.12em] mb-1">Demo Project</h2>
             <p className="text-xs text-amber-700/70 mb-4">
               Reset this demo back to its original state. All walk overrides, notes, photos, and custom rooms will be cleared.
             </p>
             {resetConfirm ? (
               <div className="flex items-center gap-3">
                 <span className="text-xs text-amber-800 font-medium">All changes will be lost. Continue?</span>
-                <button
-                  onClick={() => setResetConfirm(false)}
-                  className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 hover:bg-white transition-colors"
-                >
-                  Cancel
-                </button>
+                <button onClick={() => setResetConfirm(false)} className="btn-ghost btn-sm border border-slate-200">Cancel</button>
                 <button
                   onClick={handleReset}
                   disabled={resetting}
-                  className="px-3 py-1.5 text-xs bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 text-xs bg-amber-500 text-white rounded-[8px] font-medium hover:bg-amber-600 transition-colors disabled:opacity-50"
                 >
                   {resetting ? 'Resetting…' : 'Yes, Reset Demo'}
                 </button>
@@ -442,7 +372,7 @@ export function ProjectDetailsView({ project }: Props) {
             ) : (
               <button
                 onClick={() => setResetConfirm(true)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-amber-500 text-white rounded-[10px] hover:bg-amber-600 transition-colors"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>

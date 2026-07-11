@@ -71,7 +71,7 @@ function Card({ label, value, sub, valueColor = 'text-slate-900', compact = fals
   compact?: boolean
 }) {
   return (
-    <div className={`bg-white border border-slate-200 rounded-xl p-4 ${compact ? 'flex-shrink-0 w-44' : ''}`}>
+    <div className={`card p-4 ${compact ? 'flex-shrink-0 w-44' : ''}`}>
       <p className="text-[11px] text-slate-400 mb-1">{label}</p>
       <p className={`font-semibold ${compact ? 'text-lg' : 'text-xl'} ${valueColor}`}>{value}</p>
       {typeof sub === 'string' ? <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p> : sub}

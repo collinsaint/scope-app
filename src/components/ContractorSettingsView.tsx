@@ -59,6 +59,19 @@ export function ContractorSettingsView() {
     setEditError('')
   }
 
+  function saveEdit(id: string) {
+    const name = editName.trim()
+    if (!name) { setEditError('Name is required.'); return }
+    if (globalSubcontractors.some(s => s.id !== id && s.name.toLowerCase() === name.toLowerCase())) {
+      setEditError('Another subcontractor with that name already exists.')
+      return
+    }
+    const pct = parseFloat(editPct)
+    if (isNaN(pct) || pct < 0 || pct > 100) { setEditError('Enter a percentage between 0 and 100.'); return }
+    updateGlobalSubcontractor(id, { name, color: editColor, defaultPercentage: pct })
+    setEditingId(null)
+  }
+
   function handleAddGroup() {
     const name = newGroupName.trim()
     if (!name) { setGroupAddError('Name is required.'); return }
@@ -117,305 +130,279 @@ export function ContractorSettingsView() {
     setEditingSuperId(null)
   }
 
-  function saveEdit(id: string) {
-    const name = editName.trim()
-    if (!name) { setEditError('Name is required.'); return }
-    if (globalSubcontractors.some(s => s.id !== id && s.name.toLowerCase() === name.toLowerCase())) {
-      setEditError('Another subcontractor with that name already exists.')
-      return
-    }
-    const pct = parseFloat(editPct)
-    if (isNaN(pct) || pct < 0 || pct > 100) { setEditError('Enter a percentage between 0 and 100.'); return }
-    updateGlobalSubcontractor(id, { name, color: editColor, defaultPercentage: pct })
-    setEditingId(null)
-  }
-
   return (
-    <div className="flex-1 overflow-auto p-8 bg-slate-50">
-      <div className="max-w-2xl">
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold text-slate-900">Contractor Settings</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Manage global subcontractors and their default payout percentages.</p>
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Contractor Settings</h1>
+          <p className="page-subtitle">Manage global subcontractors and their default payout percentages.</p>
         </div>
+      </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="text-sm font-semibold text-slate-800">Subcontractors</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Set the default percentage of a line item's amount each subcontractor receives.</p>
-          </div>
+      <div className="flex-1 overflow-auto px-6 py-6">
+        <div className="max-w-2xl flex flex-col gap-5">
 
-          {/* List */}
-          {globalSubcontractors.length > 0 ? (
-            <div className="divide-y divide-slate-100">
-              {globalSubcontractors.map(sub => (
-                <div key={sub.id}>
-                  {editingId === sub.id ? (
-                    /* Edit form */
-                    <div className="px-5 py-4 bg-slate-50/80 space-y-3">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={e => { setEditName(e.target.value); setEditError('') }}
-                          placeholder="Name"
-                          className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 bg-white"
-                          autoFocus
-                        />
-                        <div className="relative flex items-center">
+          {/* Subcontractors */}
+          <div className="section-card">
+            <div className="section-card-header">
+              <h2 className="text-sm font-semibold text-slate-800">Subcontractors</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Set the default percentage of a line item's amount each subcontractor receives.</p>
+            </div>
+
+            {globalSubcontractors.length > 0 ? (
+              <div className="divide-y divide-slate-100">
+                {globalSubcontractors.map(sub => (
+                  <div key={sub.id}>
+                    {editingId === sub.id ? (
+                      <div className="px-5 py-4 bg-[#F9F8FF] space-y-3">
+                        <div className="flex gap-2">
                           <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.1"
-                            value={editPct}
-                            onChange={e => { setEditPct(e.target.value); setEditError('') }}
-                            onKeyDown={e => { if (e.key === 'Enter') saveEdit(sub.id); if (e.key === 'Escape') setEditingId(null) }}
-                            className="w-24 pr-7 pl-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 bg-white"
+                            type="text"
+                            value={editName}
+                            onChange={e => { setEditName(e.target.value); setEditError('') }}
+                            placeholder="Name"
+                            className="input-base flex-1"
+                            autoFocus
                           />
-                          <span className="absolute right-2.5 text-xs text-slate-400 pointer-events-none">%</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex gap-1.5 flex-wrap">
-                          {PRESET_COLORS.map(c => (
-                            <button
-                              key={c}
-                              onClick={() => setEditColor(c)}
-                              className="w-5 h-5 rounded-full transition-transform hover:scale-110 flex-shrink-0"
-                              style={{ backgroundColor: c, outline: editColor === c ? `2px solid ${c}` : 'none', outlineOffset: '2px' }}
+                          <div className="relative flex items-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                              value={editPct}
+                              onChange={e => { setEditPct(e.target.value); setEditError('') }}
+                              onKeyDown={e => { if (e.key === 'Enter') saveEdit(sub.id); if (e.key === 'Escape') setEditingId(null) }}
+                              className="input-base w-24 pr-7 pl-3"
                             />
-                          ))}
+                            <span className="absolute right-2.5 text-xs text-slate-400 pointer-events-none">%</span>
+                          </div>
                         </div>
-                        <div className="ml-auto flex gap-2">
-                          <button onClick={() => setEditingId(null)} className="px-3 py-1.5 text-xs border border-slate-200 text-slate-500 rounded-lg hover:bg-slate-100 transition-colors">Cancel</button>
-                          <button onClick={() => saveEdit(sub.id)} className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">Save changes</button>
+                        <div className="flex items-center gap-3">
+                          <div className="flex gap-1.5 flex-wrap">
+                            {PRESET_COLORS.map(c => (
+                              <button
+                                key={c}
+                                onClick={() => setEditColor(c)}
+                                className="w-5 h-5 rounded-full transition-transform hover:scale-110 flex-shrink-0"
+                                style={{ backgroundColor: c, outline: editColor === c ? `2px solid ${c}` : 'none', outlineOffset: '2px' }}
+                              />
+                            ))}
+                          </div>
+                          <div className="ml-auto flex gap-2">
+                            <button onClick={() => setEditingId(null)} className="btn-ghost btn-sm border border-slate-200">Cancel</button>
+                            <button onClick={() => saveEdit(sub.id)} className="btn-primary btn-sm">Save changes</button>
+                          </div>
                         </div>
+                        {editError && <p className="text-xs text-red-500">{editError}</p>}
                       </div>
-                      {editError && <p className="text-xs text-red-500">{editError}</p>}
-                    </div>
-                  ) : (
-                    /* Read row */
-                    <div className="flex items-center gap-4 px-5 py-3.5">
-                      <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color }} />
-                      <span className="flex-1 text-sm font-medium text-slate-800">{sub.name}</span>
-                      <span className="text-sm text-slate-500 font-medium w-16 text-right">{sub.defaultPercentage}%</span>
-                      <button
-                        onClick={() => startEdit(sub)}
-                        className="text-xs text-blue-500 hover:text-blue-700 transition-colors font-medium"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => { if (confirm(`Delete "${sub.name}"?`)) deleteGlobalSubcontractor(sub.id) }}
-                        className="text-slate-300 hover:text-red-400 transition-colors"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                        </svg>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="px-5 py-8 text-center">
-              <p className="text-sm text-slate-400">No subcontractors added yet.</p>
-            </div>
-          )}
-
-          {/* Add form */}
-          <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/60 rounded-b-xl space-y-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Add subcontractor</p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Name"
-                value={newName}
-                onChange={e => { setNewName(e.target.value); setAddError('') }}
-                className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 bg-white"
-              />
-              <div className="relative flex items-center">
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  placeholder="0"
-                  value={newPct}
-                  onChange={e => { setNewPct(e.target.value); setAddError('') }}
-                  className="w-24 pr-7 pl-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 bg-white"
-                />
-                <span className="absolute right-2.5 text-xs text-slate-400 pointer-events-none">%</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex gap-1.5 flex-wrap">
-                {PRESET_COLORS.map(c => (
-                  <button
-                    key={c}
-                    onClick={() => setNewColor(c)}
-                    className="w-5 h-5 rounded-full transition-transform hover:scale-110 flex-shrink-0"
-                    style={{ backgroundColor: c, outline: newColor === c ? `2px solid ${c}` : 'none', outlineOffset: '2px' }}
-                  />
+                    ) : (
+                      <div className="flex items-center gap-4 px-5 py-3.5">
+                        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color }} />
+                        <span className="flex-1 text-sm font-medium text-slate-800">{sub.name}</span>
+                        <span className="text-sm text-slate-500 font-medium w-16 text-right">{sub.defaultPercentage}%</span>
+                        <button onClick={() => startEdit(sub)} className="text-xs text-blue-500 hover:text-blue-700 transition-colors font-medium">Edit</button>
+                        <button
+                          onClick={() => { if (confirm(`Delete "${sub.name}"?`)) deleteGlobalSubcontractor(sub.id) }}
+                          className="text-slate-300 hover:text-red-400 transition-colors"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
-              <button
-                onClick={handleAdd}
-                className="ml-auto px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium whitespace-nowrap"
-              >
-                Add subcontractor
-              </button>
-            </div>
-            {addError && <p className="text-xs text-red-500">{addError}</p>}
-          </div>
-        </div>
+            ) : (
+              <div className="px-5 py-8 text-center">
+                <p className="text-sm text-slate-400">No subcontractors added yet.</p>
+              </div>
+            )}
 
-        {/* Job Groups section */}
-        <div className="bg-white border border-slate-200 rounded-xl mt-5">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="text-sm font-semibold text-slate-800">Job Groups</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Create job groups that can be assigned to projects.</p>
-          </div>
-
-          {jobGroups.length > 0 ? (
-            <div className="divide-y divide-slate-100">
-              {jobGroups.map(g => (
-                <div key={g.id}>
-                  {editingGroupId === g.id ? (
-                    <div className="px-5 py-3.5 flex items-center gap-2 bg-slate-50/80">
-                      <input
-                        type="text"
-                        value={editGroupName}
-                        onChange={e => { setEditGroupName(e.target.value); setGroupEditError('') }}
-                        onKeyDown={e => { if (e.key === 'Enter') saveEditGroup(g.id); if (e.key === 'Escape') setEditingGroupId(null) }}
-                        className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 bg-white"
-                        autoFocus
-                      />
-                      {groupEditError && <p className="text-xs text-red-500">{groupEditError}</p>}
-                      <button onClick={() => setEditingGroupId(null)} className="px-3 py-1.5 text-xs border border-slate-200 text-slate-500 rounded-lg hover:bg-slate-100 transition-colors">Cancel</button>
-                      <button onClick={() => saveEditGroup(g.id)} className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">Save</button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-4 px-5 py-3.5">
-                      <span className="flex-1 text-sm font-medium text-slate-800">{g.name}</span>
-                      <button onClick={() => startEditGroup(g)} className="text-xs text-blue-500 hover:text-blue-700 transition-colors font-medium">Edit</button>
-                      <button
-                        onClick={() => { if (confirm(`Delete "${g.name}"?`)) deleteJobGroup(g.id) }}
-                        className="text-slate-300 hover:text-red-400 transition-colors"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                        </svg>
-                      </button>
-                    </div>
-                  )}
+            <div className="px-5 py-4 border-t border-slate-100 bg-[#F9F8FF] rounded-b-[14px] space-y-3">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Add subcontractor</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Name"
+                  value={newName}
+                  onChange={e => { setNewName(e.target.value); setAddError('') }}
+                  className="input-base flex-1"
+                />
+                <div className="relative flex items-center">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    placeholder="0"
+                    value={newPct}
+                    onChange={e => { setNewPct(e.target.value); setAddError('') }}
+                    className="input-base w-24 pr-7 pl-3"
+                  />
+                  <span className="absolute right-2.5 text-xs text-slate-400 pointer-events-none">%</span>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="px-5 py-8 text-center">
-              <p className="text-sm text-slate-400">No job groups added yet.</p>
-            </div>
-          )}
-
-          <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/60 rounded-b-xl">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Add job group</p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Job group name"
-                value={newGroupName}
-                onChange={e => { setNewGroupName(e.target.value); setGroupAddError('') }}
-                onKeyDown={e => { if (e.key === 'Enter') handleAddGroup() }}
-                className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 bg-white"
-              />
-              <button
-                onClick={handleAddGroup}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium whitespace-nowrap"
-              >
-                Add job group
-              </button>
-            </div>
-            {groupAddError && <p className="text-xs text-red-500 mt-2">{groupAddError}</p>}
-          </div>
-        </div>
-
-        {/* Superintendents section */}
-        <div className="bg-white border border-slate-200 rounded-xl mt-5">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="text-sm font-semibold text-slate-800">Superintendents</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Create superintendents that can be assigned to projects.</p>
-          </div>
-
-          {superintendents.length > 0 ? (
-            <div className="divide-y divide-slate-100">
-              {superintendents.map(su => (
-                <div key={su.id}>
-                  {editingSuperId === su.id ? (
-                    <div className="px-5 py-3.5 flex items-center gap-2 bg-slate-50/80">
-                      <input
-                        type="text"
-                        value={editSuperName}
-                        onChange={e => { setEditSuperName(e.target.value); setSuperEditError('') }}
-                        onKeyDown={e => { if (e.key === 'Enter') saveEditSuper(su.id); if (e.key === 'Escape') setEditingSuperId(null) }}
-                        className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 bg-white"
-                        autoFocus
-                      />
-                      {superEditError && <p className="text-xs text-red-500">{superEditError}</p>}
-                      <button onClick={() => setEditingSuperId(null)} className="px-3 py-1.5 text-xs border border-slate-200 text-slate-500 rounded-lg hover:bg-slate-100 transition-colors">Cancel</button>
-                      <button onClick={() => saveEditSuper(su.id)} className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">Save</button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-4 px-5 py-3.5">
-                      <span className="flex-1 text-sm font-medium text-slate-800">{su.name}</span>
-                      <button onClick={() => startEditSuper(su)} className="text-xs text-blue-500 hover:text-blue-700 transition-colors font-medium">Edit</button>
-                      <button
-                        onClick={() => { if (confirm(`Delete "${su.name}"?`)) deleteSuperintendent(su.id) }}
-                        className="text-slate-300 hover:text-red-400 transition-colors"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                        </svg>
-                      </button>
-                    </div>
-                  )}
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex gap-1.5 flex-wrap">
+                  {PRESET_COLORS.map(c => (
+                    <button
+                      key={c}
+                      onClick={() => setNewColor(c)}
+                      className="w-5 h-5 rounded-full transition-transform hover:scale-110 flex-shrink-0"
+                      style={{ backgroundColor: c, outline: newColor === c ? `2px solid ${c}` : 'none', outlineOffset: '2px' }}
+                    />
+                  ))}
                 </div>
-              ))}
+                <button onClick={handleAdd} className="btn-primary btn-sm ml-auto whitespace-nowrap">
+                  Add subcontractor
+                </button>
+              </div>
+              {addError && <p className="text-xs text-red-500">{addError}</p>}
             </div>
-          ) : (
-            <div className="px-5 py-8 text-center">
-              <p className="text-sm text-slate-400">No superintendents added yet.</p>
-            </div>
-          )}
-
-          <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/60 rounded-b-xl">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Add superintendent</p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Superintendent name"
-                value={newSuperName}
-                onChange={e => { setNewSuperName(e.target.value); setSuperAddError('') }}
-                onKeyDown={e => { if (e.key === 'Enter') handleAddSuper() }}
-                className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 bg-white"
-              />
-              <button
-                onClick={handleAddSuper}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium whitespace-nowrap"
-              >
-                Add superintendent
-              </button>
-            </div>
-            {superAddError && <p className="text-xs text-red-500 mt-2">{superAddError}</p>}
           </div>
-        </div>
 
-        {/* OneDrive Integration */}
-        <div className="mt-8">
-          <OneDriveSettings />
-        </div>
+          {/* Job Groups */}
+          <div className="section-card">
+            <div className="section-card-header">
+              <h2 className="text-sm font-semibold text-slate-800">Job Groups</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Create job groups that can be assigned to projects.</p>
+            </div>
 
+            {jobGroups.length > 0 ? (
+              <div className="divide-y divide-slate-100">
+                {jobGroups.map(g => (
+                  <div key={g.id}>
+                    {editingGroupId === g.id ? (
+                      <div className="px-5 py-3.5 flex items-center gap-2 bg-[#F9F8FF]">
+                        <input
+                          type="text"
+                          value={editGroupName}
+                          onChange={e => { setEditGroupName(e.target.value); setGroupEditError('') }}
+                          onKeyDown={e => { if (e.key === 'Enter') saveEditGroup(g.id); if (e.key === 'Escape') setEditingGroupId(null) }}
+                          className="input-base flex-1"
+                          autoFocus
+                        />
+                        {groupEditError && <p className="text-xs text-red-500">{groupEditError}</p>}
+                        <button onClick={() => setEditingGroupId(null)} className="btn-ghost btn-sm border border-slate-200">Cancel</button>
+                        <button onClick={() => saveEditGroup(g.id)} className="btn-primary btn-sm">Save</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-4 px-5 py-3.5">
+                        <span className="flex-1 text-sm font-medium text-slate-800">{g.name}</span>
+                        <button onClick={() => startEditGroup(g)} className="text-xs text-blue-500 hover:text-blue-700 transition-colors font-medium">Edit</button>
+                        <button
+                          onClick={() => { if (confirm(`Delete "${g.name}"?`)) deleteJobGroup(g.id) }}
+                          className="text-slate-300 hover:text-red-400 transition-colors"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="px-5 py-8 text-center">
+                <p className="text-sm text-slate-400">No job groups added yet.</p>
+              </div>
+            )}
+
+            <div className="px-5 py-4 border-t border-slate-100 bg-[#F9F8FF] rounded-b-[14px]">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Add job group</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Job group name"
+                  value={newGroupName}
+                  onChange={e => { setNewGroupName(e.target.value); setGroupAddError('') }}
+                  onKeyDown={e => { if (e.key === 'Enter') handleAddGroup() }}
+                  className="input-base flex-1"
+                />
+                <button onClick={handleAddGroup} className="btn-primary btn-sm whitespace-nowrap">
+                  Add job group
+                </button>
+              </div>
+              {groupAddError && <p className="text-xs text-red-500 mt-2">{groupAddError}</p>}
+            </div>
+          </div>
+
+          {/* Superintendents */}
+          <div className="section-card">
+            <div className="section-card-header">
+              <h2 className="text-sm font-semibold text-slate-800">Superintendents</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Create superintendents that can be assigned to projects.</p>
+            </div>
+
+            {superintendents.length > 0 ? (
+              <div className="divide-y divide-slate-100">
+                {superintendents.map(su => (
+                  <div key={su.id}>
+                    {editingSuperId === su.id ? (
+                      <div className="px-5 py-3.5 flex items-center gap-2 bg-[#F9F8FF]">
+                        <input
+                          type="text"
+                          value={editSuperName}
+                          onChange={e => { setEditSuperName(e.target.value); setSuperEditError('') }}
+                          onKeyDown={e => { if (e.key === 'Enter') saveEditSuper(su.id); if (e.key === 'Escape') setEditingSuperId(null) }}
+                          className="input-base flex-1"
+                          autoFocus
+                        />
+                        {superEditError && <p className="text-xs text-red-500">{superEditError}</p>}
+                        <button onClick={() => setEditingSuperId(null)} className="btn-ghost btn-sm border border-slate-200">Cancel</button>
+                        <button onClick={() => saveEditSuper(su.id)} className="btn-primary btn-sm">Save</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-4 px-5 py-3.5">
+                        <span className="flex-1 text-sm font-medium text-slate-800">{su.name}</span>
+                        <button onClick={() => startEditSuper(su)} className="text-xs text-blue-500 hover:text-blue-700 transition-colors font-medium">Edit</button>
+                        <button
+                          onClick={() => { if (confirm(`Delete "${su.name}"?`)) deleteSuperintendent(su.id) }}
+                          className="text-slate-300 hover:text-red-400 transition-colors"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="px-5 py-8 text-center">
+                <p className="text-sm text-slate-400">No superintendents added yet.</p>
+              </div>
+            )}
+
+            <div className="px-5 py-4 border-t border-slate-100 bg-[#F9F8FF] rounded-b-[14px]">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Add superintendent</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Superintendent name"
+                  value={newSuperName}
+                  onChange={e => { setNewSuperName(e.target.value); setSuperAddError('') }}
+                  onKeyDown={e => { if (e.key === 'Enter') handleAddSuper() }}
+                  className="input-base flex-1"
+                />
+                <button onClick={handleAddSuper} className="btn-primary btn-sm whitespace-nowrap">
+                  Add superintendent
+                </button>
+              </div>
+              {superAddError && <p className="text-xs text-red-500 mt-2">{superAddError}</p>}
+            </div>
+          </div>
+
+          <div>
+            <OneDriveSettings />
+          </div>
+
+        </div>
       </div>
     </div>
   )

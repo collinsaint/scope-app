@@ -2,8 +2,39 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Verascope brand — violet palette overrides Tailwind's default blue */
+/* ─── Geist font ─────────────────────────────────────────────────────────── */
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ─── Design tokens ──────────────────────────────────────────────────────── */
 @theme {
+  /* Violet brand scale */
   --color-blue-50:  #EEEDFE;
   --color-blue-100: #CECBF6;
   --color-blue-200: #AFA9EC;
@@ -14,10 +45,88 @@
   --color-blue-700: #534AB7;
   --color-blue-800: #26215C;
   --color-blue-900: #1A1747;
+
+  /* Typography */
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
+/* ─── Base ───────────────────────────────────────────────────────────────── */
 @layer base {
   body {
-    @apply bg-slate-100 text-slate-900 antialiased;
+    font-family: var(--font-sans);
+    background-color: #F4F3FC;
+    color: #0D0B21;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+}
+
+/* ─── Component utilities ────────────────────────────────────────────────── */
+@layer components {
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-[10px]
+           bg-blue-600 text-white text-sm font-semibold
+           hover:bg-blue-700 active:scale-[0.98]
+           transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-[10px]
+           bg-white text-blue-700 text-sm font-semibold
+           border border-blue-200
+           hover:bg-blue-50 hover:border-blue-300 active:scale-[0.98]
+           transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 px-3 py-2 rounded-[8px]
+           text-sm font-medium text-slate-600
+           hover:bg-black/5 active:scale-[0.98]
+           transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-danger {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-[10px]
+           text-sm font-semibold text-red-600
+           border border-red-200
+           hover:bg-red-50 hover:border-red-300 active:scale-[0.98]
+           transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-sm { @apply !px-3 !py-1.5 !text-xs !rounded-[7px]; }
+
+  /* Inputs */
+  .input-base {
+    @apply w-full px-3 py-2.5 text-sm rounded-[9px]
+           bg-white border border-slate-200
+           text-slate-900 placeholder-slate-400
+           focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400
+           transition-colors duration-150;
+  }
+  .label-base { @apply block text-xs font-medium text-slate-500 mb-1.5; }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-[14px] border border-slate-200/80;
+    box-shadow: 0 1px 3px rgba(13,11,33,0.06), 0 4px 16px rgba(13,11,33,0.04);
+  }
+  .card-hover {
+    @apply transition-all duration-150;
+  }
+  .card-hover:hover {
+    @apply border-blue-200/80;
+    box-shadow: 0 4px 12px rgba(13,11,33,0.10), 0 8px 32px rgba(13,11,33,0.06);
+  }
+  .section-card {
+    @apply bg-white rounded-[14px] border border-slate-200/80 overflow-hidden;
+    box-shadow: 0 1px 3px rgba(13,11,33,0.06), 0 4px 16px rgba(13,11,33,0.04);
+  }
+  .section-card-header { @apply px-5 py-4 border-b border-slate-100; }
+  .section-card-body   { @apply p-5; }
+
+  /* Page chrome */
+  .page-header {
+    @apply flex items-center justify-between px-6 py-4
+           bg-white border-b border-slate-100 flex-shrink-0;
+    box-shadow: 0 1px 0 rgba(13,11,33,0.05);
+  }
+  .page-title    { @apply text-base font-semibold text-slate-900 tracking-tight; }
+  .page-subtitle { @apply text-xs text-slate-400 mt-0.5; }
 }
