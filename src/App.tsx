@@ -169,6 +169,23 @@ export default function App() {
         {(syncing || navigating) && <VerascopeLoader message={navigating ? 'Loading…' : 'Syncing your projects…'} />}
         <Sidebar view={view} onNavigate={navigate} onSignOut={signOut} userEmail={user?.email} isAppAdmin={isAppAdmin} />
         <main className={`flex-1 flex flex-col overflow-hidden ${isMobile ? 'pb-[60px]' : ''}`}>
+          {isMobile && isAppAdmin && (
+            <div className="flex-shrink-0 flex items-center justify-end px-4 py-2 border-b border-white/[0.07]" style={{ background: '#0D0B21' }}>
+              <button
+                onClick={() => navigate('admin-portal')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  view === 'admin-portal'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-white/[0.08] text-white/60 hover:bg-white/[0.14] hover:text-white'
+                }`}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                Admin Portal
+              </button>
+            </div>
+          )}
           {view === 'dashboard' ? (
             <Dashboard
               onOpenProject={(id) => openProject(id, 'scope')}
