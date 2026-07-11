@@ -186,6 +186,7 @@ export default function App() {
 
   const isAppAdmin = user?.email === 'admin@proscope.app'
   const isContractorAdmin = isAppAdmin || currentUser?.contractorRole === 'admin' || currentUser?.contractorRole === 'manager'
+  const canManageProjectSubs = isAppAdmin || !!currentUser?.contractorOrg
 
   if (!user) {
     return <LandingPage />
@@ -222,6 +223,7 @@ export default function App() {
               }}
               initialView={projectInitialView}
               onSubViewChange={setProjectSubView}
+              canManageProjectSubs={canManageProjectSubs}
             />
           ) : view === 'contractor-settings' ? (
             <ContractorSettingsView />

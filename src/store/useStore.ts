@@ -31,6 +31,7 @@ interface StoreState {
   deleteProject: (projectId: string) => void
   addSubcontractor: (projectId: string, sub: Subcontractor) => void
   deleteSubcontractor: (projectId: string, subId: string) => void
+  updateProjectSubcontractor: (projectId: string, subId: string, updates: Partial<Subcontractor>) => void
   assignSubcontractor: (projectId: string, itemIds: string[], subId: string | null) => void
   bulkComplete: (projectId: string, itemIds: string[]) => void
   bulkUncomplete: (projectId: string, itemIds: string[]) => void
@@ -227,6 +228,20 @@ export const useStore = create<StoreState>()(
                     item.subcontractorId === subId
                       ? { ...item, subcontractorId: undefined }
                       : item
+                  ),
+                }
+          ),
+        })),
+
+      updateProjectSubcontractor: (projectId, subId, updates) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId
+              ? p
+              : {
+                  ...p,
+                  subcontractors: (p.subcontractors ?? []).map((sub) =>
+                    sub.id !== subId ? sub : { ...sub, ...updates }
                   ),
                 }
           ),
