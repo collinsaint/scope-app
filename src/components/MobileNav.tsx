@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { useViewMode } from '../hooks/useViewMode'
 
-type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings'
+type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings' | 'admin-portal'
 
 interface Props {
   view: AppView
@@ -11,9 +11,10 @@ interface Props {
   onOpenProjectScope?: () => void
   activeProjectSubView?: 'scope' | 'details' | 'comments'
   onSignOut?: () => void
+  isAppAdmin?: boolean
 }
 
-export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjectScope, activeProjectSubView, onSignOut }: Props) {
+export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjectScope, activeProjectSubView, onSignOut, isAppAdmin }: Props) {
   const { projects, activeProjectId } = useStore()
   const { toggle } = useViewMode()
   const activeProject = projects.find(p => p.id === activeProjectId)
@@ -27,7 +28,7 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
     setShowSettingsPicker(v => !v)
   }
 
-  function goToSettings(target: 'contractor-settings' | 'user-settings') {
+  function goToSettings(target: AppView) {
     onNavigate(target)
     setShowSettingsPicker(false)
   }
@@ -73,6 +74,19 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
                 </svg>
                 User Settings
               </button>
+              {isAppAdmin && (
+                <button
+                  onClick={() => goToSettings('admin-portal' as AppView)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors text-left ${
+                    view === 'admin-portal' ? 'text-white bg-white/15' : 'text-white/70 hover:bg-white/[0.06]'
+                  }`}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                  Admin Portal
+                </button>
+              )}
               {onSignOut && (
                 <button
                   onClick={() => { onSignOut(); setShowSettingsPicker(false) }}

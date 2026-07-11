@@ -2,19 +2,20 @@ import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { useViewMode } from '../hooks/useViewMode'
 
-type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings'
+type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings' | 'admin-portal'
 
 interface Props {
   view: AppView
   onNavigate: (view: AppView, projectId?: string) => void
   onSignOut?: () => void
   userEmail?: string
+  isAppAdmin?: boolean
 }
 
 const FULL_WIDTH = 224
 const STRIP_WIDTH = 16
 
-export function Sidebar({ view, onNavigate, onSignOut, userEmail }: Props) {
+export function Sidebar({ view, onNavigate, onSignOut, userEmail, isAppAdmin }: Props) {
   const { projects, activeProjectId } = useStore()
   const { isMobile, toggle } = useViewMode()
   const [collapsed, setCollapsed] = useState(false)
@@ -86,6 +87,21 @@ export function Sidebar({ view, onNavigate, onSignOut, userEmail }: Props) {
             </svg>
             User Settings
           </button>
+          {isAppAdmin && (
+            <button
+              onClick={() => onNavigate('admin-portal')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-colors ${
+                view === 'admin-portal'
+                  ? 'bg-white/10 text-white font-medium'
+                  : 'text-white/40 hover:text-white hover:bg-white/[0.06]'
+              }`}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              Admin Portal
+            </button>
+          )}
         </nav>
 
         {/* Projects */}
