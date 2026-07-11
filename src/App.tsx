@@ -52,12 +52,14 @@ export default function App() {
     try { sessionStorage.setItem('ps-view', view) } catch { /**/ }
   }, [view])
 
-  // Guard: non-admins should never be on admin-portal (e.g. stale sessionStorage)
+  // Guard: redirect users away from views they don't have access to
   useEffect(() => {
-    if (user && user.email !== 'admin@proscope.app' && view === 'admin-portal') {
-      setView('dashboard')
-    }
-  }, [user?.id])  // eslint-disable-line react-hooks/exhaustive-deps
+    if (!user) return
+    const isAdmin = user.email === 'admin@proscope.app'
+    const isContrAdmin = isAdmin || currentUser?.contractorRole === 'admin'
+    if (view === 'admin-portal' && !isAdmin) setView('dashboard')
+    if (view === 'contractor-settings' && !isContrAdmin) setView('dashboard')
+  }, [user?.id, currentUser?.contractorRole])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // On login: load projects from Supabase
   const prevUserIdRef = useRef<string | null>(null)
@@ -170,6 +172,7 @@ export default function App() {
   }
 
   const isAppAdmin = user?.email === 'admin@proscope.app'
+  const isContractorAdmin = isAppAdmin || currentUser?.contractorRole === 'admin'
 
   if (!user) {
     return <LandingPage onOrgCreated={refreshCurrentUser} />
@@ -184,7 +187,7 @@ export default function App() {
     <>
       <div className="flex overflow-hidden bg-slate-100" style={{ height: '100dvh' }}>
         {(syncing || navigating) && <VerascopeLoader message={navigating ? 'Loading…' : 'Syncing your projects…'} />}
-        <Sidebar view={view} onNavigate={navigate} onSignOut={signOut} userEmail={user?.email} isAppAdmin={isAppAdmin} />
+        <Sidebar view={view} onNavigate={navigate} onSignOut={signOut} userEmail={user?.email} isAppAdmin={isAppAdmin} isContractorAdmin={isContractorAdmin} />
         <main className={`flex-1 flex flex-col overflow-hidden ${isMobile ? 'pb-[60px]' : ''}`}>
           {view === 'dashboard' ? (
             <Dashboard
@@ -224,6 +227,7 @@ export default function App() {
             activeProjectSubView={projectSubView}
             onSignOut={signOut}
             isAppAdmin={isAppAdmin}
+            isContractorAdmin={isContractorAdmin}
           />
         )}
       </div>
