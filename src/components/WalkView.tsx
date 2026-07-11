@@ -7,6 +7,7 @@ import { downloadWalkPhotos, buildPhotosZipBlob, downloadSelectedPhotos } from '
 import { uploadPhotoToOneDrive } from '../lib/oneDrive'
 import { useViewMode } from '../hooks/useViewMode'
 import { CameraCapture } from './CameraCapture'
+import { translateTexts } from '../lib/translate'
 
 const WALK_COL_COUNT = 7
 
@@ -308,10 +309,11 @@ interface Props {
 }
 
 export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, onAddRoom }: Props) {
-  const { updateWalkItem, addWalkGroupNote, deleteWalkGroupNote, addWalkRoomPhoto, deleteWalkRoomPhoto, bulkDeleteWalkRoomPhotos, updateWalkRoomPhoto, addWalkGeneralNote, deleteWalkGeneralNote, deleteWalkCustomRoom, addWalkCustomRoom, projects, oneDrive, walkPresets } = useStore()
+  const { updateWalkItem, addWalkGroupNote, deleteWalkGroupNote, addWalkRoomPhoto, deleteWalkRoomPhoto, bulkDeleteWalkRoomPhotos, updateWalkRoomPhoto, addWalkGeneralNote, deleteWalkGeneralNote, deleteWalkCustomRoom, addWalkCustomRoom, projects, oneDrive, walkPresets, setTranslationCache } = useStore()
   const { isMobile } = useViewMode()
   const project = projects.find(p => p.id === projectId)
   const spanishMode = project?.spanishMode ?? false
+  const translationCache = project?.translationCache ?? {}
   const [search, setSearch] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [qtyPrompt, setQtyPrompt] = useState<{ itemId: string; value: string } | null>(null)
@@ -363,6 +365,20 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
   const [newRoomInPicker, setNewRoomInPicker] = useState('')
   const [addingRoomInPicker, setAddingRoomInPicker] = useState(false)
   const galleryRef = useRef<HTMLInputElement>(null)
+
+  // Translate item notes when Spanish mode is on (desktop view — mobile handles this in MobileScopeList)
+  useEffect(() => {
+    if (!spanishMode) return
+    const allNotes = items.filter(i => !i.isHeader && i.note).map(i => i.note)
+    const missing = [...new Set(allNotes)].filter(n => !(n in translationCache))
+    if (missing.length === 0) return
+    translateTexts(missing).then(translated => {
+      const patch: Record<string, string> = {}
+      missing.forEach((n, i) => { patch[n] = translated[i] })
+      setTranslationCache(projectId, patch)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spanishMode, projectId])
 
   function getOverride(itemId: string) {
     return (walk.itemOverrides ?? []).find(o => o.itemId === itemId)
@@ -2398,7 +2414,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
               <h3 className="text-sm font-semibold text-slate-900">{spanishMode ? 'Notas de Inspección' : 'Inspection Notes'}</h3>
             </div>
             <p className="text-sm text-slate-700 leading-relaxed bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
-              {showItemNote.note}
+              {spanishMode ? (translationCache[showItemNote.note] ?? showItemNote.note) : showItemNote.note}
             </p>
             <button
               onClick={() => setShowItemNote(null)}

@@ -191,7 +191,8 @@ export function MobileScopeList({ projectId, items, roomFilter }: Props) {
   useEffect(() => {
     if (!spanishMode) return
     const allDescriptions = items.filter(i => !i.isHeader && i.description).map(i => i.description)
-    const missing = [...new Set(allDescriptions)].filter(d => !(d in translationCache))
+    const allNotes = items.filter(i => !i.isHeader && i.note).map(i => i.note)
+    const missing = [...new Set([...allDescriptions, ...allNotes])].filter(d => !(d in translationCache))
     if (missing.length === 0) return
     setTranslating(true)
     translateTexts(missing).then(translated => {
@@ -560,7 +561,7 @@ export function MobileScopeList({ projectId, items, roomFilter }: Props) {
             </div>
             <div className="px-5 py-4">
               <p className="text-[11px] text-slate-400 mb-2 font-medium">{noteModalItem.description}</p>
-              <p className="text-sm text-slate-700 leading-relaxed">{noteModalItem.note}</p>
+              <p className="text-sm text-slate-700 leading-relaxed">{spanishMode ? (translationCache[noteModalItem.note] ?? noteModalItem.note) : noteModalItem.note}</p>
             </div>
           </div>
         </div>
