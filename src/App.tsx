@@ -52,6 +52,13 @@ export default function App() {
     try { sessionStorage.setItem('ps-view', view) } catch { /**/ }
   }, [view])
 
+  // Guard: non-admins should never be on admin-portal (e.g. stale sessionStorage)
+  useEffect(() => {
+    if (user && user.email !== 'admin@proscope.app' && view === 'admin-portal') {
+      setView('dashboard')
+    }
+  }, [user?.id])  // eslint-disable-line react-hooks/exhaustive-deps
+
   // On login: load projects from Supabase
   const prevUserIdRef = useRef<string | null>(null)
   const prevProjectsRef = useRef(projects)
