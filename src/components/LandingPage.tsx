@@ -51,7 +51,6 @@ export function LandingPage({ user, onOrgCreated }: Props) {
   const [ccLoading, setCcLoading] = useState(false)
 
   // ── Join with Invite state ──────────────────────
-  const [jiUsername, setJiUsername] = useState('')
   const [jiPassword, setJiPassword] = useState('')
   const [jiToken, setJiToken] = useState('')
   const [jiError, setJiError] = useState('')
@@ -124,19 +123,28 @@ export function LandingPage({ user, onOrgCreated }: Props) {
     if (!token) { setJiError('Paste your invite code.'); return }
     setJiLoading(true)
     try {
+      // Validate invite first to get the email
+      const { data: invite, error: invErr } = await supabase
+        .from('invitations')
+        .select('*, organizations(type)')
+        .eq('token', token)
+        .is('accepted_at', null)
+        .maybeSingle()
+
+      if (invErr) throw new Error(invErr.message)
+      if (!invite) throw new Error('Invite code not found or already used.')
+      if (new Date(invite.expires_at) < new Date()) throw new Error('This invite has expired. Ask your admin to send a new one.')
+
       let uid = user?.id ?? null
 
-      // Create account or sign in if not already logged in
+      // Sign up or sign in using the email from the invitation
       if (!uid) {
-        if (!jiUsername.trim()) { setJiError('Enter a username.'); setJiLoading(false); return }
         if (!jiPassword.trim()) { setJiError('Enter a password.'); setJiLoading(false); return }
-        const email = toEmail(jiUsername)
-        // Try sign-up first (new user). If account already exists, sign in instead.
-        const signUpErr = await signUp(email, jiPassword, jiUsername.trim())
+        const signUpErr = await signUp(invite.email, jiPassword, invite.email.split('@')[0])
         if (signUpErr) {
           if (signUpErr.toLowerCase().includes('already') || signUpErr.toLowerCase().includes('registered')) {
-            const signInErr = await signIn(email, jiPassword)
-            if (signInErr) { setJiError('Account already exists — wrong password?'); setJiLoading(false); return }
+            const signInErr = await signIn(invite.email, jiPassword)
+            if (signInErr) { setJiError('Account already exists — check your password.'); setJiLoading(false); return }
           } else {
             setJiError(signUpErr)
             setJiLoading(false)
@@ -148,17 +156,6 @@ export function LandingPage({ user, onOrgCreated }: Props) {
       }
 
       if (!uid) { setJiError('Could not verify sign-in. Try again.'); setJiLoading(false); return }
-
-      const { data: invite, error: invErr } = await supabase
-        .from('invitations')
-        .select('*, organizations(type)')
-        .eq('token', token)
-        .is('accepted_at', null)
-        .maybeSingle()
-
-      if (invErr) throw new Error(invErr.message)
-      if (!invite) throw new Error('Invite code not found or already used.')
-      if (new Date(invite.expires_at) < new Date()) throw new Error('This invite has expired. Ask your admin to send a new one.')
 
       const orgType = (invite.organizations as { type: string } | null)?.type
 
@@ -320,15 +317,9 @@ export function LandingPage({ user, onOrgCreated }: Props) {
                   {!user && (
                     <>
                       <div>
-                        <label className={labelClass} style={labelStyle}>Choose a Username</label>
-                        <input type="text" value={jiUsername} onChange={e => setJiUsername(e.target.value)} placeholder="e.g. johnsmith" autoCapitalize="off" autoCorrect="off" spellCheck={false} className={inputClass} style={inputStyle} />
-                        <p className="mt-1 text-[11px]" style={{ color: 'rgba(206,203,246,0.40)' }}>
-                          Your login will be {jiUsername.trim() ? `${jiUsername.trim().toLowerCase()}@proscope.app` : 'username@proscope.app'}
-                        </p>
-                      </div>
-                      <div>
                         <label className={labelClass} style={labelStyle}>Password</label>
-                        <input type="password" value={jiPassword} onChange={e => setJiPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className={inputClass} style={inputStyle} />
+                        <input type="password" value={jiPassword} onChange={e => setJiPassword(e.target.value)} placeholder="Choose a password" autoComplete="new-password" className={inputClass} style={inputStyle} />
+                        <p className="mt-1 text-[11px]" style={{ color: 'rgba(206,203,246,0.40)' }}>Your account will be created using the email your admin invited.</p>
                       </div>
                       <div style={{ height: 1, background: 'rgba(206,203,246,0.12)', margin: '0 -4px' }} />
                     </>
