@@ -48,30 +48,54 @@ BEGIN
   VALUES (contractor_org_id, sub_org_id, now())
   ON CONFLICT DO NOTHING;
 
-  -- ── 2. Create auth users ─────────────────────────────────────────────────
-  INSERT INTO auth.users (
-    id, instance_id, aud, role,
-    email, encrypted_password, email_confirmed_at,
-    raw_app_meta_data, raw_user_meta_data,
-    created_at, updated_at
-  ) VALUES
-    (manager_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-     'manager@proscope.app', crypt('password', gen_salt('bf')), now(),
-     '{"provider":"email","providers":["email"]}', '{"display_name":"Test Manager"}',
-     now(), now()),
-    (super_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-     'super@proscope.app', crypt('password', gen_salt('bf')), now(),
-     '{"provider":"email","providers":["email"]}', '{"display_name":"Test Super"}',
-     now(), now()),
-    (submgr_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-     'submanager@proscope.app', crypt('password', gen_salt('bf')), now(),
-     '{"provider":"email","providers":["email"]}', '{"display_name":"Test Sub Manager"}',
-     now(), now()),
-    (crew_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-     'crew@proscope.app', crypt('password', gen_salt('bf')), now(),
-     '{"provider":"email","providers":["email"]}', '{"display_name":"Test Crew"}',
-     now(), now())
-  ON CONFLICT (email) DO NOTHING;
+  -- ── 2. Create auth users (existence-check to avoid ON CONFLICT issues) ──────
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'manager@proscope.app') THEN
+    INSERT INTO auth.users (
+      id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+    ) VALUES (
+      manager_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+      'manager@proscope.app', crypt('password', gen_salt('bf')), now(),
+      '{"provider":"email","providers":["email"]}', '{"display_name":"Test Manager"}',
+      now(), now()
+    );
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'super@proscope.app') THEN
+    INSERT INTO auth.users (
+      id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+    ) VALUES (
+      super_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+      'super@proscope.app', crypt('password', gen_salt('bf')), now(),
+      '{"provider":"email","providers":["email"]}', '{"display_name":"Test Super"}',
+      now(), now()
+    );
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'submanager@proscope.app') THEN
+    INSERT INTO auth.users (
+      id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+    ) VALUES (
+      submgr_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+      'submanager@proscope.app', crypt('password', gen_salt('bf')), now(),
+      '{"provider":"email","providers":["email"]}', '{"display_name":"Test Sub Manager"}',
+      now(), now()
+    );
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'crew@proscope.app') THEN
+    INSERT INTO auth.users (
+      id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+    ) VALUES (
+      crew_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+      'crew@proscope.app', crypt('password', gen_salt('bf')), now(),
+      '{"provider":"email","providers":["email"]}', '{"display_name":"Test Crew"}',
+      now(), now()
+    );
+  END IF;
 
   -- Re-fetch IDs in case users already existed
   SELECT id INTO manager_id FROM auth.users WHERE email = 'manager@proscope.app';
@@ -80,17 +104,20 @@ BEGIN
   SELECT id INTO crew_id    FROM auth.users WHERE email = 'crew@proscope.app';
 
   -- ── 3. Create identity records (required for email/password sign-in) ──────
-  INSERT INTO auth.identities (id, user_id, provider, identity_data, created_at, updated_at)
-  VALUES
-    (gen_random_uuid(), manager_id, 'email',
-     json_build_object('sub', manager_id::text, 'email', 'manager@proscope.app'), now(), now()),
-    (gen_random_uuid(), super_id, 'email',
-     json_build_object('sub', super_id::text, 'email', 'super@proscope.app'), now(), now()),
-    (gen_random_uuid(), submgr_id, 'email',
-     json_build_object('sub', submgr_id::text, 'email', 'submanager@proscope.app'), now(), now()),
-    (gen_random_uuid(), crew_id, 'email',
-     json_build_object('sub', crew_id::text, 'email', 'crew@proscope.app'), now(), now())
-  ON CONFLICT DO NOTHING;
+  INSERT INTO auth.identities (id, provider_id, user_id, provider, identity_data, created_at, updated_at)
+  SELECT
+    gen_random_uuid(),
+    u.email,
+    u.id,
+    'email',
+    json_build_object('sub', u.id::text, 'email', u.email),
+    now(),
+    now()
+  FROM auth.users u
+  WHERE u.email IN ('manager@proscope.app', 'super@proscope.app', 'submanager@proscope.app', 'crew@proscope.app')
+  AND NOT EXISTS (
+    SELECT 1 FROM auth.identities i WHERE i.user_id = u.id AND i.provider = 'email'
+  );
 
   -- ── 4. Assign contractor org memberships ─────────────────────────────────
   INSERT INTO public.org_members (org_id, user_id, role, joined_at)
