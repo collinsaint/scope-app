@@ -1,3 +1,72 @@
+// ─── Role System ────────────────────────────────────────────────────────────
+
+export type AppRole = 'admin' | 'user'
+
+export type ContractorRole = 'admin' | 'manager' | 'superintendent'
+
+export type SubcontractorRole = 'manager' | 'crew'
+
+export type OrgType = 'contractor' | 'subcontractor'
+
+export interface Organization {
+  id: string
+  name: string
+  type: OrgType
+  created_by: string | null
+  created_at: string
+}
+
+export interface OrgMember {
+  id: string
+  org_id: string
+  user_id: string
+  role: ContractorRole
+  invited_by: string | null
+  joined_at: string
+}
+
+export interface SubcontractorMember {
+  id: string
+  org_id: string
+  user_id: string
+  role: SubcontractorRole
+  invited_by: string | null
+  joined_at: string
+}
+
+export interface Invitation {
+  id: string
+  email: string
+  org_id: string
+  role: string
+  invited_by: string | null
+  token: string
+  expires_at: string
+  accepted_at: string | null
+  created_at: string
+}
+
+export interface UserProfile {
+  id: string
+  email: string
+  display_name: string | null
+  role: AppRole
+  created_at: string
+}
+
+// The resolved identity of the currently logged-in user
+export interface CurrentUser {
+  profile: UserProfile
+  // Contractor org this user belongs to (null if not yet in an org)
+  contractorOrg: Organization | null
+  contractorRole: ContractorRole | null
+  // Subcontractor org this user belongs to (null if not a subcontractor)
+  subcontractorOrg: Organization | null
+  subcontractorRole: SubcontractorRole | null
+}
+
+// ─── Subcontractors (project-level, existing) ────────────────────────────────
+
 export interface Subcontractor {
   id: string
   name: string
