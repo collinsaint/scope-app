@@ -11,14 +11,15 @@ import { ProjectView } from './components/ProjectView'
 import { ContractorSettingsView } from './components/ContractorSettingsView'
 import { UserSettingsView } from './components/UserSettingsView'
 import { AdminPortalView } from './components/AdminPortalView'
+import { FinancialsView } from './components/FinancialsView'
 import { InviteCodeGate } from './components/InviteCodeGate'
 import { VerascopeLoader } from './components/VerascopeLoader'
 import { seedDemoProject } from './lib/seedDemoProject'
 import { loadProjectsFromSupabase, syncProjectToSupabase, deleteProjectFromSupabase, loadSettingsFromSupabase, syncSettingsToSupabase, loadOrgSettingsForUser, syncOrgSettingsToSupabase } from './lib/supabaseSync'
 
-type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings' | 'admin-portal'
+type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings' | 'admin-portal' | 'financials'
 
-const VALID_VIEWS: AppView[] = ['dashboard', 'project', 'contractor-settings', 'user-settings', 'admin-portal']
+const VALID_VIEWS: AppView[] = ['dashboard', 'project', 'contractor-settings', 'user-settings', 'admin-portal', 'financials']
 
 function readSavedView(): AppView {
   try {
@@ -187,6 +188,9 @@ export default function App() {
   const isAppAdmin = user?.email === 'admin@proscope.app'
   const isContractorAdmin = isAppAdmin || currentUser?.contractorRole === 'admin' || currentUser?.contractorRole === 'manager'
   const canManageProjectSubs = isAppAdmin || !!currentUser?.contractorOrg
+  const isSubUser = !!currentUser?.subcontractorOrg
+  const isSuperintendent = isAppAdmin || !!currentUser?.contractorOrg
+  const canApprove = !isSubUser
 
   if (!user) {
     return <LandingPage />
@@ -201,7 +205,7 @@ export default function App() {
     <>
       <div className="flex overflow-hidden bg-slate-100" style={{ height: '100dvh' }}>
         {(syncing || navigating) && <VerascopeLoader message={navigating ? 'Loading…' : 'Syncing your projects…'} />}
-        <Sidebar view={view} onNavigate={navigate} onSignOut={signOut} userEmail={user?.email} isAppAdmin={isAppAdmin} isContractorAdmin={isContractorAdmin} />
+        <Sidebar view={view} onNavigate={navigate} onSignOut={signOut} userEmail={user?.email} isAppAdmin={isAppAdmin} isContractorAdmin={isContractorAdmin} isSubUser={isSubUser} />
         <main className={`flex-1 flex flex-col overflow-hidden ${isMobile ? 'pb-[60px]' : ''}`}>
           {view === 'dashboard' ? (
             <Dashboard
@@ -209,6 +213,8 @@ export default function App() {
               onOpenProjectDetails={(id) => openProject(id, 'details')}
               isAppAdmin={isAppAdmin}
               onNavigateAdmin={() => navigate('admin-portal')}
+              isSuperintendent={isSuperintendent}
+              isSubUser={isSubUser}
             />
           ) : view === 'project' ? (
             <ProjectView
@@ -224,7 +230,11 @@ export default function App() {
               initialView={projectInitialView}
               onSubViewChange={setProjectSubView}
               canManageProjectSubs={canManageProjectSubs}
+              isSubUser={isSubUser}
+              canApprove={canApprove}
             />
+          ) : view === 'financials' ? (
+            <FinancialsView />
           ) : view === 'contractor-settings' ? (
             <ContractorSettingsView />
           ) : view === 'admin-portal' ? (
@@ -243,6 +253,7 @@ export default function App() {
             onSignOut={signOut}
             isAppAdmin={isAppAdmin}
             isContractorAdmin={isContractorAdmin}
+            isSubUser={isSubUser}
           />
         )}
       </div>

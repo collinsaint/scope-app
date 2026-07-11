@@ -35,6 +35,10 @@ interface StoreState {
   assignSubcontractor: (projectId: string, itemIds: string[], subId: string | null) => void
   bulkComplete: (projectId: string, itemIds: string[]) => void
   bulkUncomplete: (projectId: string, itemIds: string[]) => void
+  setPendingApproval: (projectId: string, itemId: string, pending: boolean) => void
+  approveItem: (projectId: string, itemId: string) => void
+  rejectItem: (projectId: string, itemId: string) => void
+  bulkSetPending: (projectId: string, itemIds: string[]) => void
   setComment: (projectId: string, itemId: string, comment: string) => void
   addCommentNote: (projectId: string, itemId: string, note: CommentNote) => void
   deleteCommentNote: (projectId: string, itemId: string, index: number) => void
@@ -606,6 +610,70 @@ export const useStore = create<StoreState>()(
                       : item
                   ),
                 }
+          ),
+        })),
+
+      setPendingApproval: (projectId, itemId, pending) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId ? p : {
+              ...p,
+              items: p.items.map((item) =>
+                item.id !== itemId ? item : {
+                  ...item,
+                  pendingApproval: pending || undefined,
+                  pendingApprovalAt: pending ? new Date().toISOString() : undefined,
+                }
+              ),
+            }
+          ),
+        })),
+
+      approveItem: (projectId, itemId) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId ? p : {
+              ...p,
+              items: p.items.map((item) =>
+                item.id !== itemId ? item : {
+                  ...item,
+                  completed: true,
+                  completedAt: new Date().toISOString(),
+                  pendingApproval: undefined,
+                  pendingApprovalAt: undefined,
+                }
+              ),
+            }
+          ),
+        })),
+
+      rejectItem: (projectId, itemId) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId ? p : {
+              ...p,
+              items: p.items.map((item) =>
+                item.id !== itemId ? item : {
+                  ...item,
+                  pendingApproval: undefined,
+                  pendingApprovalAt: undefined,
+                }
+              ),
+            }
+          ),
+        })),
+
+      bulkSetPending: (projectId, itemIds) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId ? p : {
+              ...p,
+              items: p.items.map((item) =>
+                itemIds.includes(item.id) && !item.completed && !item.pendingApproval
+                  ? { ...item, pendingApproval: true, pendingApprovalAt: new Date().toISOString() }
+                  : item
+              ),
+            }
           ),
         })),
     }),

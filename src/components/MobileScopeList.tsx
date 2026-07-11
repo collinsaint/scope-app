@@ -10,6 +10,8 @@ interface Props {
   items: ScopeItem[]
   subcontractors: Subcontractor[]
   roomFilter: string
+  isSubUser?: boolean
+  canApprove?: boolean
 }
 
 function fmt(n: number) {
@@ -150,8 +152,8 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   a.click()
 }
 
-export function MobileScopeList({ projectId, items, roomFilter }: Props) {
-  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache } = useStore()
+export function MobileScopeList({ projectId, items, roomFilter, isSubUser = false, canApprove = true }: Props) {
+  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, bulkSetPending } = useStore()
   const project = projects.find(p => p.id === projectId)
   const spanishMode = project?.spanishMode ?? false
   const translationCache = project?.translationCache ?? {}
@@ -696,9 +698,10 @@ export function MobileScopeList({ projectId, items, roomFilter }: Props) {
                         ) : (
                           <button
                             onClick={() => {
-                              const ids = group.roomItems.filter(i => !i.completed).map(i => i.id)
+                              const ids = group.roomItems.filter(i => !i.completed && !i.pendingApproval).map(i => i.id)
                               if (ids.length) {
-                                bulkComplete(projectId, ids)
+                                if (isSubUser) bulkSetPending(projectId, ids)
+                                else bulkComplete(projectId, ids)
                                 setBulkCompletedRooms(prev => new Set(prev).add(group.room))
                               }
                             }}
@@ -714,21 +717,39 @@ export function MobileScopeList({ projectId, items, roomFilter }: Props) {
                   <div className="divide-y divide-slate-100">
                     {group.roomItems.map(item => {
                       return (
-                        <div key={item.id} className={item.completed ? 'bg-green-50/40' : 'bg-white'}>
+                        <div key={item.id} className={item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : 'bg-white'}>
                           {/* Card row */}
                           <div className="flex items-start gap-3 px-4 py-3">
                             {/* Checkbox */}
                             <button
-                              onClick={() => toggleItem(projectId, item.id)}
+                              onClick={() => {
+                                if (isSubUser) {
+                                  if (item.pendingApproval) rejectItem(projectId, item.id)
+                                  else if (!item.completed) setPendingApproval(projectId, item.id, true)
+                                } else if (item.pendingApproval && canApprove) {
+                                  approveItem(projectId, item.id)
+                                } else {
+                                  toggleItem(projectId, item.id)
+                                }
+                              }}
+                              disabled={item.completed && isSubUser}
                               className={`mt-0.5 w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
-                                item.completed ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300'
+                                item.completed
+                                  ? 'bg-green-500 border-green-500 text-white'
+                                  : item.pendingApproval
+                                    ? 'bg-amber-400 border-amber-400 text-white'
+                                    : 'border-slate-300'
                               }`}
                             >
-                              {item.completed && (
+                              {item.completed ? (
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                   <polyline points="20 6 9 17 4 12"/>
                                 </svg>
-                              )}
+                              ) : item.pendingApproval ? (
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                              ) : null}
                             </button>
 
                             {/* Description + pills */}

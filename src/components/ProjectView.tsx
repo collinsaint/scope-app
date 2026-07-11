@@ -38,9 +38,11 @@ interface Props {
   initialView?: 'scope' | 'comments' | 'details'
   onSubViewChange?: (view: 'scope' | 'details' | 'comments') => void
   canManageProjectSubs?: boolean
+  isSubUser?: boolean
+  canApprove?: boolean
 }
 
-export function ProjectView({ projectId, onBack, initialView = 'scope', onSubViewChange, canManageProjectSubs = false }: Props) {
+export function ProjectView({ projectId, onBack, initialView = 'scope', onSubViewChange, canManageProjectSubs = false, isSubUser = false, canApprove = true }: Props) {
   const { isMobile } = useViewMode()
   const { projects, updateProjectItems, globalSubcontractors, addWalk, addSketch, removeSketch, addWalkCustomRoom, addCommentNote, deleteCommentNote } = useStore()
   const project = projects.find(p => p.id === projectId)
@@ -531,6 +533,8 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
             subcontractors={subcontractors}
             roomFilter={roomFilter}
             onOpenComment={openComment}
+            isSubUser={isSubUser}
+            canApprove={canApprove}
           />
         ) : activeView === 'comments' ? (
           <CommentsView

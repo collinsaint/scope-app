@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { useViewMode } from '../hooks/useViewMode'
 import { NewProjectModal } from './NewProjectModal'
-import type { Project } from '../types'
+import type { Project, ScopeItem } from '../types'
 
 function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
@@ -13,6 +13,8 @@ interface Props {
   onOpenProjectDetails: (id: string) => void
   isAppAdmin?: boolean
   onNavigateAdmin?: () => void
+  isSuperintendent?: boolean
+  isSubUser?: boolean
 }
 
 const statusConfig: Record<string, { dot: string; pill: string }> = {
@@ -23,8 +25,8 @@ const statusConfig: Record<string, { dot: string; pill: string }> = {
   'Closed':           { dot: 'bg-slate-300',   pill: 'bg-slate-50 border-slate-200 text-slate-600' },
 }
 
-export function Dashboard({ onOpenProject, onOpenProjectDetails, isAppAdmin, onNavigateAdmin }: Props) {
-  const { projects, deleteProject } = useStore()
+export function Dashboard({ onOpenProject, onOpenProjectDetails, isAppAdmin, onNavigateAdmin, isSuperintendent = false }: Props) {
+  const { projects, deleteProject, approveItem, rejectItem } = useStore()
   const { isMobile } = useViewMode()
   const [showModal, setShowModal] = useState(false)
   const [search, setSearch] = useState('')
@@ -107,6 +109,69 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, isAppAdmin, onN
       )}
 
       <div className="flex-1 overflow-y-auto px-6 py-5">
+
+        {/* Approval Queue — visible to superintendent/admin/manager */}
+        {isSuperintendent && (() => {
+          const pendingByProject: { project: Project; items: ScopeItem[] }[] = projects
+            .map(p => ({
+              project: p,
+              items: p.items.filter(i => !i.isHeader && i.pendingApproval),
+            }))
+            .filter(x => x.items.length > 0)
+
+          if (pendingByProject.length === 0) return null
+
+          return (
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <h2 className="text-sm font-semibold text-slate-800">Approval Queue</h2>
+                <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold leading-none">
+                  {pendingByProject.reduce((s, x) => s + x.items.length, 0)}
+                </span>
+              </div>
+              <div className="flex flex-col gap-3">
+                {pendingByProject.map(({ project, items: pending }) => (
+                  <div key={project.id} className="section-card overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-amber-50/60">
+                      <button
+                        onClick={() => onOpenProject(project.id)}
+                        className="text-sm font-semibold text-slate-800 hover:text-blue-600 transition-colors text-left"
+                      >
+                        {project.name}
+                      </button>
+                      <span className="text-xs text-amber-700 font-medium">{pending.length} item{pending.length !== 1 ? 's' : ''} pending</span>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {pending.map(item => (
+                        <div key={item.id} className="flex items-center gap-3 px-4 py-2.5">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-medium text-slate-800 truncate">{item.description}</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">{item.room} · #{item.rowNum}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button
+                              onClick={() => rejectItem(project.id, item.id)}
+                              className="px-2.5 py-1 text-[11px] font-semibold rounded-md border border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                              Reject
+                            </button>
+                            <button
+                              onClick={() => approveItem(project.id, item.id)}
+                              className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-green-500 text-white hover:bg-green-600 transition-colors"
+                            >
+                              Approve
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Mobile header */}
         {isMobile && (
           <div className="flex items-center justify-between mb-4">

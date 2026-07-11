@@ -104,6 +104,8 @@ export interface ScopeItem {
   note: string
   completed: boolean
   completedAt?: string
+  pendingApproval?: boolean
+  pendingApprovalAt?: string
   photos: string[]
   isHeader?: boolean
   subcontractorId?: string

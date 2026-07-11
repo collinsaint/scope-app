@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { useViewMode } from '../hooks/useViewMode'
 
-type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings' | 'admin-portal'
+type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings' | 'admin-portal' | 'financials'
 
 interface Props {
   view: AppView
@@ -13,9 +13,10 @@ interface Props {
   onSignOut?: () => void
   isAppAdmin?: boolean
   isContractorAdmin?: boolean
+  isSubUser?: boolean
 }
 
-export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjectScope, activeProjectSubView, onSignOut, isAppAdmin, isContractorAdmin }: Props) {
+export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjectScope, activeProjectSubView, onSignOut, isAppAdmin, isContractorAdmin, isSubUser: _isSubUser }: Props) {
   const { projects, activeProjectId } = useStore()
   const { toggle } = useViewMode()
   const activeProject = projects.find(p => p.id === activeProjectId)
@@ -90,6 +91,15 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
                   Admin Portal
                 </button>
               )}
+              <button
+                onClick={() => { toggle(); setShowSettingsPicker(false) }}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors text-left text-white/70 hover:bg-white/[0.06]"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+                Web Mode
+              </button>
               {onSignOut && (
                 <button
                   onClick={() => { onSignOut(); setShowSettingsPicker(false) }}
@@ -169,18 +179,16 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
           <span className="text-[10px] font-medium leading-none">Settings</span>
         </button>
 
-        {/* Web Mode */}
+        {/* Financials */}
         <button
-          onClick={() => { toggle(); setShowSettingsPicker(false) }}
+          onClick={() => { onNavigate('financials'); setShowSettingsPicker(false) }}
           className="flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors"
-          style={{ color: 'rgba(255,255,255,0.30)' }}
+          style={{ color: view === 'financials' ? '#ffffff' : 'rgba(255,255,255,0.30)' }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="3" width="20" height="14" rx="2"/>
-            <line x1="8" y1="21" x2="16" y2="21"/>
-            <line x1="12" y1="17" x2="12" y2="21"/>
+            <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
           </svg>
-          <span className="text-[10px] font-medium leading-none">Web Mode</span>
+          <span className="text-[10px] font-medium leading-none">Financials</span>
         </button>
       </nav>
     </>

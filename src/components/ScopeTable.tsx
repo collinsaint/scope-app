@@ -97,11 +97,13 @@ interface Props {
   subcontractors: Subcontractor[]
   roomFilter: string
   onOpenComment: (itemId: string) => void
+  isSubUser?: boolean
+  canApprove?: boolean
 }
 
-export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment }: Props) {
+export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true }: Props) {
   const { isMobile } = useViewMode()
-  const { toggleItem, assignSubcontractor, bulkComplete, bulkUncomplete } = useStore()
+  const { toggleItem, assignSubcontractor, bulkComplete, bulkUncomplete, setPendingApproval, approveItem, rejectItem, bulkSetPending } = useStore()
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
   const [search, setSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -148,7 +150,21 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   }, [someSelected])
 
   if (isMobile) {
-    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} />
+    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} isSubUser={isSubUser} canApprove={canApprove} />
+  }
+
+  function handleItemToggle(item: ScopeItem) {
+    if (isSubUser) {
+      if (item.pendingApproval) {
+        rejectItem(projectId, item.id)
+      } else if (!item.completed) {
+        setPendingApproval(projectId, item.id, true)
+      }
+    } else if (item.pendingApproval && canApprove) {
+      approveItem(projectId, item.id)
+    } else {
+      toggleItem(projectId, item.id)
+    }
   }
 
   function toggleSelect(id: string) {
@@ -183,7 +199,11 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   }
 
   function handleBulkComplete() {
-    bulkComplete(projectId, [...effectiveSelected])
+    if (isSubUser) {
+      bulkSetPending(projectId, [...effectiveSelected])
+    } else {
+      bulkComplete(projectId, [...effectiveSelected])
+    }
     setSelectedIds(new Set())
     setConfirmComplete(false)
   }
@@ -452,9 +472,9 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                     key={row.id}
                     room={row.room}
                     onCompleteAll={(() => {
-                      const incompleteIds = visibleData.filter(i => i.room === row.room && !i.completed).map(i => i.id)
+                      const incompleteIds = visibleData.filter(i => i.room === row.room && !i.completed && !i.pendingApproval).map(i => i.id)
                       return incompleteIds.length > 0
-                        ? () => bulkComplete(projectId, incompleteIds)
+                        ? () => isSubUser ? bulkSetPending(projectId, incompleteIds) : bulkComplete(projectId, incompleteIds)
                         : undefined
                     })()}
                   />
@@ -468,10 +488,12 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                     subcontractors={subcontractors}
                     selected={effectiveSelected.has(row.id)}
                     onSelect={() => toggleSelect(row.id)}
-                    onToggle={() => toggleItem(projectId, row.id)}
+                    onToggle={() => handleItemToggle(row)}
                     onOpenComment={() => onOpenComment(row.id)}
                     onPhotoClick={() => setPhotoModalItem(row)}
                     onNoteClick={() => setNoteModalItem(row)}
+                    isSubUser={isSubUser}
+                    canApprove={canApprove}
                   />
                 )
               )
@@ -528,9 +550,11 @@ interface RowProps {
   onOpenComment: () => void
   onPhotoClick: () => void
   onNoteClick: () => void
+  isSubUser?: boolean
+  canApprove?: boolean
 }
 
-function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onOpenComment, onPhotoClick, onNoteClick }: RowProps) {
+function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onOpenComment, onPhotoClick, onNoteClick, isSubUser = false, canApprove = true }: RowProps) {
   const [showConfirm, setShowConfirm] = useState(false)
 
   function handleConfirm() {
@@ -538,9 +562,15 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
     setShowConfirm(false)
   }
 
+  const rowBg = item.completed
+    ? { backgroundColor: '#CCE7C9' }
+    : item.pendingApproval
+      ? { backgroundColor: '#FEF9C3' }
+      : undefined
+
   return (
     <>
-      <tr className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${selected ? 'bg-blue-50/50' : ''}`} style={item.completed ? { backgroundColor: '#CCE7C9' } : undefined}>
+      <tr className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${selected ? 'bg-blue-50/50' : ''}`} style={rowBg}>
         {/* Select checkbox */}
         <td className="px-3 py-3">
           <input
@@ -637,14 +667,20 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
         {/* Status */}
         <td className="px-3 py-3">
           <button
-            onClick={() => setShowConfirm(true)}
+            onClick={() => {
+              if (item.completed && !canApprove) return
+              setShowConfirm(true)
+            }}
+            disabled={item.completed && isSubUser}
             className={`px-2.5 py-1 text-[11px] font-semibold rounded-md whitespace-nowrap transition-colors ${
               item.completed
                 ? 'bg-green-500 hover:bg-green-600 text-black'
-                : 'bg-red-500 hover:bg-red-600 text-white'
+                : item.pendingApproval
+                  ? 'bg-amber-400 hover:bg-amber-500 text-amber-900'
+                  : 'bg-red-500 hover:bg-red-600 text-white'
             }`}
           >
-            {item.completed ? 'Completed' : 'Incomplete'}
+            {item.completed ? 'Completed' : item.pendingApproval ? 'Pending Approval' : 'Incomplete'}
           </button>
         </td>
 
@@ -675,44 +711,67 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
             <div className="fixed inset-0 z-50 flex items-center justify-center">
               <div className="absolute inset-0 bg-black/40" onClick={() => setShowConfirm(false)} />
               <div className="relative bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${item.completed ? 'bg-slate-100' : 'bg-green-100'}`}>
-                    {item.completed ? (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>
-                      </svg>
-                    ) : (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                    )}
-                  </div>
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    {item.completed ? 'Mark as incomplete?' : 'Mark as complete?'}
-                  </h3>
-                </div>
-                <p className="text-sm text-slate-500 mb-5 pl-12 leading-relaxed">
-                  <span className="font-medium text-slate-700">{item.description}</span>
-                  {item.completed
+                {(() => {
+                  const isPending = !!item.pendingApproval
+                  const isApproveAction = isPending && canApprove && !isSubUser
+                  const isRejectAction = isPending && isSubUser
+                  const isSubSubmit = !item.completed && !isPending && isSubUser
+                  const iconBg = item.completed ? 'bg-slate-100' : isPending ? 'bg-amber-100' : 'bg-green-100'
+                  const iconStroke = item.completed ? '#64748b' : isPending ? '#b45309' : '#16a34a'
+                  const title = item.completed
+                    ? 'Mark as incomplete?'
+                    : isApproveAction
+                      ? 'Approve completion?'
+                      : isRejectAction
+                        ? 'Cancel approval request?'
+                        : isSubSubmit
+                          ? 'Submit for approval?'
+                          : 'Mark as complete?'
+                  const body = item.completed
                     ? ' will be reverted to incomplete and the completion date will be cleared.'
-                    : ' will be marked as complete with today\'s date recorded.'}
-                </p>
-                <div className="flex justify-end gap-2">
-                  <button
-                    onClick={() => setShowConfirm(false)}
-                    className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleConfirm}
-                    className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
-                      item.completed ? 'bg-slate-700 hover:bg-slate-800' : 'bg-green-600 hover:bg-green-700'
-                    }`}
-                  >
-                    Confirm
-                  </button>
-                </div>
+                    : isApproveAction
+                      ? ' will be marked as complete.'
+                      : isRejectAction
+                        ? ' will be returned to incomplete status.'
+                        : ' will be submitted to the superintendent for approval.'
+                  const btnClass = item.completed
+                    ? 'bg-slate-700 hover:bg-slate-800'
+                    : isApproveAction
+                      ? 'bg-green-600 hover:bg-green-700'
+                      : isPending
+                        ? 'bg-amber-500 hover:bg-amber-600'
+                        : 'bg-green-600 hover:bg-green-700'
+                  return (
+                    <>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+                          {item.completed ? (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={iconStroke} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>
+                            </svg>
+                          ) : (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={iconStroke} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                          )}
+                        </div>
+                        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+                      </div>
+                      <p className="text-sm text-slate-500 mb-5 pl-12 leading-relaxed">
+                        <span className="font-medium text-slate-700">{item.description}</span>
+                        {body}
+                      </p>
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => setShowConfirm(false)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+                          Cancel
+                        </button>
+                        <button onClick={handleConfirm} className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${btnClass}`}>
+                          Confirm
+                        </button>
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
             </div>
           </td>
