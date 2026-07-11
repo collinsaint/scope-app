@@ -560,7 +560,7 @@ export function MobileScopeList({ projectId, items, roomFilter }: Props) {
               </button>
             </div>
             <div className="px-5 py-4">
-              <p className="text-[11px] text-slate-400 mb-2 font-medium">{noteModalItem.description}</p>
+              <p className="text-[11px] text-slate-400 mb-2 font-medium">{spanishMode ? (translationCache[noteModalItem.description] ?? noteModalItem.description) : noteModalItem.description}</p>
               <p className="text-sm text-slate-700 leading-relaxed">{spanishMode ? (translationCache[noteModalItem.note] ?? noteModalItem.note) : noteModalItem.note}</p>
             </div>
           </div>

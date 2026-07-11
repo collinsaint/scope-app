@@ -2181,7 +2181,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
             <div>
               <h3 className="text-sm font-semibold text-slate-900">{spanishMode ? 'Notas de Inspección' : 'Inspection Notes'}</h3>
               <p className="text-xs text-slate-400 mt-0.5 leading-snug">
-                #{noteItem.rowNum} &nbsp;·&nbsp; {noteItem.description}
+                #{noteItem.rowNum} &nbsp;·&nbsp; {spanishMode ? (translationCache[noteItem.description] ?? noteItem.description) : noteItem.description}
               </p>
             </div>
 
