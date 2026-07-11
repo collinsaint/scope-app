@@ -308,7 +308,7 @@ export function AdminPortalView() {
                     <p className="text-sm font-semibold text-emerald-800 mb-1">Invitation created!</p>
                     <p className="text-xs text-emerald-700 mb-3">Share this invite code with the user. They'll enter it on the "Join with Invite" tab.</p>
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 px-3 py-2 bg-white border border-emerald-200 rounded-[8px] text-xs font-mono text-slate-700 truncate">
+                      <code className="flex-1 px-3 py-2 bg-white border border-emerald-200 rounded-[8px] text-xs font-mono text-slate-700 break-all">
                         {lastToken}
                       </code>
                       <button
@@ -720,7 +720,7 @@ function InviteRow({ inv, onCopy, onRevoke, copied, accepted = false }: {
           )}
         </div>
         {!accepted && (
-          <code className="mt-1.5 block text-[11px] font-mono text-slate-500 truncate">{inv.token}</code>
+          <code className="mt-1.5 block text-[11px] font-mono text-slate-500 break-all">{inv.token}</code>
         )}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">

@@ -123,15 +123,12 @@ export function LandingPage({ user, onOrgCreated }: Props) {
     if (!token) { setJiError('Paste your invite code.'); return }
     setJiLoading(true)
     try {
-      // Validate invite first to get the email
-      const { data: invite, error: invErr } = await supabase
-        .from('invitations')
-        .select('*, organizations(type)')
-        .eq('token', token)
-        .is('accepted_at', null)
-        .maybeSingle()
+      // Validate invite first (unauthenticated-safe RPC) to get the email
+      const { data: inviteRows, error: invErr } = await supabase
+        .rpc('get_invite_by_token', { invite_token: token })
 
       if (invErr) throw new Error(invErr.message)
+      const invite = inviteRows?.[0] ?? null
       if (!invite) throw new Error('Invite code not found or already used.')
       if (new Date(invite.expires_at) < new Date()) throw new Error('This invite has expired. Ask your admin to send a new one.')
 
@@ -157,9 +154,7 @@ export function LandingPage({ user, onOrgCreated }: Props) {
 
       if (!uid) { setJiError('Could not verify sign-in. Try again.'); setJiLoading(false); return }
 
-      const orgType = (invite.organizations as { type: string } | null)?.type
-
-      if (orgType === 'contractor') {
+      if (invite.org_type === 'contractor') {
         const { error: memErr } = await supabase
           .from('org_members')
           .insert({ org_id: invite.org_id, user_id: uid, role: invite.role, invited_by: invite.invited_by })
