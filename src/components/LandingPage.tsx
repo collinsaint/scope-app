@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import type { User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
@@ -23,78 +22,82 @@ const ANIM = `
 `
 
 interface Props {
-  user: User | null
   onOrgCreated: () => void
 }
 
-type Tab = 'signin' | 'create' | 'invite'
+type Tab = 'signin' | 'signup' | 'create'
 
-export function LandingPage({ user, onOrgCreated }: Props) {
-  // If already logged in, skip sign-in tab
-  const defaultTab: Tab = user ? 'create' : 'signin'
-  const [tab, setTab] = useState<Tab>(defaultTab)
+export function LandingPage({ onOrgCreated }: Props) {
+  const [tab, setTab] = useState<Tab>('signin')
   const { signIn, signUp } = useAuth()
 
-  // ── Sign In state ───────────────────────────────
-  const [siUsername, setSiUsername] = useState('')
+  // ── Sign In ─────────────────────────────────────
+  const [siInput, setSiInput] = useState('')
   const [siPassword, setSiPassword] = useState('')
   const [siError, setSiError] = useState('')
   const [siLoading, setSiLoading] = useState(false)
 
-  // ── Create Company state ────────────────────────
-  const [ccName, setCcName] = useState('')
+  // ── Sign Up ─────────────────────────────────────
+  const [suEmail, setSuEmail] = useState('')
+  const [suPassword, setSuPassword] = useState('')
+  const [suError, setSuError] = useState('')
+  const [suLoading, setSuLoading] = useState(false)
+
+  // ── Create Company ───────────────────────────────
+  const [ccDisplayName, setCcDisplayName] = useState('')
   const [ccUsername, setCcUsername] = useState('')
   const [ccPassword, setCcPassword] = useState('')
-  const [ccDisplayName, setCcDisplayName] = useState('')
   const [ccCompany, setCcCompany] = useState('')
   const [ccError, setCcError] = useState('')
   const [ccLoading, setCcLoading] = useState(false)
 
-  // ── Join with Invite state ──────────────────────
-  const [jiPassword, setJiPassword] = useState('')
-  const [jiToken, setJiToken] = useState('')
-  const [jiError, setJiError] = useState('')
-  const [jiLoading, setJiLoading] = useState(false)
-
   function switchTab(t: Tab) {
     setTab(t)
-    setSiError(''); setCcError(''); setJiError('')
+    setSiError(''); setSuError(''); setCcError('')
   }
-
-  // ── Handlers ────────────────────────────────────
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault()
     setSiError('')
-    if (!siUsername.trim()) { setSiError('Enter your username.'); return }
+    const input = siInput.trim()
+    if (!input) { setSiError('Enter your email or username.'); return }
+    // If input contains @, use as a full email; otherwise append domain
+    const email = input.includes('@') ? input.toLowerCase() : toEmail(input)
     setSiLoading(true)
-    const err = await signIn(toEmail(siUsername), siPassword)
-    if (err) setSiError('Invalid username or password.')
+    const err = await signIn(email, siPassword)
+    if (err) setSiError('Invalid email/username or password.')
     setSiLoading(false)
-    // auth state change in useAuth will re-render App → org check runs
+  }
+
+  async function handleSignUp(e: React.FormEvent) {
+    e.preventDefault()
+    setSuError('')
+    const email = suEmail.trim().toLowerCase()
+    if (!email) { setSuError('Enter your email address.'); return }
+    if (!suPassword.trim()) { setSuError('Choose a password.'); return }
+    setSuLoading(true)
+    const err = await signUp(email, suPassword, email.split('@')[0])
+    if (err) setSuError(err)
+    setSuLoading(false)
+    // On success: auth state change in useAuth → App re-renders → shows InviteCodeGate
   }
 
   async function handleCreateCompany(e: React.FormEvent) {
     e.preventDefault()
     setCcError('')
+    if (!ccDisplayName.trim()) { setCcError('Enter your full name.'); return }
+    if (!ccUsername.trim()) { setCcError('Choose a username.'); return }
+    if (!ccPassword.trim()) { setCcError('Choose a password.'); return }
     const company = ccCompany.trim()
     if (!company) { setCcError('Enter your company name.'); return }
     setCcLoading(true)
     try {
-      let uid = user?.id ?? null
+      const err = await signUp(toEmail(ccUsername), ccPassword, ccDisplayName.trim())
+      if (err) { setCcError(err); return }
 
-      // Sign up if not already logged in
-      if (!uid) {
-        if (!ccDisplayName.trim()) { setCcError('Enter your full name.'); setCcLoading(false); return }
-        if (!ccUsername.trim()) { setCcError('Choose a username.'); setCcLoading(false); return }
-        const err = await signUp(toEmail(ccUsername), ccPassword, ccDisplayName.trim())
-        if (err) { setCcError(err); setCcLoading(false); return }
-        // After signUp, get the session user
-        const { data: { session } } = await supabase.auth.getSession()
-        uid = session?.user?.id ?? null
-      }
-
-      if (!uid) { setCcError('Sign-up succeeded but could not get user ID. Please sign in.'); setCcLoading(false); return }
+      const { data: { session } } = await supabase.auth.getSession()
+      const uid = session?.user?.id ?? null
+      if (!uid) { setCcError('Sign-up succeeded but could not get user ID. Please sign in.'); return }
 
       const { data: org, error: orgErr } = await supabase
         .from('organizations')
@@ -116,74 +119,17 @@ export function LandingPage({ user, onOrgCreated }: Props) {
     }
   }
 
-  async function handleJoinInvite(e: React.FormEvent) {
-    e.preventDefault()
-    setJiError('')
-    const token = jiToken.trim()
-    if (!token) { setJiError('Paste your invite code.'); return }
-    setJiLoading(true)
-    try {
-      // Validate invite first (unauthenticated-safe RPC) to get the email
-      const { data: inviteRows, error: invErr } = await supabase
-        .rpc('get_invite_by_token', { invite_token: token })
-
-      if (invErr) throw new Error(invErr.message)
-      const invite = inviteRows?.[0] ?? null
-      if (!invite) throw new Error('Invite code not found or already used.')
-      if (new Date(invite.expires_at) < new Date()) throw new Error('This invite has expired. Ask your admin to send a new one.')
-
-      let uid = user?.id ?? null
-
-      // Sign up or sign in using the email from the invitation
-      if (!uid) {
-        if (!jiPassword.trim()) { setJiError('Enter a password.'); setJiLoading(false); return }
-        const signUpErr = await signUp(invite.email, jiPassword, invite.email.split('@')[0])
-        if (signUpErr) {
-          if (signUpErr.toLowerCase().includes('already') || signUpErr.toLowerCase().includes('registered')) {
-            const signInErr = await signIn(invite.email, jiPassword)
-            if (signInErr) { setJiError('Account already exists — check your password.'); setJiLoading(false); return }
-          } else {
-            setJiError(signUpErr)
-            setJiLoading(false)
-            return
-          }
-        }
-        const { data: { session } } = await supabase.auth.getSession()
-        uid = session?.user?.id ?? null
-      }
-
-      if (!uid) { setJiError('Could not verify sign-in. Try again.'); setJiLoading(false); return }
-
-      if (invite.org_type === 'contractor') {
-        const { error: memErr } = await supabase
-          .from('org_members')
-          .insert({ org_id: invite.org_id, user_id: uid, role: invite.role, invited_by: invite.invited_by })
-        if (memErr) throw new Error(memErr.message)
-      } else {
-        const { error: memErr } = await supabase
-          .from('subcontractor_members')
-          .insert({ org_id: invite.org_id, user_id: uid, role: invite.role, invited_by: invite.invited_by })
-        if (memErr) throw new Error(memErr.message)
-      }
-
-      await supabase.from('invitations').update({ accepted_at: new Date().toISOString() }).eq('id', invite.id)
-      onOrgCreated()
-    } catch (err) {
-      setJiError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
-      setJiLoading(false)
-    }
-  }
-
   const inputClass = "w-full px-3 py-2.5 rounded-lg text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30"
   const inputStyle = { background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(206,203,246,0.25)' }
   const labelClass = "block text-xs font-medium mb-1.5"
   const labelStyle = { color: '#AFA9EC' }
   const btnStyle = { background: 'rgba(255,255,255,0.18)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.25)' }
 
-  const tabs: { key: Tab; label: string }[] = user
-    ? [{ key: 'create', label: 'Create Company' }, { key: 'invite', label: 'Join with Invite' }]
-    : [{ key: 'signin', label: 'Sign In' }, { key: 'create', label: 'Create Company' }, { key: 'invite', label: 'Join with Invite' }]
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'signin', label: 'Sign In' },
+    { key: 'signup', label: 'Sign Up' },
+    { key: 'create', label: 'Create Company' },
+  ]
 
   return (
     <>
@@ -247,8 +193,8 @@ export function LandingPage({ user, onOrgCreated }: Props) {
                   <h2 className="text-base font-semibold text-white mb-1">Sign in to your account</h2>
                   {siError && <div className="px-3 py-2.5 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>{siError}</div>}
                   <div>
-                    <label className={labelClass} style={labelStyle}>Username</label>
-                    <input type="text" value={siUsername} onChange={e => setSiUsername(e.target.value)} placeholder="admin" autoCapitalize="off" autoCorrect="off" spellCheck={false} className={inputClass} style={inputStyle} />
+                    <label className={labelClass} style={labelStyle}>Email or Username</label>
+                    <input type="text" value={siInput} onChange={e => setSiInput(e.target.value)} placeholder="jsmith or email@company.com" autoCapitalize="off" autoCorrect="off" spellCheck={false} className={inputClass} style={inputStyle} />
                   </div>
                   <div>
                     <label className={labelClass} style={labelStyle}>Password</label>
@@ -262,35 +208,51 @@ export function LandingPage({ user, onOrgCreated }: Props) {
                 </form>
               )}
 
+              {/* ── Sign Up ── */}
+              {tab === 'signup' && (
+                <form onSubmit={handleSignUp} className="flex flex-col gap-4">
+                  <h2 className="text-base font-semibold text-white mb-1">Create your account</h2>
+                  <p className="text-xs -mt-2" style={{ color: 'rgba(206,203,246,0.50)' }}>
+                    Use the email address your admin invited. After signing up, you'll enter your invite code to join your organization.
+                  </p>
+                  {suError && <div className="px-3 py-2.5 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>{suError}</div>}
+                  <div>
+                    <label className={labelClass} style={labelStyle}>Email</label>
+                    <input type="email" value={suEmail} onChange={e => setSuEmail(e.target.value)} placeholder="you@company.com" autoCapitalize="off" autoCorrect="off" spellCheck={false} className={inputClass} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className={labelClass} style={labelStyle}>Password</label>
+                    <input type="password" value={suPassword} onChange={e => setSuPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className={inputClass} style={inputStyle} />
+                  </div>
+                  <button type="submit" disabled={suLoading} className="w-full py-2.5 text-sm font-semibold rounded-lg transition-colors mt-1 disabled:opacity-50" style={btnStyle}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}>
+                    {suLoading ? 'Creating account…' : 'Create Account'}
+                  </button>
+                </form>
+              )}
+
               {/* ── Create Company ── */}
               {tab === 'create' && (
                 <form onSubmit={handleCreateCompany} className="flex flex-col gap-4">
-                  <h2 className="text-base font-semibold text-white mb-1">
-                    {user ? 'Set up your company' : 'Create your account & company'}
-                  </h2>
+                  <h2 className="text-base font-semibold text-white mb-1">Create your account & company</h2>
                   {ccError && <div className="px-3 py-2.5 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>{ccError}</div>}
-
-                  {!user && (
-                    <>
-                      <div>
-                        <label className={labelClass} style={labelStyle}>Full Name</label>
-                        <input type="text" value={ccDisplayName} onChange={e => setCcDisplayName(e.target.value)} placeholder="John Smith" className={inputClass} style={inputStyle} />
-                      </div>
-                      <div>
-                        <label className={labelClass} style={labelStyle}>Username</label>
-                        <input type="text" value={ccUsername} onChange={e => setCcUsername(e.target.value)} placeholder="jsmith" autoCapitalize="off" autoCorrect="off" spellCheck={false} className={inputClass} style={inputStyle} />
-                      </div>
-                      <div>
-                        <label className={labelClass} style={labelStyle}>Password</label>
-                        <input type="password" value={ccPassword} onChange={e => setCcPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className={inputClass} style={inputStyle} />
-                      </div>
-                      <div style={{ height: 1, background: 'rgba(206,203,246,0.12)', margin: '0 -4px' }} />
-                    </>
-                  )}
-
+                  <div>
+                    <label className={labelClass} style={labelStyle}>Full Name</label>
+                    <input type="text" value={ccDisplayName} onChange={e => setCcDisplayName(e.target.value)} placeholder="John Smith" className={inputClass} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className={labelClass} style={labelStyle}>Username</label>
+                    <input type="text" value={ccUsername} onChange={e => setCcUsername(e.target.value)} placeholder="jsmith" autoCapitalize="off" autoCorrect="off" spellCheck={false} className={inputClass} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className={labelClass} style={labelStyle}>Password</label>
+                    <input type="password" value={ccPassword} onChange={e => setCcPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className={inputClass} style={inputStyle} />
+                  </div>
+                  <div style={{ height: 1, background: 'rgba(206,203,246,0.12)', margin: '0 -4px' }} />
                   <div>
                     <label className={labelClass} style={labelStyle}>Company Name</label>
-                    <input type="text" value={user ? ccName : ccCompany} onChange={e => user ? setCcName(e.target.value) : setCcCompany(e.target.value)} placeholder="Acme Construction" className={inputClass} style={inputStyle} />
+                    <input type="text" value={ccCompany} onChange={e => setCcCompany(e.target.value)} placeholder="Acme Construction" className={inputClass} style={inputStyle} />
                   </div>
                   <p className="text-xs" style={{ color: 'rgba(206,203,246,0.45)' }}>
                     You'll be set up as the Admin. Invite your team from settings.
@@ -298,51 +260,9 @@ export function LandingPage({ user, onOrgCreated }: Props) {
                   <button type="submit" disabled={ccLoading} className="w-full py-2.5 text-sm font-semibold rounded-lg transition-colors mt-1 disabled:opacity-50" style={btnStyle}
                     onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}>
-                    {ccLoading ? 'Setting up…' : user ? 'Create Company' : 'Create Account & Company'}
+                    {ccLoading ? 'Setting up…' : 'Create Account & Company'}
                   </button>
                 </form>
-              )}
-
-              {/* ── Join with Invite ── */}
-              {tab === 'invite' && (
-                <form onSubmit={handleJoinInvite} className="flex flex-col gap-4">
-                  <h2 className="text-base font-semibold text-white mb-1">Join with an invite code</h2>
-                  {jiError && <div className="px-3 py-2.5 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>{jiError}</div>}
-
-                  {!user && (
-                    <>
-                      <div>
-                        <label className={labelClass} style={labelStyle}>Password</label>
-                        <input type="password" value={jiPassword} onChange={e => setJiPassword(e.target.value)} placeholder="Choose a password" autoComplete="new-password" className={inputClass} style={inputStyle} />
-                        <p className="mt-1 text-[11px]" style={{ color: 'rgba(206,203,246,0.40)' }}>Your account will be created using the email your admin invited.</p>
-                      </div>
-                      <div style={{ height: 1, background: 'rgba(206,203,246,0.12)', margin: '0 -4px' }} />
-                    </>
-                  )}
-
-                  <div>
-                    <label className={labelClass} style={labelStyle}>Invite Code</label>
-                    <input type="text" value={jiToken} onChange={e => setJiToken(e.target.value)} placeholder="Paste your invite code here" className={`${inputClass} font-mono`} style={inputStyle} />
-                  </div>
-                  <p className="text-xs" style={{ color: 'rgba(206,203,246,0.45)' }}>
-                    Your admin or manager sent you this code.
-                  </p>
-                  <button type="submit" disabled={jiLoading} className="w-full py-2.5 text-sm font-semibold rounded-lg transition-colors mt-1 disabled:opacity-50" style={btnStyle}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}>
-                    {jiLoading ? 'Joining…' : 'Join Organization'}
-                  </button>
-                </form>
-              )}
-
-              {/* Sign out link for already-logged-in users */}
-              {user && (
-                <p className="text-center text-xs mt-5" style={{ color: 'rgba(206,203,246,0.35)' }}>
-                  Signed in as {user.email} ·{' '}
-                  <button onClick={() => supabase.auth.signOut()} className="underline" style={{ color: 'rgba(206,203,246,0.55)' }}>
-                    Sign out
-                  </button>
-                </p>
               )}
             </div>
           </div>

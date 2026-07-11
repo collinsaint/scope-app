@@ -11,6 +11,7 @@ import { ProjectView } from './components/ProjectView'
 import { ContractorSettingsView } from './components/ContractorSettingsView'
 import { UserSettingsView } from './components/UserSettingsView'
 import { AdminPortalView } from './components/AdminPortalView'
+import { InviteCodeGate } from './components/InviteCodeGate'
 import { VerascopeLoader } from './components/VerascopeLoader'
 import { seedDemoProject } from './lib/seedDemoProject'
 import { loadProjectsFromSupabase, syncProjectToSupabase, deleteProjectFromSupabase, loadSettingsFromSupabase, syncSettingsToSupabase } from './lib/supabaseSync'
@@ -157,10 +158,15 @@ export default function App() {
     return <VerascopeLoader message="Loading…" />
   }
 
-  // Not logged in → landing page; logged in with no org → landing page (unless app admin)
   const isAppAdmin = user?.email === 'admin@proscope.app'
-  if (!user || (!isAppAdmin && currentUser && !currentUser.contractorOrg && !currentUser.subcontractorOrg)) {
-    return <LandingPage user={user ?? null} onOrgCreated={refreshCurrentUser} />
+
+  if (!user) {
+    return <LandingPage onOrgCreated={refreshCurrentUser} />
+  }
+
+  // Logged in but no org → invite code gate (unless app admin)
+  if (!isAppAdmin && currentUser && !currentUser.contractorOrg && !currentUser.subcontractorOrg) {
+    return <InviteCodeGate user={user} onJoined={refreshCurrentUser} onSignOut={signOut} />
   }
 
   return (
