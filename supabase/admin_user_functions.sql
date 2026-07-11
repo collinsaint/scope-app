@@ -31,12 +31,12 @@ BEGIN
       o.name::text   AS org_name,
       o.type::text   AS org_type,
       om.role::text,
-      om.created_at  AS joined_at,
+      om.joined_at,
       au.last_sign_in_at AS last_sign_in
     FROM public.org_members om
     JOIN auth.users        au ON au.id  = om.user_id
     JOIN public.organizations o ON o.id = om.org_id
-    ORDER BY om.created_at DESC;
+    ORDER BY om.joined_at DESC;
 END;
 $$;
 
