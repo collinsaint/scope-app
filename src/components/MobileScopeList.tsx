@@ -34,11 +34,16 @@ const SPANISH_ROOMS: Record<string, string> = {
   storage: 'Almacenamiento', utility_room: 'Cuarto de Servicio',
   sunroom: 'Solario', mudroom: 'Entrada de Servicio',
   staircase: 'Escalera', stairs: 'Escalera',
+  elevation: 'Elevación',
+  front_elevation: 'Elevación Frontal', rear_elevation: 'Elevación Trasera',
+  left_elevation: 'Elevación Izquierda', right_elevation: 'Elevación Derecha',
+  side_elevation: 'Elevación Lateral', back_elevation: 'Elevación Trasera',
 }
 
 function roomLabel(r: string, spanish = false) {
   if (spanish) {
-    const key = r.toLowerCase()
+    // normalize spaces to underscores so "Front Elevation" matches front_elevation
+    const key = r.toLowerCase().replace(/\s+/g, '_')
     if (SPANISH_ROOMS[key]) return SPANISH_ROOMS[key]
     const m = key.match(/^(.+?)_(\d+)$/)
     if (m && SPANISH_ROOMS[m[1]]) return `${SPANISH_ROOMS[m[1]]} ${m[2]}`
