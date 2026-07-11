@@ -54,12 +54,13 @@ export async function loadProjectsFromSupabase(): Promise<Project[]> {
   }
 }
 
-export async function syncProjectToSupabase(project: Project, ownerId: string): Promise<void> {
+export async function syncProjectToSupabase(project: Project, ownerId: string, orgId?: string): Promise<void> {
   const { error } = await supabase
     .from('projects')
     .upsert({
       id: project.id,
       owner_id: ownerId,
+      org_id: orgId ?? null,
       name: project.name,
       address: project.address,
       created_at: project.createdAt,

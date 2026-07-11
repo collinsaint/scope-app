@@ -113,6 +113,10 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
+  // Keep a ref to org ID so the sync effect always sees the current value
+  const orgIdRef = useRef<string | undefined>(undefined)
+  orgIdRef.current = currentUser?.contractorOrg?.id ?? currentUser?.subcontractorOrg?.id ?? undefined
+
   // Sync project changes to Supabase
   useEffect(() => {
     if (!user || loadingFromSupabase.current) return
@@ -129,7 +133,7 @@ export default function App() {
     projects.forEach(project => {
       if (project.isDemo) return
       const unchanged = prev.find(p => p.id === project.id && p === project)
-      if (!unchanged) syncProjectToSupabase(project, user.id)
+      if (!unchanged) syncProjectToSupabase(project, user.id, orgIdRef.current)
     })
 
     prevProjectsRef.current = projects
