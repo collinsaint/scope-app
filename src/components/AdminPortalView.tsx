@@ -308,9 +308,12 @@ export function AdminPortalView() {
                     <p className="text-sm font-semibold text-emerald-800 mb-1">Invitation created!</p>
                     <p className="text-xs text-emerald-700 mb-3">Share this invite code with the user. They'll enter it on the "Join with Invite" tab.</p>
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 px-3 py-2 bg-white border border-emerald-200 rounded-[8px] text-xs font-mono text-slate-700 break-all">
-                        {lastToken}
-                      </code>
+                      <input
+                        readOnly
+                        value={lastToken}
+                        onClick={e => (e.target as HTMLInputElement).select()}
+                        className="flex-1 px-3 py-2 bg-white border border-emerald-200 rounded-[8px] text-xs font-mono text-slate-700 focus:outline-none cursor-text"
+                      />
                       <button
                         onClick={() => copyToken(lastToken)}
                         className="btn-primary btn-sm flex-shrink-0"
@@ -720,7 +723,12 @@ function InviteRow({ inv, onCopy, onRevoke, copied, accepted = false }: {
           )}
         </div>
         {!accepted && (
-          <code className="mt-1.5 block text-[11px] font-mono text-slate-500 break-all">{inv.token}</code>
+          <input
+            readOnly
+            value={inv.token}
+            onClick={e => (e.target as HTMLInputElement).select()}
+            className="mt-1.5 w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-[6px] text-[11px] font-mono text-slate-500 focus:outline-none cursor-text"
+          />
         )}
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
