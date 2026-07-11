@@ -168,6 +168,7 @@ interface MobileWalkCardProps {
   hasQty: boolean
   hasNotes: boolean
   notes: WalkNote[]
+  spanishMode?: boolean
   onRemove: () => void
   onQty: () => void
   onRevertQty: () => void
@@ -176,7 +177,7 @@ interface MobileWalkCardProps {
   onShowNote?: () => void
 }
 
-function MobileWalkCard({ item, override, isRemoved, hasQty, hasNotes, notes, onRemove, onQty, onRevertQty, onNote, onDeleteNote, onShowNote }: MobileWalkCardProps) {
+function MobileWalkCard({ item, override, isRemoved, hasQty, hasNotes, notes, spanishMode, onRemove, onQty, onRevertQty, onNote, onDeleteNote, onShowNote }: MobileWalkCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [deleteNoteConfirm, setDeleteNoteConfirm] = useState<number | null>(null)
 
@@ -241,7 +242,7 @@ function MobileWalkCard({ item, override, isRemoved, hasQty, hasNotes, notes, on
               hasNotes ? 'border-amber-300 text-amber-700 bg-amber-50' : 'border-slate-200 text-slate-600'
             }`}
           >
-            Notes{hasNotes ? ` (${notes.length})` : ''}
+            {spanishMode ? 'Notas' : 'Notes'}{hasNotes ? ` (${notes.length})` : ''}
           </button>
           {item.note && (
             <button
@@ -270,7 +271,7 @@ function MobileWalkCard({ item, override, isRemoved, hasQty, hasNotes, notes, on
       {/* Expanded notes */}
       {expanded && hasNotes && (
         <div className="px-4 pb-3 pt-1 bg-blue-50/50 border-t border-blue-100 space-y-2">
-          <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">Inspection Notes</p>
+          <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">{spanishMode ? 'Notas de Inspección' : 'Inspection Notes'}</p>
           {notes.map((note, idx) => (
             <div key={idx} className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
@@ -976,6 +977,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                     hasQty={hasQty}
                     hasNotes={hasNotes}
                     notes={notes}
+                    spanishMode={spanishMode}
                     onRemove={() => handleRemove(item.id)}
                     onQty={() => openQtyPrompt(item.id)}
                     onRevertQty={() => updateWalkItem(projectId, walk.id, item.id, { qty: undefined })}
@@ -1222,7 +1224,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
                               : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                           }`}
                         >
-                          Inspection Notes{hasNotes ? ` (${override!.notes!.length})` : ''}
+                          {spanishMode ? 'Notas de Inspección' : 'Inspection Notes'}{hasNotes ? ` (${override!.notes!.length})` : ''}
                         </button>
                       </div>
                     )}
@@ -2161,7 +2163,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
           <div className="absolute inset-0 bg-black/40" onClick={() => { setNotePrompt(null); setConfirmDeleteIdx(null) }} />
           <div className="relative bg-white rounded-t-2xl sm:rounded-xl shadow-xl p-6 w-full max-w-md sm:mx-4 flex flex-col gap-4 max-h-[80dvh] overflow-y-auto">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900">Inspection Notes</h3>
+              <h3 className="text-sm font-semibold text-slate-900">{spanishMode ? 'Notas de Inspección' : 'Inspection Notes'}</h3>
               <p className="text-xs text-slate-400 mt-0.5 leading-snug">
                 #{noteItem.rowNum} &nbsp;·&nbsp; {noteItem.description}
               </p>
@@ -2393,7 +2395,7 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
               <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <h3 className="text-sm font-semibold text-slate-900">Inspection Notes</h3>
+              <h3 className="text-sm font-semibold text-slate-900">{spanishMode ? 'Notas de Inspección' : 'Inspection Notes'}</h3>
             </div>
             <p className="text-sm text-slate-700 leading-relaxed bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
               {showItemNote.note}
