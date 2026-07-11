@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useStore } from './store/useStore'
 import { useViewMode } from './hooks/useViewMode'
 import { useAuth } from './hooks/useAuth'
+import { useCurrentUser } from './hooks/useCurrentUser'
 import { AuthGate } from './components/AuthGate'
+import { OrgOnboarding } from './components/OrgOnboarding'
 import { Sidebar } from './components/Sidebar'
 import { MobileNav } from './components/MobileNav'
 import { Dashboard } from './components/Dashboard'
@@ -26,6 +28,7 @@ function readSavedView(): AppView {
 
 export default function App() {
   const { user, loading: authLoading, signOut } = useAuth()
+  const { currentUser, loading: orgLoading, refresh: refreshCurrentUser } = useCurrentUser(user)
   const { projects, setActiveProject, activeProjectId, replaceProjects,
     globalSubcontractors, jobGroups, superintendents, walkPresets,
     replaceGlobalSubcontractors, replaceJobGroups, replaceSuperintendents, replaceWalkPresets,
@@ -150,8 +153,13 @@ export default function App() {
     }
   }
 
-  if (authLoading) {
+  if (authLoading || (user && orgLoading)) {
     return <VerascopeLoader message="Loading…" />
+  }
+
+  // Logged-in user with no org yet — show onboarding
+  if (user && currentUser && !currentUser.contractorOrg && !currentUser.subcontractorOrg) {
+    return <OrgOnboarding user={user} onComplete={refreshCurrentUser} />
   }
 
   return (
