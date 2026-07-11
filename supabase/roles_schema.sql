@@ -62,11 +62,30 @@ CREATE TABLE IF NOT EXISTS public.invitations (
 );
 
 -- ─── Row Level Security ────────────────────────────────────────────────────
-ALTER TABLE public.organizations           ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.org_members             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.organizations             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.org_members               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contractor_subcontractors ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.subcontractor_members   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.invitations             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subcontractor_members     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invitations               ENABLE ROW LEVEL SECURITY;
+
+-- Drop all policies first so this script is safe to re-run
+DROP POLICY IF EXISTS "org_select_member"               ON public.organizations;
+DROP POLICY IF EXISTS "org_insert_authenticated"         ON public.organizations;
+DROP POLICY IF EXISTS "org_update_admin"                 ON public.organizations;
+DROP POLICY IF EXISTS "org_delete_admin"                 ON public.organizations;
+DROP POLICY IF EXISTS "orgmembers_select_sameorg"        ON public.org_members;
+DROP POLICY IF EXISTS "orgmembers_insert_admin_manager"  ON public.org_members;
+DROP POLICY IF EXISTS "orgmembers_delete_admin_or_self"  ON public.org_members;
+DROP POLICY IF EXISTS "contractorsub_select_member"      ON public.contractor_subcontractors;
+DROP POLICY IF EXISTS "contractorsub_insert_admin_manager" ON public.contractor_subcontractors;
+DROP POLICY IF EXISTS "contractorsub_delete_admin"       ON public.contractor_subcontractors;
+DROP POLICY IF EXISTS "submembers_select_sameorg"        ON public.subcontractor_members;
+DROP POLICY IF EXISTS "submembers_insert_manager"        ON public.subcontractor_members;
+DROP POLICY IF EXISTS "submembers_delete_manager_or_self" ON public.subcontractor_members;
+DROP POLICY IF EXISTS "invitations_select_token_or_org"  ON public.invitations;
+DROP POLICY IF EXISTS "invitations_insert_admin_manager" ON public.invitations;
+DROP POLICY IF EXISTS "invitations_update_accept"        ON public.invitations;
+DROP POLICY IF EXISTS "invitations_delete_admin"         ON public.invitations;
 
 -- ── Organizations ──
 -- Members of an org can read it; authenticated users can create one (onboarding)
