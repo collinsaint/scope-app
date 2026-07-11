@@ -156,8 +156,9 @@ export default function App() {
     return <VerascopeLoader message="Loading…" />
   }
 
-  // Not logged in, or logged in with no org — show unified landing page
-  if (!user || (currentUser && !currentUser.contractorOrg && !currentUser.subcontractorOrg)) {
+  // Not logged in → landing page; logged in with no org → landing page (unless app admin)
+  const isAppAdmin = user?.email === 'admin@proscope.app'
+  if (!user || (!isAppAdmin && currentUser && !currentUser.contractorOrg && !currentUser.subcontractorOrg)) {
     return <LandingPage user={user ?? null} onOrgCreated={refreshCurrentUser} />
   }
 
