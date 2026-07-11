@@ -126,11 +126,23 @@ export function LandingPage({ user, onOrgCreated }: Props) {
     try {
       let uid = user?.id ?? null
 
-      // Sign in if not already logged in
+      // Create account or sign in if not already logged in
       if (!uid) {
-        if (!jiUsername.trim()) { setJiError('Enter your username.'); setJiLoading(false); return }
-        const err = await signIn(toEmail(jiUsername), jiPassword)
-        if (err) { setJiError('Invalid username or password.'); setJiLoading(false); return }
+        if (!jiUsername.trim()) { setJiError('Enter a username.'); setJiLoading(false); return }
+        if (!jiPassword.trim()) { setJiError('Enter a password.'); setJiLoading(false); return }
+        const email = toEmail(jiUsername)
+        // Try sign-up first (new user). If account already exists, sign in instead.
+        const signUpErr = await signUp(email, jiPassword, jiUsername.trim())
+        if (signUpErr) {
+          if (signUpErr.toLowerCase().includes('already') || signUpErr.toLowerCase().includes('registered')) {
+            const signInErr = await signIn(email, jiPassword)
+            if (signInErr) { setJiError('Account already exists — wrong password?'); setJiLoading(false); return }
+          } else {
+            setJiError(signUpErr)
+            setJiLoading(false)
+            return
+          }
+        }
         const { data: { session } } = await supabase.auth.getSession()
         uid = session?.user?.id ?? null
       }
@@ -308,12 +320,15 @@ export function LandingPage({ user, onOrgCreated }: Props) {
                   {!user && (
                     <>
                       <div>
-                        <label className={labelClass} style={labelStyle}>Username</label>
-                        <input type="text" value={jiUsername} onChange={e => setJiUsername(e.target.value)} placeholder="admin" autoCapitalize="off" autoCorrect="off" spellCheck={false} className={inputClass} style={inputStyle} />
+                        <label className={labelClass} style={labelStyle}>Choose a Username</label>
+                        <input type="text" value={jiUsername} onChange={e => setJiUsername(e.target.value)} placeholder="e.g. johnsmith" autoCapitalize="off" autoCorrect="off" spellCheck={false} className={inputClass} style={inputStyle} />
+                        <p className="mt-1 text-[11px]" style={{ color: 'rgba(206,203,246,0.40)' }}>
+                          Your login will be {jiUsername.trim() ? `${jiUsername.trim().toLowerCase()}@proscope.app` : 'username@proscope.app'}
+                        </p>
                       </div>
                       <div>
                         <label className={labelClass} style={labelStyle}>Password</label>
-                        <input type="password" value={jiPassword} onChange={e => setJiPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" className={inputClass} style={inputStyle} />
+                        <input type="password" value={jiPassword} onChange={e => setJiPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" className={inputClass} style={inputStyle} />
                       </div>
                       <div style={{ height: 1, background: 'rgba(206,203,246,0.12)', margin: '0 -4px' }} />
                     </>
