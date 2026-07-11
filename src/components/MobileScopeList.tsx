@@ -30,7 +30,7 @@ const SPANISH_ROOMS: Record<string, string> = {
   basement: 'Sótano', attic: 'Ático', hallway: 'Pasillo', closet: 'Armario',
   entry: 'Entrada', entryway: 'Entrada', foyer: 'Vestíbulo',
   porch: 'Porche', patio: 'Patio', deck: 'Terraza',
-  exterior: 'Exterior', interior: 'Interior', roof: 'Techo',
+  exterior: 'Exterior', interior: 'Interior', roof: 'Tejado',
   storage: 'Almacenamiento', utility_room: 'Cuarto de Servicio',
   sunroom: 'Solario', mudroom: 'Entrada de Servicio',
   staircase: 'Escalera', stairs: 'Escalera',
