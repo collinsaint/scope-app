@@ -126,4 +126,6 @@ export interface Project {
   walks?: Walk[]
   roomPhotos?: Record<string, string[]>
   isDemo?: boolean
+  spanishMode?: boolean
+  translationCache?: Record<string, string>
 }

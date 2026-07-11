@@ -14,7 +14,7 @@ interface Props {
 }
 
 export function ProjectDetailsView({ project }: Props) {
-  const { updateProjectDetails, jobGroups, superintendents, addSketch, removeSketch } = useStore()
+  const { updateProjectDetails, jobGroups, superintendents, addSketch, removeSketch, setSpanishMode } = useStore()
   const sketches = project.sketches ?? []
   const usedLabels = new Set(sketches.map(s => s.label))
   const availableLabels = SKETCH_LABELS.filter(l => !usedLabels.has(l))
@@ -233,6 +233,25 @@ export function ProjectDetailsView({ project }: Props) {
               Saved
             </span>
           )}
+        </div>
+
+        {/* Display Options */}
+        <div className="bg-white border border-slate-200 rounded-xl p-5">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Display Options</h2>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-700">Spanish Mode</p>
+              <p className="text-xs text-slate-400 mt-0.5">Translate line item descriptions to Spanish</p>
+            </div>
+            <button
+              onClick={() => setSpanishMode(project.id, !(project.spanishMode ?? false))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${project.spanishMode ? 'bg-blue-600' : 'bg-slate-200'}`}
+              role="switch"
+              aria-checked={project.spanishMode ?? false}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${project.spanishMode ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
         </div>
 
         {/* Financial summary */}

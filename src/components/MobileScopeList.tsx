@@ -3,6 +3,7 @@ import type { ScopeItem, Subcontractor } from '../types'
 import { useStore } from '../store/useStore'
 import { uploadPhotoToOneDrive } from '../lib/oneDrive'
 import { CameraCapture } from './CameraCapture'
+import { translateTexts } from '../lib/translate'
 
 interface Props {
   projectId: string
@@ -123,7 +124,11 @@ function downloadDataUrl(dataUrl: string, filename: string) {
 }
 
 export function MobileScopeList({ projectId, items, roomFilter }: Props) {
-  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote } = useStore()
+  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache } = useStore()
+  const project = projects.find(p => p.id === projectId)
+  const spanishMode = project?.spanishMode ?? false
+  const translationCache = project?.translationCache ?? {}
+  const [translating, setTranslating] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
   const [coverageFilter, setCoverageFilter] = useState('all')
   const [search, setSearch] = useState('')
@@ -155,6 +160,19 @@ export function MobileScopeList({ projectId, items, roomFilter }: Props) {
       setTimeout(() => searchInputRef.current?.focus(), 50)
     }
   }, [showSearch])
+
+  useEffect(() => {
+    if (!spanishMode) return
+    const allDescriptions = items.filter(i => !i.isHeader && i.description).map(i => i.description)
+    const missing = [...new Set(allDescriptions)].filter(d => !(d in translationCache))
+    if (missing.length === 0) return
+    setTranslating(true)
+    translateTexts(missing).then(translated => {
+      const patch: Record<string, string> = {}
+      missing.forEach((d, i) => { patch[d] = translated[i] })
+      setTranslationCache(projectId, patch)
+    }).finally(() => setTranslating(false))
+  }, [spanishMode, projectId])
 
   const roomFiltered = items.filter(i => {
     if (roomFilter !== 'all' && i.room !== roomFilter) return false
@@ -189,7 +207,6 @@ export function MobileScopeList({ projectId, items, roomFilter }: Props) {
   }
 
   const photoModalItem = photoModalItemId ? dataItems.find(i => i.id === photoModalItemId) ?? null : null
-  const project = useStore.getState().projects.find(p => p.id === projectId)
 
   function commitSearch() {
     setSearch(searchDraft)
@@ -533,6 +550,16 @@ export function MobileScopeList({ projectId, items, roomFilter }: Props) {
         </span>
       </div>
 
+      {/* Spanish mode translating indicator */}
+      {spanishMode && translating && (
+        <div className="px-4 py-1.5 bg-blue-50 border-b border-blue-100 flex items-center gap-2 flex-shrink-0">
+          <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+          <span className="text-xs text-blue-500 font-medium">Translating to Spanish…</span>
+        </div>
+      )}
+
       {/* Filter bar */}
       <div className="flex items-center gap-2 px-4 py-2.5 bg-white border-b border-slate-100 flex-shrink-0 overflow-x-auto scrollbar-hide">
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -679,7 +706,7 @@ export function MobileScopeList({ projectId, items, roomFilter }: Props) {
                             {/* Description + pills */}
                             <div className="flex-1 min-w-0">
                               <p className={`text-sm font-medium leading-snug ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                                {item.description}
+                                {spanishMode ? (translationCache[item.description] ?? item.description) : item.description}
                               </p>
                               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1.5">
                                 {item.activity && (

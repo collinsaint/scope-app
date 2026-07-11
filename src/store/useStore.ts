@@ -37,6 +37,8 @@ interface StoreState {
   setComment: (projectId: string, itemId: string, comment: string) => void
   addCommentNote: (projectId: string, itemId: string, note: CommentNote) => void
   deleteCommentNote: (projectId: string, itemId: string, index: number) => void
+  setSpanishMode: (projectId: string, enabled: boolean) => void
+  setTranslationCache: (projectId: string, cache: Record<string, string>) => void
   updateProjectDetails: (projectId: string, details: { name: string; address: string; projectCode?: string; superintendent?: string; projectStatus?: string; jobGroup?: string; applicantName?: string; applicantPhone?: string; applicantEmail?: string }) => void
   addGlobalSubcontractor: (sub: GlobalSubcontractor) => void
   updateGlobalSubcontractor: (id: string, updates: Partial<GlobalSubcontractor>) => void
@@ -310,6 +312,20 @@ export const useStore = create<StoreState>()(
                 }
               ),
             }
+          ),
+        })),
+
+      setSpanishMode: (projectId, enabled) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId ? p : { ...p, spanishMode: enabled }
+          ),
+        })),
+
+      setTranslationCache: (projectId, cache) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId ? p : { ...p, translationCache: { ...(p.translationCache ?? {}), ...cache } }
           ),
         })),
 
