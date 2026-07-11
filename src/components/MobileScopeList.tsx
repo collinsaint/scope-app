@@ -3,6 +3,7 @@ import type { ScopeItem, Subcontractor } from '../types'
 import { useStore } from '../store/useStore'
 import { uploadPhotoToOneDrive } from '../lib/oneDrive'
 import { CameraCapture } from './CameraCapture'
+import { translateDescription } from '../lib/spanishDictionary'
 
 interface Props {
   projectId: string
@@ -123,7 +124,8 @@ function downloadDataUrl(dataUrl: string, filename: string) {
 }
 
 export function MobileScopeList({ projectId, items, roomFilter }: Props) {
-  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote } = useStore()
+  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects } = useStore()
+  const spanishMode = projects.find(p => p.id === projectId)?.spanishMode ?? false
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
   const [coverageFilter, setCoverageFilter] = useState('all')
   const [search, setSearch] = useState('')
@@ -679,7 +681,7 @@ export function MobileScopeList({ projectId, items, roomFilter }: Props) {
                             {/* Description + pills */}
                             <div className="flex-1 min-w-0">
                               <p className={`text-sm font-medium leading-snug ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                                {item.description}
+                                {spanishMode ? translateDescription(item.description) : item.description}
                               </p>
                               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1.5">
                                 {item.activity && (
