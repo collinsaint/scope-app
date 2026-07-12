@@ -18,6 +18,8 @@ import { InviteCodeGate } from './components/InviteCodeGate'
 import { VerascopeLoader } from './components/VerascopeLoader'
 import { seedDemoProject } from './lib/seedDemoProject'
 import { loadProjectsFromSupabase, syncProjectToSupabase, deleteProjectFromSupabase, loadSettingsFromSupabase, syncSettingsToSupabase, loadOrgSettingsForUser, syncOrgSettingsToSupabase } from './lib/supabaseSync'
+import { supabase } from './lib/supabase'
+import type { Project } from './types'
 
 type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'subcontractor-settings' | 'user-settings' | 'admin-portal' | 'financials' | 'project-financials'
 
@@ -33,7 +35,7 @@ function readSavedView(): AppView {
 export default function App() {
   const { user, loading: authLoading, signOut } = useAuth()
   const { currentUser, loading: orgLoading, refresh: refreshCurrentUser } = useCurrentUser(user)
-  const { projects, setActiveProject, activeProjectId, replaceProjects,
+  const { projects, setActiveProject, activeProjectId, replaceProjects, replaceProject,
     globalSubcontractors, jobGroups, superintendents, walkPresets,
     replaceGlobalSubcontractors, replaceJobGroups, replaceSuperintendents, replaceWalkPresets,
     darkMode,
@@ -76,6 +78,8 @@ export default function App() {
       return
     }
     if (prevUserIdRef.current === user.id) return
+    // Fresh login — always land on the dashboard
+    setView('dashboard')
     prevUserIdRef.current = user.id
 
     async function loadFromSupabase() {
@@ -167,6 +171,25 @@ export default function App() {
     return () => clearTimeout(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globalSubcontractors, jobGroups, superintendents])
+
+  // Real-time: when another user (e.g. a sub) updates a project, pull the new data in
+  useEffect(() => {
+    if (!user) return
+    const channel = supabase
+      .channel('project-updates')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'projects' },
+        (payload) => {
+          if (loadingFromSupabase.current) return
+          const updated = (payload.new as { data: Project }).data
+          if (updated?.id) replaceProject(updated)
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   function openProject(id: string, initialView: 'scope' | 'details' = 'scope') {
     setActiveProject(id)
