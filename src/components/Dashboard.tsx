@@ -38,10 +38,17 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
   const [filterStatus, setFilterStatus] = useState('')
   const [expandedApprovalIds, setExpandedApprovalIds] = useState<Set<string>>(new Set())
 
-  // Superintendent-role users only see projects assigned to them
-  const projects = superintendentName
-    ? allProjects.filter(p => p.isDemo || p.superintendent?.toLowerCase() === superintendentName.toLowerCase())
-    : allProjects
+  // Superintendent-role users only see projects assigned to them by name.
+  // If no projects match (display_name mismatch), fall back to all projects
+  // so the superintendent isn't left with a blank screen.
+  const projects = (() => {
+    if (!superintendentName) return allProjects
+    const name = superintendentName.trim().toLowerCase()
+    const matched = allProjects.filter(p =>
+      p.isDemo || (p.superintendent?.trim().toLowerCase() === name)
+    )
+    return matched.length > 0 ? matched : allProjects
+  })()
 
   const jobGroupOptions = [...new Set(projects.map(p => p.jobGroup).filter(Boolean))] as string[]
   const superintendentOptions = [...new Set(projects.map(p => p.superintendent).filter(Boolean))] as string[]

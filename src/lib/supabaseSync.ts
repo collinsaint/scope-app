@@ -91,21 +91,41 @@ export async function loadProjectsFromSupabase(): Promise<Project[]> {
 }
 
 export async function syncProjectToSupabase(project: Project, ownerId: string, orgId?: string): Promise<void> {
-  const { error } = await supabase
+  // UPDATE first — preserves the original owner_id/org_id so sub users
+  // can't overwrite contractor ownership when they save approval changes.
+  const { data: updated, error: updateErr } = await supabase
     .from('projects')
-    .upsert({
-      id: project.id,
-      owner_id: ownerId,
-      org_id: orgId ?? null,
+    .update({
       name: project.name,
       address: project.address,
-      created_at: project.createdAt,
       updated_at: new Date().toISOString(),
       data: project,
-    }, { onConflict: 'id' })
+    })
+    .eq('id', project.id)
+    .select('id')
 
-  if (error) {
-    console.error('Failed to sync project:', error.message)
+  if (updateErr) {
+    console.error('Failed to sync project (update):', updateErr.message)
+    return
+  }
+
+  // No rows updated → project is new, insert with full ownership metadata.
+  if (!updated || updated.length === 0) {
+    const { error: insertErr } = await supabase
+      .from('projects')
+      .insert({
+        id: project.id,
+        owner_id: ownerId,
+        org_id: orgId ?? null,
+        name: project.name,
+        address: project.address,
+        created_at: project.createdAt,
+        updated_at: new Date().toISOString(),
+        data: project,
+      })
+    if (insertErr) {
+      console.error('Failed to sync project (insert):', insertErr.message)
+    }
   }
 }
 
