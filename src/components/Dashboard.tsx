@@ -414,16 +414,14 @@ function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelet
 
       <div className="flex gap-2">
         <button onClick={() => onOpen(project.id)} className="btn-secondary flex-1 justify-center text-xs">
-          View Scope
+          Scope
         </button>
         <button onClick={() => onOpenDetails(project.id)} className="btn-ghost flex-1 justify-center text-xs border border-slate-200">
           Details
         </button>
         {onOpenFinancials && (
-          <button onClick={() => onOpenFinancials(project.id)} className="btn-ghost flex-shrink-0 justify-center text-xs border border-slate-200 px-2.5">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
-            </svg>
+          <button onClick={() => onOpenFinancials(project.id)} className="btn-ghost flex-1 justify-center text-xs border border-slate-200">
+            Financials
           </button>
         )}
       </div>
