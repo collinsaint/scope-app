@@ -818,37 +818,40 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                 className="mt-1 w-4 h-4 rounded border-slate-300 text-blue-600 flex-shrink-0 cursor-pointer"
                               />
                             )}
-                            {/* Completion checkbox */}
-                            <button
-                              onClick={() => {
-                                if (isSubUser) {
-                                  if (item.pendingApproval) rejectItem(projectId, item.id)
-                                  else if (!item.completed) setPendingApproval(projectId, item.id, true)
-                                } else if (item.pendingApproval && canApprove) {
-                                  approveItem(projectId, item.id)
-                                } else {
-                                  toggleItem(projectId, item.id)
-                                }
-                              }}
-                              disabled={item.completed && isSubUser}
-                              className={`mt-0.5 w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
-                                item.completed
-                                  ? 'bg-green-500 border-green-500 text-white'
-                                  : item.pendingApproval
-                                    ? 'bg-amber-400 border-amber-400 text-white'
-                                    : 'border-slate-300'
-                              }`}
-                            >
-                              {item.completed ? (
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="20 6 9 17 4 12"/>
-                                </svg>
-                              ) : item.pendingApproval ? (
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                                </svg>
-                              ) : null}
-                            </button>
+                            {/* Completion checkbox + item # below */}
+                            <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => {
+                                  if (isSubUser) {
+                                    if (item.pendingApproval) rejectItem(projectId, item.id)
+                                    else if (!item.completed) setPendingApproval(projectId, item.id, true)
+                                  } else if (item.pendingApproval && canApprove) {
+                                    approveItem(projectId, item.id)
+                                  } else {
+                                    toggleItem(projectId, item.id)
+                                  }
+                                }}
+                                disabled={item.completed && isSubUser}
+                                className={`mt-0.5 w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+                                  item.completed
+                                    ? 'bg-green-500 border-green-500 text-white'
+                                    : item.pendingApproval
+                                      ? 'bg-amber-400 border-amber-400 text-white'
+                                      : 'border-slate-300'
+                                }`}
+                              >
+                                {item.completed ? (
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                  </svg>
+                                ) : item.pendingApproval ? (
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                  </svg>
+                                ) : null}
+                              </button>
+                              <span className="text-[10px] text-slate-400 leading-none">#{item.rowNum}</span>
+                            </div>
 
                             {/* Description + pills */}
                             <div className="flex-1 min-w-0">
@@ -868,12 +871,19 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                     {item.coverage}
                                   </span>
                                 )}
+                                {assignedSub && (
+                                  <span
+                                    className="text-[11px] px-1.5 py-0.5 rounded font-medium"
+                                    style={{ background: assignedSub.color + '22', color: assignedSub.color }}
+                                  >
+                                    {assignedSub.name}
+                                  </span>
+                                )}
                               </div>
                             </div>
 
-                            {/* Action buttons column — order: Note → Comment → Photo, then # below */}
-                            <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                              <div className="flex items-center gap-1">
+                            {/* Action buttons column — Note → Comment → Photo */}
+                            <div className="flex items-center gap-1 flex-shrink-0">
                               {/* Item Note — only if note exists */}
                               {item.note && (
                                 <button
@@ -919,9 +929,6 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                   </span>
                                 )}
                               </button>
-                              </div>
-                              {/* # below photo button */}
-                              <span className="text-[11px] text-slate-400 leading-none">#{item.rowNum}</span>
                             </div>
                           </div>
                           {/* Sub assignment row (contractor only, assign mode only) */}
