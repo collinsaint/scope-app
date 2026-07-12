@@ -20,7 +20,6 @@ FROM projects p
 JOIN LATERAL (
   SELECT granted_by FROM project_access
   WHERE project_id = p.id AND granted_by IS NOT NULL
-  ORDER BY created_at ASC
   LIMIT 1
 ) pa ON true
 JOIN org_members om ON om.user_id = pa.granted_by
@@ -38,7 +37,7 @@ FROM (
   SELECT DISTINCT ON (project_id) project_id, granted_by
   FROM project_access
   WHERE granted_by IS NOT NULL
-  ORDER BY project_id, created_at ASC
+  ORDER BY project_id
 ) pa
 JOIN org_members om ON om.user_id = pa.granted_by
 JOIN organizations o ON o.id = om.org_id AND o.type = 'contractor'
