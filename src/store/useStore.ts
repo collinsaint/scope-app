@@ -34,9 +34,9 @@ interface StoreState {
   bulkComplete: (projectId: string, itemIds: string[]) => void
   bulkUncomplete: (projectId: string, itemIds: string[]) => void
   setPendingApproval: (projectId: string, itemId: string, pending: boolean) => void
-  approveItem: (projectId: string, itemId: string, comment?: string) => void
+  approveItem: (projectId: string, itemId: string, comment?: string, by?: string) => void
   rejectItem: (projectId: string, itemId: string) => void
-  returnItem: (projectId: string, itemId: string, comment?: string) => void
+  returnItem: (projectId: string, itemId: string, comment?: string, by?: string) => void
   bulkSetPending: (projectId: string, itemIds: string[]) => void
   bulkClearPending: (projectId: string, itemIds: string[]) => void
   setComment: (projectId: string, itemId: string, comment: string) => void
@@ -621,7 +621,7 @@ export const useStore = create<StoreState>()(
           ),
         })),
 
-      approveItem: (projectId, itemId, comment) =>
+      approveItem: (projectId, itemId, comment, by) =>
         set((s) => ({
           projects: s.projects.map((p) =>
             p.id !== projectId ? p : {
@@ -634,6 +634,10 @@ export const useStore = create<StoreState>()(
                   pendingApproval: undefined,
                   pendingApprovalAt: undefined,
                   approvalComment: comment || undefined,
+                  approvalCommentBy: by || undefined,
+                  commentNotes: comment
+                    ? [...(item.commentNotes ?? []), { text: comment, by, type: 'approval' as const, createdAt: new Date().toISOString() }]
+                    : item.commentNotes,
                 }
               ),
             }
@@ -656,7 +660,7 @@ export const useStore = create<StoreState>()(
           ),
         })),
 
-      returnItem: (projectId, itemId, comment) =>
+      returnItem: (projectId, itemId, comment, by) =>
         set((s) => ({
           projects: s.projects.map((p) =>
             p.id !== projectId ? p : {
@@ -666,9 +670,13 @@ export const useStore = create<StoreState>()(
                   ...item,
                   returned: true,
                   returnComment: comment || undefined,
+                  returnCommentBy: by || undefined,
                   pendingApproval: undefined,
                   pendingApprovalAt: undefined,
                   completed: false,
+                  commentNotes: comment
+                    ? [...(item.commentNotes ?? []), { text: comment, by, type: 'return' as const, createdAt: new Date().toISOString() }]
+                    : item.commentNotes,
                 }
               ),
             }

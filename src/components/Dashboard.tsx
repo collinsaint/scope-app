@@ -19,6 +19,7 @@ interface Props {
   isSubUser?: boolean
   superintendentUserId?: string | null
   superintendentName?: string | null
+  currentUserName?: string
 }
 
 const statusConfig: Record<string, { dot: string; pill: string }> = {
@@ -34,7 +35,7 @@ interface PendingItemDetail {
   project: Project
 }
 
-export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendentRole = false, superintendentUserId, superintendentName }: Props) {
+export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendentRole = false, superintendentUserId, superintendentName, currentUserName }: Props) {
   const { projects: allProjects, deleteProject, approveItem, returnItem } = useStore()
   const { isMobile } = useViewMode()
   const [showModal, setShowModal] = useState(false)
@@ -46,6 +47,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
   const [expandedApprovalIds, setExpandedApprovalIds] = useState<Set<string>>(new Set())
   const [itemDetail, setItemDetail] = useState<PendingItemDetail | null>(null)
   const [detailComment, setDetailComment] = useState('')
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card')
 
   const projects = (() => {
     if (!superintendentUserId) return allProjects
@@ -217,6 +219,29 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                   </span>
                 )}
               </button>
+
+              {/* Card / List toggle */}
+              <div className="flex items-center flex-shrink-0 border border-slate-200 rounded-[9px] overflow-hidden">
+                <button
+                  onClick={() => setViewMode('card')}
+                  title="Card view"
+                  className={`flex items-center justify-center w-9 h-9 transition-colors ${viewMode === 'card' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-50'}`}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  title="List view"
+                  className={`flex items-center justify-center w-9 h-9 transition-colors ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-50'}`}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                    <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {showFilters && (
@@ -285,8 +310,89 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
               Clear all
             </button>
           </div>
+        ) : viewMode === 'list' ? (
+          /* List view — table of all projects */
+          <div className="section-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    <th className="px-4 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Project</th>
+                    <th className="px-4 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-right">Total RCV</th>
+                    <th className="px-4 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-right">Completed</th>
+                    <th className="px-4 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-right">Progress</th>
+                    <th className="px-4 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filtered.map(p => {
+                    const totalRcv = p.items.reduce((s, i) => s + i.rcv, 0)
+                    const completedRcv = p.items.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0)
+                    const total = p.items.length
+                    const completed = p.items.filter(i => i.completed).length
+                    const pending = p.items.filter(i => i.pendingApproval && !i.completed).length
+                    const pctCompleted = total ? completed / total * 100 : 0
+                    const pctPending = total ? pending / total * 100 : 0
+                    const pct = Math.round(pctCompleted + pctPending)
+                    const statusCfg = p.projectStatus ? (statusConfig[p.projectStatus] ?? { dot: 'bg-slate-300', pill: 'bg-slate-50 border-slate-200 text-slate-600' }) : null
+                    return (
+                      <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-semibold text-slate-800 leading-tight">{p.name}</p>
+                          {p.address && <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[220px]">{p.address}</p>}
+                        </td>
+                        <td className="px-4 py-3">
+                          {statusCfg ? (
+                            <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${statusCfg.pill}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+                              {p.projectStatus}
+                            </span>
+                          ) : <span className="text-xs text-slate-400">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-sm font-semibold text-slate-700 text-right tabular-nums">{fmt(totalRcv)}</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-emerald-600 text-right tabular-nums">{fmt(completedRcv)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden flex">
+                              <div className="h-full bg-green-500" style={{ width: `${pctCompleted}%` }} />
+                              <div className="h-full bg-amber-400" style={{ width: `${pctPending}%` }} />
+                            </div>
+                            <span className="text-xs font-semibold text-slate-600 w-8">{pct}%</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5 justify-end">
+                            <button onClick={() => onOpenProject(p.id)} className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors">Scope</button>
+                            <button onClick={() => onOpenProjectDetails(p.id)} className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">Details</button>
+                            {onOpenProjectFinancials && <button onClick={() => onOpenProjectFinancials(p.id)} className="text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">Financials</button>}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : isMobile ? (
+          /* Mobile: full-width stacked cards */
+          <div className="flex flex-col gap-4">
+            {filtered.map((p) => (
+              <ProjectCard key={p.id} project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} />
+            ))}
+            <button
+              onClick={() => setShowModal(true)}
+              className="w-full py-5 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-[14px] text-slate-400 hover:border-blue-400/60 hover:bg-blue-50/40 hover:text-blue-500 transition-all duration-150"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span className="text-sm font-medium">New project</span>
+            </button>
+          </div>
         ) : (
-          /* Horizontal-scroll project cards */
+          /* Desktop: horizontal-scroll cards */
           <div className="overflow-x-auto -mx-6 px-6 pb-3">
             <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
               {filtered.map((p) => (
@@ -432,7 +538,19 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                     <p className="text-sm text-slate-700 bg-blue-50 px-3 py-2 rounded-lg leading-relaxed">{itemDetail.item.comment}</p>
                   )}
                   {(itemDetail.item.commentNotes ?? []).map((note, i) => (
-                    <p key={i} className="text-xs text-slate-500 mt-1.5 leading-relaxed">{note.text}</p>
+                    <div key={i} className="mt-1.5">
+                      {note.type && (
+                        <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded mb-0.5 ${
+                          note.type === 'approval' ? 'bg-green-100 text-green-700' :
+                          note.type === 'return' ? 'bg-red-100 text-red-700' :
+                          'bg-slate-100 text-slate-600'
+                        }`}>
+                          {note.type === 'approval' ? 'Approved' : note.type === 'return' ? 'Returned' : 'Comment'}
+                        </span>
+                      )}
+                      <p className="text-xs text-slate-700 leading-relaxed">{note.text}</p>
+                      {note.by && <p className="text-[10px] text-slate-400 mt-0.5">{note.by}</p>}
+                    </div>
                   ))}
                 </div>
               )}
@@ -453,7 +571,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
               <div className="px-5 py-4 border-t border-slate-100 flex gap-2 flex-shrink-0">
                 <button
                   onClick={() => {
-                    returnItem(itemDetail.project.id, itemDetail.item.id, detailComment)
+                    returnItem(itemDetail.project.id, itemDetail.item.id, detailComment, currentUserName)
                     setItemDetail(null)
                     setDetailComment('')
                   }}
@@ -463,7 +581,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                 </button>
                 <button
                   onClick={() => {
-                    approveItem(itemDetail.project.id, itemDetail.item.id, detailComment)
+                    approveItem(itemDetail.project.id, itemDetail.item.id, detailComment, currentUserName)
                     setItemDetail(null)
                     setDetailComment('')
                   }}

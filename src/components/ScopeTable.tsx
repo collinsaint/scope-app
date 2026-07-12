@@ -101,9 +101,10 @@ interface Props {
   canApprove?: boolean
   subOrgName?: string
   subPercentage?: number
+  currentUserName?: string
 }
 
-export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true, subOrgName, subPercentage }: Props) {
+export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName }: Props) {
   const { isMobile } = useViewMode()
   const { toggleItem, assignSubcontractor, bulkComplete, bulkUncomplete, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending } = useStore()
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
@@ -152,7 +153,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   }, [someSelected])
 
   if (isMobile) {
-    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} isSubUser={isSubUser} canApprove={canApprove} subOrgName={subOrgName} subPercentage={subPercentage} />
+    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} isSubUser={isSubUser} canApprove={canApprove} subOrgName={subOrgName} subPercentage={subPercentage} currentUserName={currentUserName} />
   }
 
   function handleItemToggle(item: ScopeItem) {
@@ -506,8 +507,8 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                     selected={effectiveSelected.has(row.id)}
                     onSelect={() => toggleSelect(row.id)}
                     onToggle={() => handleItemToggle(row)}
-                    onApprove={(comment) => approveItem(projectId, row.id, comment)}
-                    onReturn={(comment) => returnItem(projectId, row.id, comment)}
+                    onApprove={(comment) => approveItem(projectId, row.id, comment, currentUserName)}
+                    onReturn={(comment) => returnItem(projectId, row.id, comment, currentUserName)}
                     onOpenComment={() => onOpenComment(row.id)}
                     onPhotoClick={() => setPhotoModalItem(row)}
                     onNoteClick={() => setNoteModalItem(row)}
@@ -650,6 +651,18 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
           {item.completed && item.completedAt && (
             <p className="text-[10.5px] text-green-600 mt-0.5">
               Completed {new Date(item.completedAt).toLocaleDateString()}
+            </p>
+          )}
+          {item.returned && item.returnComment && (
+            <p className="text-[10.5px] text-red-600 mt-0.5 leading-snug">
+              <span className="font-semibold">Returned:</span> {item.returnComment}
+              {item.returnCommentBy && <span className="text-red-400"> — {item.returnCommentBy}</span>}
+            </p>
+          )}
+          {item.completed && item.approvalComment && (
+            <p className="text-[10.5px] text-green-700 mt-0.5 leading-snug">
+              <span className="font-semibold">Approved:</span> {item.approvalComment}
+              {item.approvalCommentBy && <span className="text-green-500"> — {item.approvalCommentBy}</span>}
             </p>
           )}
         </td>

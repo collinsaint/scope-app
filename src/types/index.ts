@@ -109,7 +109,9 @@ export interface ScopeItem {
   pendingApprovalAt?: string
   returned?: boolean
   returnComment?: string
+  returnCommentBy?: string
   approvalComment?: string
+  approvalCommentBy?: string
   photos: string[]
   isHeader?: boolean
   subcontractorId?: string
@@ -125,6 +127,8 @@ export interface WalkNote {
 export interface CommentNote {
   text: string
   createdAt: string
+  by?: string
+  type?: 'comment' | 'approval' | 'return'
 }
 
 export interface WalkItemOverride {

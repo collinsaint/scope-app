@@ -13,6 +13,7 @@ interface Props {
   canApprove?: boolean
   subOrgName?: string
   subPercentage?: number
+  currentUserName?: string
 }
 
 function fmt(n: number) {
@@ -153,7 +154,7 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   a.click()
 }
 
-export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true, subOrgName, subPercentage }: Props) {
+export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName }: Props) {
   const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending, bulkClearPending, assignSubcontractor } = useStore()
   const project = projects.find(p => p.id === projectId)
   const spanishMode = project?.spanishMode ?? false
@@ -186,6 +187,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   const [bulkSubId, setBulkSubId] = useState('')
   const [approvalModal, setApprovalModal] = useState<ScopeItem | null>(null)
   const [approvalComment, setApprovalComment] = useState('')
+  const [submitConfirmItem, setSubmitConfirmItem] = useState<ScopeItem | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
   const roomGalleryRef = useRef<HTMLInputElement>(null)
@@ -810,9 +812,9 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                               <button
                                 onClick={() => {
                                   if (isSubUser) {
-                                    if (item.returned) setPendingApproval(projectId, item.id, true)
+                                    if (item.returned) setSubmitConfirmItem(item)
                                     else if (item.pendingApproval) rejectItem(projectId, item.id)
-                                    else if (!item.completed) setPendingApproval(projectId, item.id, true)
+                                    else if (!item.completed) setSubmitConfirmItem(item)
                                   } else if (item.pendingApproval && canApprove) {
                                     setApprovalModal(item)
                                   } else {
@@ -874,6 +876,19 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                   </span>
                                 )}
                               </div>
+                              {/* Inline return/approval comment */}
+                              {item.returned && item.returnComment && (
+                                <p className="text-[11px] text-red-600 mt-1 leading-snug">
+                                  <span className="font-semibold">Returned:</span> {item.returnComment}
+                                  {item.returnCommentBy && <span className="text-red-400"> — {item.returnCommentBy}</span>}
+                                </p>
+                              )}
+                              {item.completed && item.approvalComment && (
+                                <p className="text-[11px] text-green-700 mt-1 leading-snug">
+                                  <span className="font-semibold">Approved:</span> {item.approvalComment}
+                                  {item.approvalCommentBy && <span className="text-green-500"> — {item.approvalCommentBy}</span>}
+                                </p>
+                              )}
                             </div>
 
                             {/* Action buttons column — Note → Comment → Photo */}
@@ -992,16 +1007,46 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
             </div>
             <div className="px-5 pb-5 flex gap-2">
               <button
-                onClick={() => { returnItem(projectId, approvalModal.id, approvalComment); setApprovalModal(null); setApprovalComment('') }}
+                onClick={() => { returnItem(projectId, approvalModal.id, approvalComment, currentUserName); setApprovalModal(null); setApprovalComment('') }}
                 className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-red-300 text-red-600 hover:bg-red-50 transition-colors"
               >
                 Return
               </button>
               <button
-                onClick={() => { approveItem(projectId, approvalModal.id, approvalComment); setApprovalModal(null); setApprovalComment('') }}
+                onClick={() => { approveItem(projectId, approvalModal.id, approvalComment, currentUserName); setApprovalModal(null); setApprovalComment('') }}
                 className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-green-500 text-white hover:bg-green-600 transition-colors"
               >
                 Approve
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Submit for approval confirmation */}
+      {submitConfirmItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setSubmitConfirmItem(null)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="px-5 py-5">
+              <p className="text-base font-semibold text-slate-800 mb-1">Submit for approval?</p>
+              <p className="text-sm text-slate-500 line-clamp-2">{submitConfirmItem.description}</p>
+            </div>
+            <div className="px-5 pb-5 flex gap-2">
+              <button
+                onClick={() => setSubmitConfirmItem(null)}
+                className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setPendingApproval(projectId, submitConfirmItem.id, true)
+                  setSubmitConfirmItem(null)
+                }}
+                className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                Submit
               </button>
             </div>
           </div>
@@ -1114,8 +1159,20 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                           ) : (
                             <div className="flex items-start justify-between gap-3 px-3 py-2.5">
                               <div className="flex-1 min-w-0">
+                                {n.type && (
+                                  <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded mb-1 ${
+                                    n.type === 'approval' ? 'bg-green-100 text-green-700' :
+                                    n.type === 'return' ? 'bg-red-100 text-red-700' :
+                                    'bg-slate-100 text-slate-600'
+                                  }`}>
+                                    {n.type === 'approval' ? 'Approved' : n.type === 'return' ? 'Returned' : 'Comment'}
+                                  </span>
+                                )}
                                 <p className="text-xs text-slate-700 leading-snug break-words">{n.text}</p>
-                                <p className="text-[10px] text-slate-400 mt-0.5">{new Date(n.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                  {n.by && <span className="font-medium text-slate-500">{n.by} · </span>}
+                                  {new Date(n.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                </p>
                               </div>
                               <button onClick={() => setCommentDeleteConfirm(i)} className="flex-shrink-0 text-slate-300 hover:text-red-500 transition-colors mt-0.5 p-1" title="Delete note">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

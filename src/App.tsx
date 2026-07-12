@@ -229,6 +229,7 @@ export default function App() {
   const superintendentUserId = isSuperintendentRole ? (user?.id ?? null) : null
   const superintendentName = isSuperintendentRole ? (currentUser?.profile.display_name ?? null) : null
   const canApprove = !isSubUser
+  const currentUserName = currentUser?.profile.display_name ?? user?.email ?? undefined
 
   if (!user) {
     return <LandingPage />
@@ -257,6 +258,7 @@ export default function App() {
               isSubUser={isSubUser}
               superintendentUserId={superintendentUserId}
               superintendentName={superintendentName}
+              currentUserName={currentUserName}
             />
           ) : view === 'project' ? (
             <ProjectView
@@ -276,6 +278,7 @@ export default function App() {
               canApprove={canApprove}
               subOrgName={subOrgName}
               contractorOrgId={currentUser?.contractorOrg?.id ?? null}
+              currentUserName={currentUserName}
             />
           ) : view === 'project-financials' ? (() => {
             const proj = projects.find(p => p.id === activeProjectId)
