@@ -16,7 +16,7 @@ interface Props {
 
 export function ProjectDetailsView({ project, canManage = false, isSubUser = false }: Props) {
   const { updateProjectDetails, jobGroups, superintendents, addSketch, removeSketch, setSpanishMode,
-    globalSubcontractors, addSubcontractor, updateProjectSubcontractor } = useStore()
+    globalSubcontractors, addSubcontractor, deleteSubcontractor, updateProjectSubcontractor } = useStore()
   const sketches = project.sketches ?? []
   const usedLabels = new Set(sketches.map(s => s.label))
   const availableLabels = SKETCH_LABELS.filter(l => !usedLabels.has(l))
@@ -36,6 +36,7 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
   const [resetting, setResetting] = useState(false)
   const [resetConfirm, setResetConfirm] = useState(false)
   const [pctDraft, setPctDraft] = useState<Record<string, string>>({})
+  const [selectedGlobalId, setSelectedGlobalId] = useState('')
 
   const dataItems = project.items.filter(i => !i.isHeader)
   const completed = dataItems.filter(i => i.completed)
@@ -44,21 +45,25 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
   const remainingAmount = totalAmount - completedAmount
   const pct = dataItems.length ? Math.round(completed.length / dataItems.length * 100) : 0
   const subcontractors = project.subcontractors ?? []
+  const unassignedGlobals = globalSubcontractors.filter(g => !subcontractors.some(s => s.id === g.id))
+
+  function handleAddSubcontractor() {
+    const global = globalSubcontractors.find(g => g.id === selectedGlobalId)
+    if (!global) return
+    addSubcontractor(project.id, {
+      id: global.id,
+      name: global.name,
+      color: global.color,
+      percentage: global.defaultPercentage > 0 ? global.defaultPercentage : undefined,
+    })
+    setSelectedGlobalId('')
+  }
 
   function commitPct(subId: string) {
     const raw = pctDraft[subId]
     if (raw === undefined) return
     const val = parseFloat(raw)
-    const percentage = isNaN(val) || raw.trim() === '' ? undefined : val
-    const existsInProject = subcontractors.some(s => s.id === subId)
-    if (existsInProject) {
-      updateProjectSubcontractor(project.id, subId, { percentage })
-    } else {
-      const global = globalSubcontractors.find(g => g.id === subId)
-      if (global && percentage !== undefined) {
-        addSubcontractor(project.id, { id: global.id, name: global.name, color: global.color, percentage })
-      }
-    }
+    updateProjectSubcontractor(project.id, subId, { percentage: isNaN(val) || raw.trim() === '' ? undefined : val })
     setPctDraft(d => { const n = { ...d }; delete n[subId]; return n })
   }
   const commentCount = dataItems.filter(i => i.comment).length
@@ -406,39 +411,60 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
         <div className="section-card overflow-hidden">
           <div className="section-card-header">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em]">Project Subcontractors</h2>
-            <p className="text-xs text-slate-400 mt-0.5">All subcontractors are available in every project. Set a pay percentage per project below.</p>
+            <p className="text-xs text-slate-400 mt-0.5">Subcontractors assigned here can be assigned to line items in the scope.</p>
           </div>
-          {globalSubcontractors.length === 0 ? (
-            <div className="px-5 py-6 text-center">
-              <p className="text-sm text-slate-400">No subcontractors configured yet — add them in Contractor Settings.</p>
-            </div>
-          ) : (
+          {subcontractors.length > 0 ? (
             <div className="divide-y divide-slate-100">
-              {globalSubcontractors.map(global => {
-                const projectSub = subcontractors.find(s => s.id === global.id)
-                return (
-                  <div key={global.id} className="flex items-center gap-3 px-5 py-3">
-                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: global.color }} />
-                    <span className="text-sm font-medium text-slate-800 flex-1">{global.name}</span>
-                    {canManage ? (
+              {subcontractors.map(sub => (
+                <div key={sub.id} className="flex items-center gap-3 px-5 py-3">
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color }} />
+                  <span className="text-sm font-medium text-slate-800 flex-1">{sub.name}</span>
+                  {canManage ? (
+                    <>
                       <div className="flex items-center gap-1.5">
                         <input
                           type="number" min="0" max="100" step="0.1"
-                          value={global.id in pctDraft ? pctDraft[global.id] : (projectSub?.percentage ?? '')}
-                          onChange={e => setPctDraft(d => ({ ...d, [global.id]: e.target.value }))}
-                          onBlur={() => commitPct(global.id)}
-                          onKeyDown={e => e.key === 'Enter' && commitPct(global.id)}
+                          value={sub.id in pctDraft ? pctDraft[sub.id] : (sub.percentage ?? '')}
+                          onChange={e => setPctDraft(d => ({ ...d, [sub.id]: e.target.value }))}
+                          onBlur={() => commitPct(sub.id)}
+                          onKeyDown={e => e.key === 'Enter' && commitPct(sub.id)}
                           placeholder="—"
                           className="w-16 px-2 py-1 text-xs border border-slate-200 rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
                         />
                         <span className="text-xs text-slate-400">%</span>
                       </div>
-                    ) : (
-                      projectSub?.percentage != null && <span className="text-xs text-slate-500">{projectSub.percentage}%</span>
-                    )}
-                  </div>
-                )
-              })}
+                      <button onClick={() => deleteSubcontractor(project.id, sub.id)} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                        </svg>
+                      </button>
+                    </>
+                  ) : (
+                    sub.percentage != null && <span className="text-xs text-slate-500">{sub.percentage}%</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="px-5 py-6 text-center">
+              <p className="text-sm text-slate-400">No subcontractors assigned to this project yet.</p>
+            </div>
+          )}
+          {canManage && (
+            <div className="px-5 py-4 border-t border-slate-100 bg-[#F9F8FF] rounded-b-[14px]">
+              {globalSubcontractors.length === 0 ? (
+                <p className="text-xs text-slate-400">No subcontractors configured yet — add them in Contractor Settings.</p>
+              ) : unassignedGlobals.length === 0 ? (
+                <p className="text-xs text-slate-400">All configured subcontractors have been assigned to this project.</p>
+              ) : (
+                <div className="flex gap-2">
+                  <select value={selectedGlobalId} onChange={e => setSelectedGlobalId(e.target.value)} className="input-base flex-1">
+                    <option value="">Select subcontractor…</option>
+                    {unassignedGlobals.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                  <button onClick={handleAddSubcontractor} disabled={!selectedGlobalId} className="btn-primary">Add</button>
+                </div>
+              )}
             </div>
           )}
         </div>
