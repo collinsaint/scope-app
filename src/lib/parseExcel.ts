@@ -24,7 +24,7 @@ function toNumber(val: unknown): number {
 // Remove paired line items where one credits out the other.
 // Two items cancel when they share the same room, description, and qty,
 // and their RCV values are equal in absolute value with opposite signs.
-function cancelCreditedItems(items: ScopeItem[]): ScopeItem[] {
+export function cancelCreditedItems(items: ScopeItem[]): ScopeItem[] {
   const remove = new Set<string>()
   const nonHeaders = items.filter(i => !i.isHeader)
 

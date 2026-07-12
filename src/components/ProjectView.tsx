@@ -531,7 +531,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
           <WalkView
             projectId={projectId}
             walk={(project.walks ?? []).find(w => w.id === activeWalkId)!}
-            items={project.items}
+            items={project.documents ? (project.walkSourceItems ?? []) : project.items}
             roomFilter={roomFilter}
             onRoomDeleted={() => setRoomFilter('all')}
             onAddRoom={isMobile ? () => setAddRoomName('') : undefined}

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import type { Project, SketchLabel } from '../types'
+import type { Project, SketchLabel, DocumentDesignation, ProjectDocument } from '../types'
 import { SKETCH_LABELS } from '../types'
+import { parseExcelFile } from '../lib/parseExcel'
 import { useStore } from '../store/useStore'
 import { resetDemoProject } from '../lib/seedDemoProject'
 import { grantProjectAccessToSubOrg, revokeProjectAccessForSubOrg, fetchMyContractorSubOrgs, assignProjectSuperintendent, type SubOrg } from '../lib/supabaseSync'
@@ -24,7 +25,8 @@ interface OrgSuperintendent {
 
 export function ProjectDetailsView({ project, canManage = false, isSubUser = false, contractorOrgId }: Props) {
   const { updateProjectDetails, jobGroups, addSketch, removeSketch, setSpanishMode,
-    globalSubcontractors, addSubcontractor, deleteSubcontractor, updateProjectSubcontractor } = useStore()
+    globalSubcontractors, addSubcontractor, deleteSubcontractor, updateProjectSubcontractor,
+    uploadProjectDocument, removeProjectDocument } = useStore()
   const sketches = project.sketches ?? []
   const usedLabels = new Set(sketches.map(s => s.label))
   const availableLabels = SKETCH_LABELS.filter(l => !usedLabels.has(l))
@@ -411,6 +413,14 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
           </div>
         </div>
 
+        {/* Documents */}
+        <DocumentsSection
+          project={project}
+          canManage={canManage}
+          onUpload={uploadProjectDocument}
+          onRemove={removeProjectDocument}
+        />
+
         {/* Project Sketches */}
         <div className="section-card p-5">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-1">Project Sketches</h2>
@@ -655,6 +665,202 @@ function Detail({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-[11px] text-slate-400 mb-0.5">{label}</p>
       <p className="text-sm text-slate-800 font-medium">{value}</p>
+    </div>
+  )
+}
+
+const DESIGNATION_LABELS: Record<DocumentDesignation, string> = {
+  'site-visit': 'Site Visit',
+  'approved-sow': 'Approved SOW',
+  'change-order-1': 'Change Order 1',
+  'change-order-2': 'Change Order 2',
+  'change-order-3': 'Change Order 3',
+}
+
+const ALL_DESIGNATIONS: DocumentDesignation[] = [
+  'site-visit', 'approved-sow', 'change-order-1', 'change-order-2', 'change-order-3',
+]
+
+function randomId() {
+  return Math.random().toString(36).slice(2, 10)
+}
+
+interface DocSectionProps {
+  project: Project
+  canManage: boolean
+  onUpload: (projectId: string, doc: ProjectDocument) => void
+  onRemove: (projectId: string, docId: string) => void
+}
+
+function DocumentsSection({ project, canManage, onUpload, onRemove }: DocSectionProps) {
+  const excelInputRef = useRef<HTMLInputElement>(null)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
+  const [activeDesignation, setActiveDesignation] = useState<DocumentDesignation | null>(null)
+  const [_activeFileType, setActiveFileType] = useState<'excel' | 'pdf'>('excel')
+  const [uploading, setUploading] = useState(false)
+  const [pdfViewing, setPdfViewing] = useState<string | null>(null)
+
+  const docs = project.documents ?? []
+
+  function getDoc(designation: DocumentDesignation, fileType: 'excel' | 'pdf') {
+    return docs.find(d => d.designation === designation && d.fileType === fileType) ?? null
+  }
+
+  function triggerUpload(designation: DocumentDesignation, fileType: 'excel' | 'pdf') {
+    setActiveDesignation(designation)
+    setActiveFileType(fileType)
+    if (fileType === 'excel') excelInputRef.current?.click()
+    else pdfInputRef.current?.click()
+  }
+
+  async function handleExcelFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !activeDesignation) return
+    setUploading(true)
+    try {
+      const buffer = await file.arrayBuffer()
+      const parsedItems = parseExcelFile(buffer)
+      onUpload(project.id, {
+        id: randomId(),
+        designation: activeDesignation,
+        fileType: 'excel',
+        fileName: file.name,
+        uploadedAt: new Date().toISOString(),
+        parsedItems,
+      })
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  async function handlePdfFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !activeDesignation) return
+    setUploading(true)
+    try {
+      const pdfDataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = ev => resolve(ev.target?.result as string)
+        reader.readAsDataURL(file)
+      })
+      onUpload(project.id, {
+        id: randomId(),
+        designation: activeDesignation,
+        fileType: 'pdf',
+        fileName: file.name,
+        uploadedAt: new Date().toISOString(),
+        pdfDataUrl,
+      })
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  return (
+    <div className="section-card overflow-hidden">
+      <div className="section-card-header">
+        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em]">Documents</h2>
+        <p className="text-[11px] text-slate-400 mt-0.5">One Excel + one PDF per designation. Site Visit Excel powers Walk View; Approved SOW Excel powers Main Scope.</p>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {ALL_DESIGNATIONS.map(desig => {
+          const excelDoc = getDoc(desig, 'excel')
+          const pdfDoc = getDoc(desig, 'pdf')
+          return (
+            <div key={desig} className="px-5 py-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-slate-700">{DESIGNATION_LABELS[desig]}</span>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                {/* Excel slot */}
+                <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-[9px] border border-slate-200 bg-slate-50 min-w-0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                  {excelDoc ? (
+                    <span className="text-xs text-slate-600 truncate flex-1">{excelDoc.fileName}</span>
+                  ) : (
+                    <span className="text-xs text-slate-400 flex-1">No Excel</span>
+                  )}
+                  {canManage && (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        disabled={uploading}
+                        onClick={() => triggerUpload(desig, 'excel')}
+                        className="text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:underline disabled:opacity-50"
+                      >
+                        {excelDoc ? 'Replace' : 'Upload'}
+                      </button>
+                      {excelDoc && (
+                        <button onClick={() => onRemove(project.id, excelDoc.id)} className="text-slate-300 hover:text-red-400 transition-colors ml-1">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {/* PDF slot */}
+                <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-[9px] border border-slate-200 bg-slate-50 min-w-0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                  {pdfDoc ? (
+                    <button
+                      onClick={() => pdfDoc.pdfDataUrl && setPdfViewing(pdfDoc.pdfDataUrl)}
+                      className="text-xs text-blue-600 hover:underline truncate flex-1 text-left"
+                    >
+                      {pdfDoc.fileName}
+                    </button>
+                  ) : (
+                    <span className="text-xs text-slate-400 flex-1">No PDF</span>
+                  )}
+                  {canManage && (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        disabled={uploading}
+                        onClick={() => triggerUpload(desig, 'pdf')}
+                        className="text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:underline disabled:opacity-50"
+                      >
+                        {pdfDoc ? 'Replace' : 'Upload'}
+                      </button>
+                      {pdfDoc && (
+                        <button onClick={() => onRemove(project.id, pdfDoc.id)} className="text-slate-300 hover:text-red-400 transition-colors ml-1">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Hidden file inputs */}
+      <input ref={excelInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelFile} />
+      <input ref={pdfInputRef} type="file" accept=".pdf" className="hidden" onChange={handlePdfFile} />
+
+      {/* PDF viewer overlay */}
+      {pdfViewing && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black/80">
+          <div className="flex items-center justify-between px-4 py-3 bg-black/60">
+            <span className="text-sm text-white font-medium">PDF Preview</span>
+            <button onClick={() => setPdfViewing(null)} className="text-white/70 hover:text-white transition-colors">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <iframe src={pdfViewing} className="flex-1 w-full border-0" title="PDF Document" />
+        </div>
+      )}
     </div>
   )
 }

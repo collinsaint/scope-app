@@ -1,6 +1,28 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Project, ScopeItem, Subcontractor, GlobalSubcontractor, JobGroup, Superintendent, ProjectSketch, SketchLabel, Walk, WalkItemOverride, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, CommentNote } from '../types'
+import type { Project, ScopeItem, Subcontractor, GlobalSubcontractor, JobGroup, Superintendent, ProjectSketch, SketchLabel, Walk, WalkItemOverride, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, CommentNote, ProjectDocument } from '../types'
+import { mergeItems, cancelCreditedItems } from '../lib/parseExcel'
+
+function recomputeFromDocuments(documents: ProjectDocument[], currentItems: ScopeItem[]): { items: ScopeItem[]; walkSourceItems: ScopeItem[] } {
+  const siteVisitDoc = documents.find(d => d.designation === 'site-visit' && d.fileType === 'excel')
+  const walkSourceItems = siteVisitDoc?.parsedItems ?? []
+
+  const sowDoc = documents.find(d => d.designation === 'approved-sow' && d.fileType === 'excel')
+  if (!sowDoc?.parsedItems) return { items: currentItems, walkSourceItems }
+
+  let items = mergeItems(currentItems, sowDoc.parsedItems)
+
+  for (const co of ['change-order-1', 'change-order-2', 'change-order-3'] as const) {
+    const coDoc = documents.find(d => d.designation === co && d.fileType === 'excel')
+    if (!coDoc?.parsedItems?.length) continue
+    const nonHeaderItems = items.filter(i => !i.isHeader)
+    const nonHeaderCo = coDoc.parsedItems.filter(i => !i.isHeader)
+    const combined = cancelCreditedItems([...nonHeaderItems, ...nonHeaderCo])
+    items = combined.map((item, idx) => ({ ...item, rowNum: idx + 1 }))
+  }
+
+  return { items, walkSourceItems }
+}
 
 interface StoreState {
   projects: Project[]
@@ -74,6 +96,8 @@ interface StoreState {
   deleteWalkCustomRoom: (projectId: string, walkId: string, room: string) => void
   addWalkGeneralNote: (projectId: string, walkId: string, note: WalkGeneralNote) => void
   deleteWalkGeneralNote: (projectId: string, walkId: string, noteId: string) => void
+  uploadProjectDocument: (projectId: string, doc: ProjectDocument) => void
+  removeProjectDocument: (projectId: string, docId: string) => void
 }
 
 export const useStore = create<StoreState>()(
@@ -733,6 +757,31 @@ export const useStore = create<StoreState>()(
             }
           ),
         })),
+
+      uploadProjectDocument: (projectId, doc) =>
+        set((s) => ({
+          projects: s.projects.map((p) => {
+            if (p.id !== projectId) return p
+            const docs = [
+              ...(p.documents ?? []).filter(
+                (d) => !(d.designation === doc.designation && d.fileType === doc.fileType)
+              ),
+              doc,
+            ]
+            const { items, walkSourceItems } = recomputeFromDocuments(docs, p.items)
+            return { ...p, documents: docs, items, walkSourceItems }
+          }),
+        })),
+
+      removeProjectDocument: (projectId, docId) =>
+        set((s) => ({
+          projects: s.projects.map((p) => {
+            if (p.id !== projectId) return p
+            const docs = (p.documents ?? []).filter((d) => d.id !== docId)
+            const { items, walkSourceItems } = recomputeFromDocuments(docs, p.items)
+            return { ...p, documents: docs, items, walkSourceItems }
+          }),
+        })),
     }),
     {
       name: 'proscope-storage',
@@ -749,6 +798,7 @@ export const useStore = create<StoreState>()(
             roomPhotos: (w.roomPhotos ?? []).map((ph) => ({ ...ph, data: '' })),
           })),
           sketches: (p.sketches ?? []).map((sk) => ({ ...sk, data: '' })),
+          documents: (p.documents ?? []).map((d) => ({ ...d, pdfDataUrl: undefined, parsedItems: d.parsedItems })),
         })),
       }),
     }

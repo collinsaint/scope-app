@@ -92,6 +92,18 @@ export interface Superintendent {
   name: string
 }
 
+export type DocumentDesignation = 'site-visit' | 'approved-sow' | 'change-order-1' | 'change-order-2' | 'change-order-3'
+
+export interface ProjectDocument {
+  id: string
+  designation: DocumentDesignation
+  fileType: 'excel' | 'pdf'
+  fileName: string
+  uploadedAt: string
+  parsedItems?: ScopeItem[]
+  pdfDataUrl?: string
+}
+
 export interface ScopeItem {
   id: string
   rowNum: number
@@ -210,6 +222,8 @@ export interface Project {
   isDemo?: boolean
   spanishMode?: boolean
   translationCache?: Record<string, string>
+  documents?: ProjectDocument[]
+  walkSourceItems?: ScopeItem[]
 }
 
 // ─── Purchase Orders ─────────────────────────────────────────────────────────

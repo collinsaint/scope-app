@@ -501,7 +501,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
           </div>
         )}
 
-        {showModal && <NewProjectModal onClose={() => setShowModal(false)} onCreated={onOpenProject} />}
+        {showModal && <NewProjectModal onClose={() => setShowModal(false)} onCreated={onOpenProjectDetails} />}
       </div>
 
       {/* Item detail popup */}
