@@ -282,15 +282,17 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
             </svg>
             Mark complete
           </button>
-          <button
-            onClick={() => setConfirmUncomplete(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>
-            </svg>
-            Mark incomplete
-          </button>
+          {!isSubUser && (
+            <button
+              onClick={() => setConfirmUncomplete(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>
+              </svg>
+              Mark incomplete
+            </button>
+          )}
           <div className="w-px h-4 bg-blue-200" />
           <span className="text-xs text-slate-500">Assign to:</span>
           <select

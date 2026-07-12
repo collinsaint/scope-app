@@ -11,11 +11,12 @@ function fmt(n: number) {
 interface Props {
   project: Project
   canManage?: boolean
+  isSubUser?: boolean
 }
 
-export function ProjectDetailsView({ project, canManage = false }: Props) {
+export function ProjectDetailsView({ project, canManage = false, isSubUser = false }: Props) {
   const { updateProjectDetails, jobGroups, superintendents, addSketch, removeSketch, setSpanishMode,
-    globalSubcontractors, addSubcontractor, deleteSubcontractor, updateProjectSubcontractor } = useStore()
+    globalSubcontractors, addSubcontractor, updateProjectSubcontractor } = useStore()
   const sketches = project.sketches ?? []
   const usedLabels = new Set(sketches.map(s => s.label))
   const availableLabels = SKETCH_LABELS.filter(l => !usedLabels.has(l))
@@ -34,7 +35,6 @@ export function ProjectDetailsView({ project, canManage = false }: Props) {
   const [saved, setSaved] = useState(false)
   const [resetting, setResetting] = useState(false)
   const [resetConfirm, setResetConfirm] = useState(false)
-  const [selectedGlobalId, setSelectedGlobalId] = useState('')
   const [pctDraft, setPctDraft] = useState<Record<string, string>>({})
 
   const dataItems = project.items.filter(i => !i.isHeader)
@@ -44,25 +44,21 @@ export function ProjectDetailsView({ project, canManage = false }: Props) {
   const remainingAmount = totalAmount - completedAmount
   const pct = dataItems.length ? Math.round(completed.length / dataItems.length * 100) : 0
   const subcontractors = project.subcontractors ?? []
-  const unassignedGlobals = globalSubcontractors.filter(g => !subcontractors.some(s => s.id === g.id))
-
-  function handleAddSubcontractor() {
-    const global = globalSubcontractors.find(g => g.id === selectedGlobalId)
-    if (!global) return
-    addSubcontractor(project.id, {
-      id: global.id,
-      name: global.name,
-      color: global.color,
-      percentage: global.defaultPercentage > 0 ? global.defaultPercentage : undefined,
-    })
-    setSelectedGlobalId('')
-  }
 
   function commitPct(subId: string) {
     const raw = pctDraft[subId]
     if (raw === undefined) return
     const val = parseFloat(raw)
-    updateProjectSubcontractor(project.id, subId, { percentage: isNaN(val) || raw.trim() === '' ? undefined : val })
+    const percentage = isNaN(val) || raw.trim() === '' ? undefined : val
+    const existsInProject = subcontractors.some(s => s.id === subId)
+    if (existsInProject) {
+      updateProjectSubcontractor(project.id, subId, { percentage })
+    } else {
+      const global = globalSubcontractors.find(g => g.id === subId)
+      if (global && percentage !== undefined) {
+        addSubcontractor(project.id, { id: global.id, name: global.name, color: global.color, percentage })
+      }
+    }
     setPctDraft(d => { const n = { ...d }; delete n[subId]; return n })
   }
   const commentCount = dataItems.filter(i => i.comment).length
@@ -105,6 +101,75 @@ export function ProjectDetailsView({ project, canManage = false }: Props) {
       setResetting(false)
       setResetConfirm(false)
     }
+  }
+
+  if (isSubUser) {
+    return (
+      <div className="flex-1 overflow-auto px-6 py-6">
+        <div className="max-w-3xl space-y-5">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+            {/* Project Info — read-only */}
+            <div className="section-card p-5">
+              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-4">Project Info</h2>
+              <div className="space-y-3">
+                <div>
+                  <p className="label-base">Project Name</p>
+                  <p className="text-sm font-medium text-slate-800">{project.name || '—'}</p>
+                </div>
+                <div>
+                  <p className="label-base">Address</p>
+                  <p className="text-sm font-medium text-slate-800">{project.address || '—'}</p>
+                </div>
+                <div>
+                  <p className="label-base">Superintendent</p>
+                  <p className="text-sm font-medium text-slate-800">{project.superintendent || '—'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Applicant Info — read-only */}
+            <div className="section-card p-5">
+              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-4">Applicant Info</h2>
+              <div className="space-y-3">
+                <div>
+                  <p className="label-base">Applicant Name</p>
+                  <p className="text-sm font-medium text-slate-800">{project.applicantName || '—'}</p>
+                </div>
+                <div>
+                  <p className="label-base">Applicant Phone #</p>
+                  <p className="text-sm font-medium text-slate-800">{project.applicantPhone || '—'}</p>
+                </div>
+                <div>
+                  <p className="label-base">Applicant Email</p>
+                  <p className="text-sm font-medium text-slate-800">{project.applicantEmail || '—'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Display Options */}
+          <div className="section-card p-5">
+            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-4">Display Options</h2>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-700">Spanish Mode</p>
+                <p className="text-xs text-slate-400 mt-0.5">Translate line item descriptions to Spanish</p>
+              </div>
+              <button
+                onClick={() => setSpanishMode(project.id, !(project.spanishMode ?? false))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${project.spanishMode ? 'bg-blue-600' : 'bg-slate-200'}`}
+                role="switch"
+                aria-checked={project.spanishMode ?? false}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${project.spanishMode ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -341,60 +406,39 @@ export function ProjectDetailsView({ project, canManage = false }: Props) {
         <div className="section-card overflow-hidden">
           <div className="section-card-header">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em]">Project Subcontractors</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Only these subcontractors can be assigned to line items in the scope.</p>
+            <p className="text-xs text-slate-400 mt-0.5">All subcontractors are available in every project. Set a pay percentage per project below.</p>
           </div>
-          {subcontractors.length > 0 ? (
+          {globalSubcontractors.length === 0 ? (
+            <div className="px-5 py-6 text-center">
+              <p className="text-sm text-slate-400">No subcontractors configured yet — add them in Contractor Settings.</p>
+            </div>
+          ) : (
             <div className="divide-y divide-slate-100">
-              {subcontractors.map(sub => (
-                <div key={sub.id} className="flex items-center gap-3 px-5 py-3">
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color }} />
-                  <span className="text-sm font-medium text-slate-800 flex-1">{sub.name}</span>
-                  {canManage ? (
-                    <>
+              {globalSubcontractors.map(global => {
+                const projectSub = subcontractors.find(s => s.id === global.id)
+                return (
+                  <div key={global.id} className="flex items-center gap-3 px-5 py-3">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: global.color }} />
+                    <span className="text-sm font-medium text-slate-800 flex-1">{global.name}</span>
+                    {canManage ? (
                       <div className="flex items-center gap-1.5">
                         <input
                           type="number" min="0" max="100" step="0.1"
-                          value={sub.id in pctDraft ? pctDraft[sub.id] : (sub.percentage ?? '')}
-                          onChange={e => setPctDraft(d => ({ ...d, [sub.id]: e.target.value }))}
-                          onBlur={() => commitPct(sub.id)}
-                          onKeyDown={e => e.key === 'Enter' && commitPct(sub.id)}
+                          value={global.id in pctDraft ? pctDraft[global.id] : (projectSub?.percentage ?? '')}
+                          onChange={e => setPctDraft(d => ({ ...d, [global.id]: e.target.value }))}
+                          onBlur={() => commitPct(global.id)}
+                          onKeyDown={e => e.key === 'Enter' && commitPct(global.id)}
                           placeholder="—"
                           className="w-16 px-2 py-1 text-xs border border-slate-200 rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
                         />
                         <span className="text-xs text-slate-400">%</span>
                       </div>
-                      <button onClick={() => deleteSubcontractor(project.id, sub.id)} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                        </svg>
-                      </button>
-                    </>
-                  ) : (
-                    sub.percentage != null && <span className="text-xs text-slate-500">{sub.percentage}%</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="px-5 py-6 text-center">
-              <p className="text-sm text-slate-400">No subcontractors assigned to this project yet.</p>
-            </div>
-          )}
-          {canManage && (
-            <div className="px-5 py-4 border-t border-slate-100 bg-[#F9F8FF] rounded-b-[14px]">
-              {globalSubcontractors.length === 0 ? (
-                <p className="text-xs text-slate-400">No subcontractors configured yet — add them in Contractor Settings.</p>
-              ) : unassignedGlobals.length === 0 ? (
-                <p className="text-xs text-slate-400">All configured subcontractors have been assigned to this project.</p>
-              ) : (
-                <div className="flex gap-2">
-                  <select value={selectedGlobalId} onChange={e => setSelectedGlobalId(e.target.value)} className="input-base flex-1">
-                    <option value="">Select subcontractor…</option>
-                    {unassignedGlobals.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                  </select>
-                  <button onClick={handleAddSubcontractor} disabled={!selectedGlobalId} className="btn-primary">Add</button>
-                </div>
-              )}
+                    ) : (
+                      projectSub?.percentage != null && <span className="text-xs text-slate-500">{projectSub.percentage}%</span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

@@ -63,12 +63,14 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
   const [showTotals, setShowTotals] = useState(false)
   const [addRoomName, setAddRoomName] = useState<string | null>(null)
   const [activeWalkId, setActiveWalkId] = useState<string | null>(() => {
+    if (isSubUser) return null
     const proj = useStore.getState().projects.find(p => p.id === projectId)
     if (proj?.projectStatus === 'Site Visit' && proj.walks?.length) {
       return proj.walks[0].id
     }
     return null
   })
+
   // Sync activeView when the parent requests a specific view (e.g. mobile nav buttons)
   useEffect(() => { setActiveView(initialView) }, [initialView])
   // Notify parent whenever subview changes (used by MobileNav for active state)
@@ -85,6 +87,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
   // Auto-switch to walk view when walks are added to a Site Visit project after initial render
   const walksLen = project?.walks?.length ?? 0
   useEffect(() => {
+    if (isSubUser) return
     if (project?.projectStatus === 'Site Visit' && walksLen > 0 && activeWalkId === null) {
       setActiveWalkId(project!.walks![0].id)
     }
@@ -205,17 +208,21 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                 Project Info
               </button>
-              <select
-                value={activeWalkId ?? ''}
-                onChange={e => { setActiveWalkId(e.target.value || null); setActiveView('scope') }}
-                className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-              >
-                <option value="">Main Scope</option>
-                {(project.walks ?? []).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
-              <button onClick={() => setShowNewWalk(true)} className="flex items-center gap-1 px-2 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors" title="New Walk">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              </button>
+              {!isSubUser && (
+                <>
+                  <select
+                    value={activeWalkId ?? ''}
+                    onChange={e => { setActiveWalkId(e.target.value || null); setActiveView('scope') }}
+                    className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value="">Main Scope</option>
+                    {(project.walks ?? []).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                  <button onClick={() => setShowNewWalk(true)} className="flex items-center gap-1 px-2 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors" title="New Walk">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </button>
+                </>
+              )}
               <button
                 onClick={() => { (project.sketches?.length ?? 0) > 0 ? setShowSketchViewer(true) : (setSketchLabel(SKETCH_LABELS[0]), setShowSketchUpload(true)) }}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors"
@@ -267,22 +274,24 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                 )}
               </button>
               {/* Walk selector */}
-              <button
-                onClick={() => setShowWalkBar(v => !v)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
-                style={{
-                  border: '1px solid rgba(255,255,255,0.22)',
-                  background: showWalkBar ? 'rgba(255,255,255,0.2)' : 'transparent',
-                  color: showWalkBar ? '#ffffff' : 'rgba(206,203,246,0.65)',
-                }}
-                title="Toggle walk selector"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="3" y1="6" x2="21" y2="6"/>
-                  <line x1="3" y1="12" x2="21" y2="12"/>
-                  <line x1="3" y1="18" x2="21" y2="18"/>
-                </svg>
-              </button>
+              {!isSubUser && (
+                <button
+                  onClick={() => setShowWalkBar(v => !v)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
+                  style={{
+                    border: '1px solid rgba(255,255,255,0.22)',
+                    background: showWalkBar ? 'rgba(255,255,255,0.2)' : 'transparent',
+                    color: showWalkBar ? '#ffffff' : 'rgba(206,203,246,0.65)',
+                  }}
+                  title="Toggle walk selector"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="3" y1="6" x2="21" y2="6"/>
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                  </svg>
+                </button>
+              )}
               {/* Totals $ — same width as comments button */}
               <button
                 onClick={() => setShowTotals(v => !v)}
@@ -542,7 +551,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
             onEditComment={(itemId) => { openComment(itemId) }}
           />
         ) : (
-          <ProjectDetailsView project={project} canManage={canManageProjectSubs} />
+          <ProjectDetailsView project={project} canManage={canManageProjectSubs} isSubUser={isSubUser} />
         )}
       </div>
 
