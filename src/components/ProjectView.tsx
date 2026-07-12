@@ -40,9 +40,10 @@ interface Props {
   canManageProjectSubs?: boolean
   isSubUser?: boolean
   canApprove?: boolean
+  subOrgName?: string
 }
 
-export function ProjectView({ projectId, onBack, initialView = 'scope', onSubViewChange, canManageProjectSubs = false, isSubUser = false, canApprove = true }: Props) {
+export function ProjectView({ projectId, onBack, initialView = 'scope', onSubViewChange, canManageProjectSubs = false, isSubUser = false, canApprove = true, subOrgName }: Props) {
   const { isMobile } = useViewMode()
   const { projects, updateProjectItems, addWalk, addSketch, removeSketch, addWalkCustomRoom, addCommentNote, deleteCommentNote } = useStore()
   const project = projects.find(p => p.id === projectId)
@@ -539,6 +540,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
           <ScopeTable
             projectId={projectId}
             items={project.items}
+            subOrgName={subOrgName}
             subcontractors={subcontractors}
             roomFilter={roomFilter}
             onOpenComment={openComment}

@@ -99,9 +99,10 @@ interface Props {
   onOpenComment: (itemId: string) => void
   isSubUser?: boolean
   canApprove?: boolean
+  subOrgName?: string
 }
 
-export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true }: Props) {
+export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true, subOrgName }: Props) {
   const { isMobile } = useViewMode()
   const { toggleItem, assignSubcontractor, bulkComplete, bulkUncomplete, setPendingApproval, approveItem, rejectItem, bulkSetPending } = useStore()
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
@@ -150,7 +151,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   }, [someSelected])
 
   if (isMobile) {
-    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} isSubUser={isSubUser} canApprove={canApprove} />
+    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} isSubUser={isSubUser} canApprove={canApprove} subOrgName={subOrgName} />
   }
 
   function handleItemToggle(item: ScopeItem) {

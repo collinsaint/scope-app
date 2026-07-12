@@ -40,6 +40,7 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
   const [pctDraft, setPctDraft] = useState<Record<string, string>>({})
   const [selectedGlobalId, setSelectedGlobalId] = useState('')
   const [linkedSubOrgs, setLinkedSubOrgs] = useState<SubOrg[]>([])
+  const [confirmRemoveSubId, setConfirmRemoveSubId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchMyContractorSubOrgs().then(setLinkedSubOrgs)
@@ -83,6 +84,7 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
       const subOrgId = resolveSubOrgId(global.name, global.subOrgId)
       if (subOrgId) revokeProjectAccessForSubOrg(project.id, subOrgId)
     }
+    setConfirmRemoveSubId(null)
   }
 
   function commitPct(subId: string) {
@@ -459,7 +461,7 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
                         />
                         <span className="text-xs text-slate-400">%</span>
                       </div>
-                      <button onClick={() => handleRemoveSubcontractor(sub.id)} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
+                      <button onClick={() => setConfirmRemoveSubId(sub.id)} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
                         </svg>
@@ -566,6 +568,34 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
         )}
 
       </div>
+
+      {/* Remove subcontractor confirmation dialog */}
+      {confirmRemoveSubId && (() => {
+        const sub = subcontractors.find(s => s.id === confirmRemoveSubId)
+        const assignedCount = project.items.filter(i => !i.isHeader && i.subcontractorId === confirmRemoveSubId).length
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmRemoveSubId(null)} />
+            <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6">
+              <h3 className="text-base font-semibold text-slate-900 mb-2">Remove {sub?.name}?</h3>
+              <p className="text-sm text-slate-500 leading-relaxed">
+                This will unassign <span className="font-medium text-slate-700">{sub?.name}</span> from this project and revoke their access.
+              </p>
+              {assignedCount > 0 && (
+                <div className="mt-3 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200">
+                  <p className="text-xs text-amber-700 font-medium">
+                    ⚠ {assignedCount} scope item{assignedCount !== 1 ? 's are' : ' is'} currently assigned to this subcontractor. Those assignments will remain on the line items but the sub will lose project access.
+                  </p>
+                </div>
+              )}
+              <div className="flex gap-2 mt-5">
+                <button onClick={() => setConfirmRemoveSubId(null)} className="btn-ghost flex-1 border border-slate-200">Cancel</button>
+                <button onClick={() => handleRemoveSubcontractor(confirmRemoveSubId)} className="flex-1 px-4 py-2 rounded-[10px] bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors">Remove</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

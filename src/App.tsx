@@ -190,6 +190,7 @@ export default function App() {
   const isContractorAdmin = isAppAdmin || currentUser?.contractorRole === 'admin' || currentUser?.contractorRole === 'manager'
   const canManageProjectSubs = isAppAdmin || !!currentUser?.contractorOrg
   const isSubUser = !!currentUser?.subcontractorOrg
+  const subOrgName = currentUser?.subcontractorOrg?.name ?? undefined
   const isSubManager = isSubUser && currentUser?.subcontractorRole === 'manager'
   const isSuperintendent = isAppAdmin || !!currentUser?.contractorOrg
   const canApprove = !isSubUser
@@ -234,6 +235,7 @@ export default function App() {
               canManageProjectSubs={canManageProjectSubs}
               isSubUser={isSubUser}
               canApprove={canApprove}
+              subOrgName={subOrgName}
             />
           ) : view === 'financials' ? (
             <FinancialsView />

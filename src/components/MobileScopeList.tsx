@@ -12,6 +12,7 @@ interface Props {
   roomFilter: string
   isSubUser?: boolean
   canApprove?: boolean
+  subOrgName?: string
 }
 
 function fmt(n: number) {
@@ -152,7 +153,7 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   a.click()
 }
 
-export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true }: Props) {
+export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true, subOrgName }: Props) {
   const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, bulkSetPending, bulkClearPending, assignSubcontractor } = useStore()
   const project = projects.find(p => p.id === projectId)
   const spanishMode = project?.spanishMode ?? false
@@ -179,6 +180,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   const [commentModalItemId, setCommentModalItemId] = useState<string | null>(null)
   const [commentDraft, setCommentDraft] = useState('')
   const [commentDeleteConfirm, setCommentDeleteConfirm] = useState<number | null>(null)
+  const [assignMode, setAssignMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [subPickerItemId, setSubPickerItemId] = useState<string | null>(null)
   const [bulkSubId, setBulkSubId] = useState('')
@@ -222,9 +224,15 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
     }).finally(() => setTranslating(false))
   }, [spanishMode, projectId])
 
+  // For sub users, only show items assigned to their sub org
+  const mySubId = isSubUser && subOrgName
+    ? subcontractors.find(s => s.name.toLowerCase() === subOrgName.toLowerCase())?.id ?? null
+    : null
+
   const roomFiltered = items.filter(i => {
     if (roomFilter !== 'all' && i.room !== roomFilter) return false
     if (!i.isHeader && i.coverage?.toUpperCase() === 'DRV') return false
+    if (mySubId !== null && !i.isHeader && i.subcontractorId !== mySubId) return false
     return true
   })
   const dataItems = roomFiltered.filter(i => !i.isHeader)
@@ -633,24 +641,57 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
             {coverageOptions.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
-        {/* Search icon only */}
-        <button
-          onClick={() => setShowSearch(true)}
-          className={`ml-auto p-2 rounded-full border transition-colors flex-shrink-0 ${
-            search ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-500 bg-white'
-          }`}
-          title="Search"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-        </button>
+        <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+          {/* Assign toggle — contractors only */}
+          {!isSubUser && subcontractors.length > 0 && (
+            <button
+              onClick={() => { setAssignMode(v => { if (v) setSelectedIds(new Set()); return !v }); }}
+              className={`px-2.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                assignMode ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-500 bg-white'
+              }`}
+            >
+              Assign
+            </button>
+          )}
+          {/* Search */}
+          <button
+            onClick={() => setShowSearch(true)}
+            className={`p-2 rounded-full border transition-colors ${
+              search ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-500 bg-white'
+            }`}
+            title="Search"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Card list */}
       <div className="flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
-          <div className="flex items-center justify-center py-20 text-sm text-slate-400">No items</div>
+          <div className="flex flex-col items-center justify-center py-20 gap-2 text-center px-6">
+            {isSubUser && mySubId === null && subcontractors.length > 0 ? (
+              <>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                </svg>
+                <p className="text-sm font-medium text-slate-500">No scope items assigned to you yet.</p>
+                <p className="text-xs text-slate-400">Your contractor will assign items once the scope is ready.</p>
+              </>
+            ) : isSubUser && mySubId !== null ? (
+              <>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                </svg>
+                <p className="text-sm font-medium text-slate-500">No scope items assigned to you yet.</p>
+                <p className="text-xs text-slate-400">Your contractor will assign items once the scope is ready.</p>
+              </>
+            ) : (
+              <p className="text-sm text-slate-400">No items</p>
+            )}
+          </div>
         ) : (
           <div>
             {groupedByRoom.map(group => {
@@ -674,7 +715,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                             : { background: '#EEEDFE', borderColor: '#CECBF6' }
                         }
                       >
-                        {!isSubUser && (() => {
+                        {!isSubUser && assignMode && (() => {
                           const roomIds = group.roomItems.map(i => i.id)
                           const allSel = roomIds.length > 0 && roomIds.every(id => selectedIds.has(id))
                           const someSel = !allSel && roomIds.some(id => selectedIds.has(id))
@@ -768,8 +809,8 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                         <div key={item.id} className={`${item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : 'bg-white'} ${selectedIds.has(item.id) ? 'ring-1 ring-inset ring-blue-400' : ''}`}>
                           {/* Card row */}
                           <div className="flex items-start gap-3 px-4 py-3">
-                            {/* Bulk select checkbox (contractor only) */}
-                            {!isSubUser && (
+                            {/* Bulk select checkbox (contractor only, assign mode only) */}
+                            {!isSubUser && assignMode && (
                               <input
                                 type="checkbox"
                                 checked={selectedIds.has(item.id)}
@@ -883,8 +924,8 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                               <span className="text-[11px] text-slate-400 leading-none">#{item.rowNum}</span>
                             </div>
                           </div>
-                          {/* Sub assignment row (contractor only) */}
-                          {!isSubUser && subcontractors.length > 0 && (
+                          {/* Sub assignment row (contractor only, assign mode only) */}
+                          {!isSubUser && assignMode && subcontractors.length > 0 && (
                             <div className="px-4 pb-2.5 flex items-center gap-2">
                               <button
                                 onClick={() => setSubPickerItemId(item.id)}
@@ -948,7 +989,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
       )}
 
       {/* Bulk action bar */}
-      {!isSubUser && selectedIds.size > 0 && (
+      {!isSubUser && assignMode && selectedIds.size > 0 && (
         <div
           className="fixed bottom-0 left-0 right-0 z-40 flex items-center gap-2 px-4 py-3 bg-white border-t border-slate-200 shadow-lg"
           style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom) + 60px)' }}
