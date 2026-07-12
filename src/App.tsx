@@ -221,7 +221,12 @@ export default function App() {
   const isSubUser = !!currentUser?.subcontractorOrg
   const subOrgName = currentUser?.subcontractorOrg?.name ?? undefined
   const isSubManager = isSubUser && currentUser?.subcontractorRole === 'manager'
-  const isSuperintendent = isAppAdmin || !!currentUser?.contractorOrg
+  // Superintendent role = contractor org member with role 'superintendent' (not admin/manager)
+  const isSuperintendentRole = !isSubUser && !isAppAdmin && currentUser?.contractorRole === 'superintendent'
+  // Anyone who can approve items (admins, managers, superintendents)
+  const isSuperintendent = isContractorAdmin || isSuperintendentRole
+  // When set, Dashboard filters to only projects assigned to this name
+  const superintendentName = isSuperintendentRole ? (currentUser?.profile.display_name ?? null) : null
   const canApprove = !isSubUser
 
   if (!user) {
@@ -248,6 +253,7 @@ export default function App() {
               onNavigateAdmin={() => navigate('admin-portal')}
               isSuperintendent={isSuperintendent}
               isSubUser={isSubUser}
+              superintendentName={superintendentName}
             />
           ) : view === 'project' ? (
             <ProjectView

@@ -16,6 +16,7 @@ interface Props {
   onNavigateAdmin?: () => void
   isSuperintendent?: boolean
   isSubUser?: boolean
+  superintendentName?: string | null
 }
 
 const statusConfig: Record<string, { dot: string; pill: string }> = {
@@ -26,8 +27,8 @@ const statusConfig: Record<string, { dot: string; pill: string }> = {
   'Closed':           { dot: 'bg-slate-300',   pill: 'bg-slate-50 border-slate-200 text-slate-600' },
 }
 
-export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendent = false }: Props) {
-  const { projects, deleteProject, approveItem, rejectItem } = useStore()
+export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendent = false, superintendentName }: Props) {
+  const { projects: allProjects, deleteProject, approveItem, rejectItem } = useStore()
   const { isMobile } = useViewMode()
   const [showModal, setShowModal] = useState(false)
   const [search, setSearch] = useState('')
@@ -36,6 +37,11 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
   const [filterSuperintendent, setFilterSuperintendent] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [expandedApprovalIds, setExpandedApprovalIds] = useState<Set<string>>(new Set())
+
+  // Superintendent-role users only see projects assigned to them
+  const projects = superintendentName
+    ? allProjects.filter(p => p.isDemo || p.superintendent?.toLowerCase() === superintendentName.toLowerCase())
+    : allProjects
 
   const jobGroupOptions = [...new Set(projects.map(p => p.jobGroup).filter(Boolean))] as string[]
   const superintendentOptions = [...new Set(projects.map(p => p.superintendent).filter(Boolean))] as string[]
