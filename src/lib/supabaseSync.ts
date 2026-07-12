@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { Project, GlobalSubcontractor, JobGroup, Superintendent } from '../types'
+import type { Project, GlobalSubcontractor, JobGroup, Superintendent, PurchaseOrder, POStatus } from '../types'
 
 // User-level settings (personal, per-user)
 export interface UserSettings {
@@ -199,3 +199,66 @@ export async function revokeProjectAccessForSubOrg(projectId: string, subOrgId: 
     // silent
   }
 }
+
+// ─── Purchase Orders ─────────────────────────────────────────────────────────
+
+export async function fetchPurchaseOrders(projectId: string): Promise<PurchaseOrder[]> {
+  try {
+    const { data, error } = await supabase
+      .from('purchase_orders')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data ?? []) as PurchaseOrder[]
+  } catch {
+    return []
+  }
+}
+
+export async function createPurchaseOrder(
+  po: Pick<PurchaseOrder, 'project_id' | 'contractor_org_id' | 'sub_org_id' | 'title' | 'amount' | 'notes'>,
+  userId: string
+): Promise<PurchaseOrder | null> {
+  try {
+    const { data, error } = await supabase
+      .from('purchase_orders')
+      .insert({ ...po, created_by: userId })
+      .select()
+      .single()
+    if (error) throw error
+    return data as PurchaseOrder
+  } catch {
+    return null
+  }
+}
+
+export async function updatePurchaseOrder(
+  id: string,
+  fields: Partial<Pick<PurchaseOrder, 'title' | 'amount' | 'status' | 'notes' | 'sub_org_id'>>
+): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('purchase_orders')
+      .update(fields)
+      .eq('id', id)
+    return !error
+  } catch {
+    return false
+  }
+}
+
+export async function deletePurchaseOrder(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('purchase_orders')
+      .delete()
+      .eq('id', id)
+    return !error
+  } catch {
+    return false
+  }
+}
+
+// Unused import guard
+export type { POStatus }

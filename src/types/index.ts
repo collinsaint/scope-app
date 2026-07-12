@@ -202,3 +202,21 @@ export interface Project {
   spanishMode?: boolean
   translationCache?: Record<string, string>
 }
+
+// ─── Purchase Orders ─────────────────────────────────────────────────────────
+
+export type POStatus = 'draft' | 'approved' | 'paid'
+
+export interface PurchaseOrder {
+  id: string
+  project_id: string
+  contractor_org_id: string
+  sub_org_id: string | null
+  title: string
+  amount: number
+  status: POStatus
+  notes: string | null
+  created_by: string
+  created_at: string
+  updated_at: string
+}

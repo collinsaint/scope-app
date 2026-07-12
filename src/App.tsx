@@ -13,14 +13,15 @@ import { SubcontractorSettingsView } from './components/SubcontractorSettingsVie
 import { UserSettingsView } from './components/UserSettingsView'
 import { AdminPortalView } from './components/AdminPortalView'
 import { FinancialsView } from './components/FinancialsView'
+import { ProjectFinancialsView } from './components/ProjectFinancialsView'
 import { InviteCodeGate } from './components/InviteCodeGate'
 import { VerascopeLoader } from './components/VerascopeLoader'
 import { seedDemoProject } from './lib/seedDemoProject'
 import { loadProjectsFromSupabase, syncProjectToSupabase, deleteProjectFromSupabase, loadSettingsFromSupabase, syncSettingsToSupabase, loadOrgSettingsForUser, syncOrgSettingsToSupabase } from './lib/supabaseSync'
 
-type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'subcontractor-settings' | 'user-settings' | 'admin-portal' | 'financials'
+type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'subcontractor-settings' | 'user-settings' | 'admin-portal' | 'financials' | 'project-financials'
 
-const VALID_VIEWS: AppView[] = ['dashboard', 'project', 'contractor-settings', 'subcontractor-settings', 'user-settings', 'admin-portal', 'financials']
+const VALID_VIEWS: AppView[] = ['dashboard', 'project', 'contractor-settings', 'subcontractor-settings', 'user-settings', 'admin-portal', 'financials', 'project-financials']
 
 function readSavedView(): AppView {
   try {
@@ -173,12 +174,17 @@ export default function App() {
     setView('project')
   }
 
+  function openProjectFinancials(id: string) {
+    setActiveProject(id)
+    setView('project-financials')
+  }
+
   function navigate(v: AppView, projectId?: string) {
     if (v === 'project' && projectId) {
       openProject(projectId, 'scope')
     } else {
       setView(v)
-      if (v !== 'project') setActiveProject(null)
+      if (v !== 'project' && v !== 'project-financials') setActiveProject(null)
     }
   }
 
@@ -214,6 +220,7 @@ export default function App() {
             <Dashboard
               onOpenProject={(id) => openProject(id, 'scope')}
               onOpenProjectDetails={(id) => openProject(id, 'details')}
+              onOpenProjectFinancials={openProjectFinancials}
               isAppAdmin={isAppAdmin}
               onNavigateAdmin={() => navigate('admin-portal')}
               isSuperintendent={isSuperintendent}
@@ -237,7 +244,21 @@ export default function App() {
               canApprove={canApprove}
               subOrgName={subOrgName}
             />
-          ) : view === 'financials' ? (
+          ) : view === 'project-financials' ? (() => {
+            const proj = projects.find(p => p.id === activeProjectId)
+            return proj ? (
+              <ProjectFinancialsView
+                project={proj}
+                onBack={() => {
+                  setView('dashboard')
+                  setActiveProject(null)
+                }}
+                contractorOrgId={currentUser?.contractorOrg?.id ?? null}
+                subOrgId={currentUser?.subcontractorOrg?.id ?? null}
+                isSubUser={isSubUser}
+              />
+            ) : null
+          })() : view === 'financials' ? (
             <FinancialsView />
           ) : view === 'contractor-settings' ? (
             <ContractorSettingsView />

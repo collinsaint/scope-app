@@ -11,6 +11,7 @@ function fmt(n: number) {
 interface Props {
   onOpenProject: (id: string) => void
   onOpenProjectDetails: (id: string) => void
+  onOpenProjectFinancials?: (id: string) => void
   isAppAdmin?: boolean
   onNavigateAdmin?: () => void
   isSuperintendent?: boolean
@@ -25,7 +26,7 @@ const statusConfig: Record<string, { dot: string; pill: string }> = {
   'Closed':           { dot: 'bg-slate-300',   pill: 'bg-slate-50 border-slate-200 text-slate-600' },
 }
 
-export function Dashboard({ onOpenProject, onOpenProjectDetails, isAppAdmin, onNavigateAdmin, isSuperintendent = false }: Props) {
+export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendent = false }: Props) {
   const { projects, deleteProject, approveItem, rejectItem } = useStore()
   const { isMobile } = useViewMode()
   const [showModal, setShowModal] = useState(false)
@@ -308,7 +309,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, isAppAdmin, onN
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((p) => (
-              <ProjectCard key={p.id} project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onDelete={deleteProject} />
+              <ProjectCard key={p.id} project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} />
             ))}
             <button
               onClick={() => setShowModal(true)}
@@ -328,7 +329,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, isAppAdmin, onN
   )
 }
 
-function ProjectCard({ project, onOpen, onOpenDetails, onDelete }: { project: Project; onOpen: (id: string) => void; onOpenDetails: (id: string) => void; onDelete: (id: string) => void }) {
+function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelete }: { project: Project; onOpen: (id: string) => void; onOpenDetails: (id: string) => void; onOpenFinancials?: (id: string) => void; onDelete: (id: string) => void }) {
   const completed = project.items.filter(i => i.completed).length
   const total = project.items.length
   const pct = total ? Math.round(completed / total * 100) : 0
@@ -418,6 +419,13 @@ function ProjectCard({ project, onOpen, onOpenDetails, onDelete }: { project: Pr
         <button onClick={() => onOpenDetails(project.id)} className="btn-ghost flex-1 justify-center text-xs border border-slate-200">
           Details
         </button>
+        {onOpenFinancials && (
+          <button onClick={() => onOpenFinancials(project.id)} className="btn-ghost flex-shrink-0 justify-center text-xs border border-slate-200 px-2.5">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   )
