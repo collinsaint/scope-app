@@ -44,7 +44,7 @@ interface Props {
 
 export function ProjectView({ projectId, onBack, initialView = 'scope', onSubViewChange, canManageProjectSubs = false, isSubUser = false, canApprove = true }: Props) {
   const { isMobile } = useViewMode()
-  const { projects, updateProjectItems, globalSubcontractors, addWalk, addSketch, removeSketch, addWalkCustomRoom, addCommentNote, deleteCommentNote } = useStore()
+  const { projects, updateProjectItems, addWalk, addSketch, removeSketch, addWalkCustomRoom, addCommentNote, deleteCommentNote } = useStore()
   const project = projects.find(p => p.id === projectId)
   const [roomFilter, setRoomFilter] = useState('all')
   const [reuploadError, setReuploadError] = useState('')
