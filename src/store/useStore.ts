@@ -39,6 +39,7 @@ interface StoreState {
   approveItem: (projectId: string, itemId: string) => void
   rejectItem: (projectId: string, itemId: string) => void
   bulkSetPending: (projectId: string, itemIds: string[]) => void
+  bulkClearPending: (projectId: string, itemIds: string[]) => void
   setComment: (projectId: string, itemId: string, comment: string) => void
   addCommentNote: (projectId: string, itemId: string, note: CommentNote) => void
   deleteCommentNote: (projectId: string, itemId: string, index: number) => void
@@ -671,6 +672,20 @@ export const useStore = create<StoreState>()(
               items: p.items.map((item) =>
                 itemIds.includes(item.id) && !item.completed && !item.pendingApproval
                   ? { ...item, pendingApproval: true, pendingApprovalAt: new Date().toISOString() }
+                  : item
+              ),
+            }
+          ),
+        })),
+
+      bulkClearPending: (projectId, itemIds) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId ? p : {
+              ...p,
+              items: p.items.map((item) =>
+                itemIds.includes(item.id) && item.pendingApproval
+                  ? { ...item, pendingApproval: undefined, pendingApprovalAt: undefined }
                   : item
               ),
             }

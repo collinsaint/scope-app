@@ -153,7 +153,7 @@ function downloadDataUrl(dataUrl: string, filename: string) {
 }
 
 export function MobileScopeList({ projectId, items, roomFilter, isSubUser = false, canApprove = true }: Props) {
-  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, bulkSetPending } = useStore()
+  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, bulkSetPending, bulkClearPending } = useStore()
   const project = projects.find(p => p.id === projectId)
   const spanishMode = project?.spanishMode ?? false
   const translationCache = project?.translationCache ?? {}
@@ -642,19 +642,23 @@ export function MobileScopeList({ projectId, items, roomFilter, isSubUser = fals
                 <div key={group.room}>
                   {/* Sticky room header */}
                   {(() => {
-                    const allDone = group.roomItems.length > 0 && group.roomItems.every(i => i.completed)
+                    const allCompleted = group.roomItems.length > 0 && group.roomItems.every(i => i.completed)
+                    const allPendingOrDone = isSubUser
+                      ? group.roomItems.length > 0 && group.roomItems.every(i => i.completed || i.pendingApproval)
+                      : allCompleted
+                    const headerDone = allCompleted
                     return (
                       <div
                         className="sticky top-0 z-10 px-4 py-2 border-b flex items-center gap-2 transition-colors"
                         style={
-                          allDone
+                          headerDone
                             ? { background: '#dcfce7', borderColor: '#bbf7d0' }
                             : { background: '#EEEDFE', borderColor: '#CECBF6' }
                         }
                       >
                         <span
                           className="text-[11px] font-bold uppercase tracking-widest flex-1 min-w-0 truncate"
-                          style={{ color: allDone ? '#15803d' : '#3C3489' }}
+                          style={{ color: headerDone ? '#15803d' : '#3C3489' }}
                         >
                           {roomLabel(group.room, spanishMode)}
                         </span>
@@ -679,11 +683,15 @@ export function MobileScopeList({ projectId, items, roomFilter, isSubUser = fals
                           )}
                         </button>
 
-                        {allDone ? (
+                        {allPendingOrDone ? (
                           <button
                             onClick={() => {
-                              const ids = group.roomItems.map(i => i.id)
-                              bulkUncomplete(projectId, ids)
+                              if (isSubUser) {
+                                const pendingIds = group.roomItems.filter(i => i.pendingApproval).map(i => i.id)
+                                bulkClearPending(projectId, pendingIds)
+                              } else {
+                                bulkUncomplete(projectId, group.roomItems.map(i => i.id))
+                              }
                               setBulkCompletedRooms(prev => {
                                 const next = new Set(prev)
                                 next.delete(group.room)
@@ -691,7 +699,7 @@ export function MobileScopeList({ projectId, items, roomFilter, isSubUser = fals
                               })
                             }}
                             className="text-[10px] font-medium px-2 py-1 rounded-md border transition-colors flex-shrink-0 whitespace-nowrap"
-                            style={{ color: '#15803d', borderColor: '#86efac', background: '#f0fdf4' }}
+                            style={{ color: '#92400e', borderColor: '#fcd34d', background: '#fffbeb' }}
                           >
                             Undo All
                           </button>
