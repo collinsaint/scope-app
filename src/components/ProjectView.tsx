@@ -137,6 +137,11 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
   }
 
   const subcontractors = project.subcontractors ?? []
+  const mySubEntry = isSubUser && subOrgName
+    ? subcontractors.find(s => s.name.toLowerCase() === subOrgName.toLowerCase()) ?? null
+    : null
+  const mySubId = mySubEntry?.id ?? null
+  const subPercentage = mySubEntry?.percentage ?? 100
   const dataItems = project.items.filter(i => !i.isHeader)
   const activeWalk = (project.walks ?? []).find(w => w.id === activeWalkId)
   const baseRooms = Array.from(new Set(project.items.map(i => i.room)))
@@ -359,7 +364,15 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
       {/* Summary cards — hidden by default, toggled with $ button; also hidden on details/walk view */}
       {showTotals && activeView !== 'details' && !activeWalkId && (
         <div className="bg-white border-b border-slate-100 flex-shrink-0">
-          <SummaryCards items={project.items} />
+          <SummaryCards
+            items={
+              isSubUser && mySubId
+                ? project.items
+                    .filter(i => !i.isHeader && i.subcontractorId === mySubId)
+                    .map(i => ({ ...i, rcv: i.rcv * subPercentage / 100 }))
+                : project.items
+            }
+          />
         </div>
       )}
 
@@ -546,6 +559,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
             onOpenComment={openComment}
             isSubUser={isSubUser}
             canApprove={canApprove}
+            subPercentage={isSubUser ? subPercentage : undefined}
           />
         ) : activeView === 'comments' ? (
           <CommentsView

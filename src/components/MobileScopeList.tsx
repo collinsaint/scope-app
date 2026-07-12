@@ -13,6 +13,7 @@ interface Props {
   isSubUser?: boolean
   canApprove?: boolean
   subOrgName?: string
+  subPercentage?: number
 }
 
 function fmt(n: number) {
@@ -153,7 +154,7 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   a.click()
 }
 
-export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true, subOrgName }: Props) {
+export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true, subOrgName, subPercentage }: Props) {
   const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, bulkSetPending, bulkClearPending, assignSubcontractor } = useStore()
   const project = projects.find(p => p.id === projectId)
   const spanishMode = project?.spanishMode ?? false
@@ -805,6 +806,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                   <div className="divide-y divide-slate-100">
                     {group.roomItems.map(item => {
                       const assignedSub = subcontractors.find(s => s.id === item.subcontractorId)
+                      const displayRcv = subPercentage != null ? item.rcv * subPercentage / 100 : item.rcv
                       return (
                         <div key={item.id} className={`${item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : 'bg-white'} ${selectedIds.has(item.id) ? 'ring-1 ring-inset ring-blue-400' : ''}`}>
                           {/* Card row */}
@@ -865,7 +867,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                   </span>
                                 )}
                                 {item.qty > 0 && <span className="text-[11px] text-slate-400">{fmtQty(item.qty)} {item.unit}</span>}
-                                {item.rcv > 0 && <span className="text-[11px] font-semibold text-slate-600">{fmt(item.rcv)}</span>}
+                                {item.rcv > 0 && <span className="text-[11px] font-semibold text-slate-600">{fmt(displayRcv)}</span>}
                                 {item.coverage && (
                                   <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${coverageColorClass(item.coverage)}`}>
                                     {item.coverage}

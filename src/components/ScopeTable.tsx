@@ -100,9 +100,10 @@ interface Props {
   isSubUser?: boolean
   canApprove?: boolean
   subOrgName?: string
+  subPercentage?: number
 }
 
-export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true, subOrgName }: Props) {
+export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true, subOrgName, subPercentage }: Props) {
   const { isMobile } = useViewMode()
   const { toggleItem, assignSubcontractor, bulkComplete, bulkUncomplete, setPendingApproval, approveItem, rejectItem, bulkSetPending } = useStore()
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
@@ -151,7 +152,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   }, [someSelected])
 
   if (isMobile) {
-    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} isSubUser={isSubUser} canApprove={canApprove} subOrgName={subOrgName} />
+    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} isSubUser={isSubUser} canApprove={canApprove} subOrgName={subOrgName} subPercentage={subPercentage} />
   }
 
   function handleItemToggle(item: ScopeItem) {
@@ -510,6 +511,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                     onNoteClick={() => setNoteModalItem(row)}
                     isSubUser={isSubUser}
                     canApprove={canApprove}
+                    subPercentage={subPercentage}
                   />
                 )
               )
@@ -588,9 +590,10 @@ interface RowProps {
   onNoteClick: () => void
   isSubUser?: boolean
   canApprove?: boolean
+  subPercentage?: number
 }
 
-function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onOpenComment, onPhotoClick, onNoteClick, isSubUser = false, canApprove = true }: RowProps) {
+function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onOpenComment, onPhotoClick, onNoteClick, isSubUser = false, canApprove = true, subPercentage }: RowProps) {
   const [showConfirm, setShowConfirm] = useState(false)
 
   function handleConfirm() {
@@ -649,7 +652,7 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
         {/* Amount */}
         <td className="px-3 py-3 text-[13px] font-medium whitespace-nowrap">
           <span className={item.completed ? 'text-green-600' : 'text-slate-800'}>
-            {item.rcv > 0 ? fmt(item.rcv) : '—'}
+            {item.rcv > 0 ? fmt(subPercentage != null ? item.rcv * subPercentage / 100 : item.rcv) : '—'}
           </span>
         </td>
 
