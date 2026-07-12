@@ -41,7 +41,7 @@ interface PendingItemDetail {
 }
 
 export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendentRole = false, superintendentUserId, superintendentName, currentUserName, isContractorAdmin = false }: Props) {
-  const { projects: allProjects, deleteProject, approveItem, returnItem } = useStore()
+  const { projects: allProjects, deleteProject, approveItem, returnItem, bulkApproveItems } = useStore()
   const { isMobile } = useViewMode()
   const [showModal, setShowModal] = useState(false)
   const [search, setSearch] = useState('')
@@ -52,6 +52,8 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
   const [expandedApprovalIds, setExpandedApprovalIds] = useState<Set<string>>(new Set())
   const [itemDetail, setItemDetail] = useState<PendingItemDetail | null>(null)
   const [detailComment, setDetailComment] = useState('')
+  const [approveConfirming, setApproveConfirming] = useState(false)
+  const [bulkConfirmProject, setBulkConfirmProject] = useState<{ id: string; count: number; itemIds: string[] } | null>(null)
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card')
 
   const projects = (() => {
@@ -426,9 +428,9 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                 const isExpanded = expandedApprovalIds.has(project.id)
                 return (
                   <div key={project.id}>
-                    <button
+                    <div
                       onClick={() => toggleProject(project.id)}
-                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors text-left"
+                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer select-none"
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <svg
@@ -448,6 +450,14 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                         <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
                           {pending.length} pending
                         </span>
+                        {isExpanded && (
+                          <button
+                            onClick={e => { e.stopPropagation(); setBulkConfirmProject({ id: project.id, count: pending.length, itemIds: pending.map(i => i.id) }) }}
+                            className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+                          >
+                            Approve All
+                          </button>
+                        )}
                         <button
                           onClick={e => { e.stopPropagation(); onOpenProject(project.id) }}
                           className="text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:underline"
@@ -455,27 +465,56 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                           Open
                         </button>
                       </div>
-                    </button>
+                    </div>
 
-                    {isExpanded && (
-                      <div className="divide-y divide-slate-100 bg-slate-50/60">
-                        {pending.map(item => (
-                          <button
-                            key={item.id}
-                            onClick={() => { setItemDetail({ item, project }); setDetailComment('') }}
-                            className="w-full flex items-center gap-3 px-4 py-3 pl-10 hover:bg-slate-100/80 transition-colors text-left"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[13px] font-medium text-slate-800 leading-snug">{item.description}</p>
-                              <p className="text-[11px] text-slate-400 mt-0.5">{item.room} · #{item.rowNum}</p>
+                    {isExpanded && (() => {
+                      // Group pending items by room, preserving original order
+                      const roomOrder: string[] = []
+                      const byRoom: Record<string, typeof pending> = {}
+                      for (const item of pending) {
+                        if (!byRoom[item.room]) { byRoom[item.room] = []; roomOrder.push(item.room) }
+                        byRoom[item.room].push(item)
+                      }
+                      return (
+                        <div className="bg-slate-50/60">
+                          {roomOrder.map(room => (
+                            <div key={room}>
+                              <div className="px-4 py-1.5 pl-10 bg-slate-100/70 border-y border-slate-100">
+                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{room}</span>
+                              </div>
+                              {byRoom[room].map(item => (
+                                <button
+                                  key={item.id}
+                                  onClick={() => { setItemDetail({ item, project }); setDetailComment('') }}
+                                  className="w-full flex items-center gap-3 px-4 py-3 pl-10 hover:bg-slate-100/80 transition-colors text-left border-b border-slate-100 last:border-0"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[13px] font-medium text-slate-800 leading-snug">{item.description}</p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">#{item.rowNum}</p>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    {item.photos.length > 0 && (
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                                        <polyline points="21 15 16 10 5 21"/>
+                                      </svg>
+                                    )}
+                                    {(item.comment || (item.commentNotes?.length ?? 0) > 0) && (
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                                      </svg>
+                                    )}
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <polyline points="9 18 15 12 9 6"/>
+                                    </svg>
+                                  </div>
+                                </button>
+                              ))}
                             </div>
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-                              <polyline points="9 18 15 12 9 6"/>
-                            </svg>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                          ))}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })}
@@ -489,7 +528,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
       {/* Item detail popup */}
       {itemDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => { setItemDetail(null); setDetailComment('') }} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setItemDetail(null); setDetailComment(''); setApproveConfirming(false) }} />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-start justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
               <div className="flex-1 min-w-0">
@@ -503,7 +542,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                   {itemDetail.item.rcv > 0 && <span className="text-[11px] bg-green-50 text-green-700 px-2 py-0.5 rounded-md font-semibold">{fmt(itemDetail.item.rcv)}</span>}
                 </div>
               </div>
-              <button onClick={() => { setItemDetail(null); setDetailComment('') }} className="p-1.5 ml-3 rounded-lg text-slate-400 hover:bg-slate-100 flex-shrink-0">
+              <button onClick={() => { setItemDetail(null); setDetailComment(''); setApproveConfirming(false) }} className="p-1.5 ml-3 rounded-lg text-slate-400 hover:bg-slate-100 flex-shrink-0">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
@@ -568,29 +607,87 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
               )}
             </div>
             {isSuperintendentRole && (
-              <div className="px-5 py-4 border-t border-slate-100 flex gap-2 flex-shrink-0">
-                <button
-                  onClick={() => {
-                    returnItem(itemDetail.project.id, itemDetail.item.id, detailComment, currentUserName)
-                    setItemDetail(null)
-                    setDetailComment('')
-                  }}
-                  className="flex-1 py-2 text-sm font-semibold rounded-lg border border-red-300 text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  Return
-                </button>
-                <button
-                  onClick={() => {
-                    approveItem(itemDetail.project.id, itemDetail.item.id, detailComment, currentUserName)
-                    setItemDetail(null)
-                    setDetailComment('')
-                  }}
-                  className="flex-1 py-2 text-sm font-semibold text-white rounded-lg bg-green-600 hover:bg-green-700 transition-colors"
-                >
-                  Approve
-                </button>
+              <div className="px-5 py-4 border-t border-slate-100 flex-shrink-0">
+                {approveConfirming ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs text-center text-slate-600 font-medium">Confirm approval of this item?</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setApproveConfirming(false)}
+                        className="flex-1 py-2 text-sm font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => {
+                          approveItem(itemDetail.project.id, itemDetail.item.id, detailComment, currentUserName)
+                          setItemDetail(null)
+                          setDetailComment('')
+                          setApproveConfirming(false)
+                        }}
+                        className="flex-1 py-2 text-sm font-semibold text-white rounded-lg bg-green-600 hover:bg-green-700 transition-colors"
+                      >
+                        Yes, Approve
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        returnItem(itemDetail.project.id, itemDetail.item.id, detailComment, currentUserName)
+                        setItemDetail(null)
+                        setDetailComment('')
+                      }}
+                      className="flex-1 py-2 text-sm font-semibold rounded-lg border border-red-300 text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      Return
+                    </button>
+                    <button
+                      onClick={() => setApproveConfirming(true)}
+                      className="flex-1 py-2 text-sm font-semibold text-white rounded-lg bg-green-600 hover:bg-green-700 transition-colors"
+                    >
+                      Approve
+                    </button>
+                  </div>
+                )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Bulk approve confirmation modal */}
+      {bulkConfirmProject && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 pb-6 sm:pb-0">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setBulkConfirmProject(null)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm mx-auto p-6 flex flex-col gap-4">
+            <div className="flex flex-col items-center text-center gap-2">
+              <div className="w-11 h-11 rounded-full bg-green-50 flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-slate-800">Approve all {bulkConfirmProject.count} items?</p>
+              <p className="text-xs text-slate-500">This will mark all pending items in this project as approved and completed. This cannot be undone.</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setBulkConfirmProject(null)}
+                className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  bulkApproveItems(bulkConfirmProject.id, bulkConfirmProject.itemIds, currentUserName)
+                  setBulkConfirmProject(null)
+                }}
+                className="flex-1 py-2.5 text-sm font-semibold text-white rounded-xl bg-green-600 hover:bg-green-700 transition-colors"
+              >
+                Yes, Approve All
+              </button>
+            </div>
           </div>
         </div>
       )}
