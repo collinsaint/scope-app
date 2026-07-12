@@ -253,6 +253,7 @@ export default function App() {
               isAppAdmin={isAppAdmin}
               onNavigateAdmin={() => navigate('admin-portal')}
               isSuperintendent={isSuperintendent}
+              isSuperintendentRole={isSuperintendentRole}
               isSubUser={isSubUser}
               superintendentUserId={superintendentUserId}
               superintendentName={superintendentName}
@@ -302,7 +303,7 @@ export default function App() {
           ) : view === 'admin-portal' ? (
             <AdminPortalView />
           ) : (
-            <UserSettingsView />
+            <UserSettingsView currentUser={currentUser} />
           )}
         </main>
         {isMobile && (

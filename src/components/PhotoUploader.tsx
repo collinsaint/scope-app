@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useStore } from '../store/useStore'
-import { uploadPhotoToOneDrive } from '../lib/oneDrive'
 import { compressPhoto } from '../lib/compressPhoto'
 
 interface Props {
@@ -11,29 +10,22 @@ interface Props {
 }
 
 export function PhotoUploader({ projectId, itemId, photos }: Props) {
-  const { addPhoto, removePhoto, oneDrive } = useStore()
+  const { addPhoto, removePhoto } = useStore()
   const [uploading, setUploading] = useState(false)
 
   const onDrop = useCallback(async (accepted: File[]) => {
     setUploading(true)
-    const project = useStore.getState().projects.find(p => p.id === projectId)
     for (const file of accepted) {
       const url = URL.createObjectURL(file)
       try {
         const dataUrl = await compressPhoto(url)
         addPhoto(projectId, itemId, dataUrl)
-
-        // Fire-and-forget OneDrive sync — never blocks the UI
-        if (oneDrive.connected && project) {
-          const fileName = `${itemId}_${Date.now()}.jpg`
-          uploadPhotoToOneDrive(oneDrive.rootFolderName, project.name, dataUrl, fileName).catch(() => {})
-        }
       } catch { /* skip failed */ } finally {
         URL.revokeObjectURL(url)
       }
     }
     setUploading(false)
-  }, [projectId, itemId, addPhoto, oneDrive])
+  }, [projectId, itemId, addPhoto])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

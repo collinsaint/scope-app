@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { ScopeItem, Subcontractor } from '../types'
 import { useStore } from '../store/useStore'
-import { uploadPhotoToOneDrive } from '../lib/oneDrive'
 import { CameraCapture } from './CameraCapture'
 import { translateTexts } from '../lib/translate'
 
@@ -155,7 +154,7 @@ function downloadDataUrl(dataUrl: string, filename: string) {
 }
 
 export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true, subOrgName, subPercentage }: Props) {
-  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, bulkSetPending, bulkClearPending, assignSubcontractor } = useStore()
+  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending, bulkClearPending, assignSubcontractor } = useStore()
   const project = projects.find(p => p.id === projectId)
   const spanishMode = project?.spanishMode ?? false
   const translationCache = project?.translationCache ?? {}
@@ -185,6 +184,8 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [subPickerItemId, setSubPickerItemId] = useState<string | null>(null)
   const [bulkSubId, setBulkSubId] = useState('')
+  const [approvalModal, setApprovalModal] = useState<ScopeItem | null>(null)
+  const [approvalComment, setApprovalComment] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
   const roomGalleryRef = useRef<HTMLInputElement>(null)
@@ -278,10 +279,6 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
       try {
         const data = await stampPhoto(file, project.name, project.address, item?.rowNum)
         addPhoto(projectId, photoModalItemId, data)
-        if (oneDrive.connected) {
-          const fileName = `${photoModalItemId}_${Date.now()}.jpg`
-          uploadPhotoToOneDrive(oneDrive.rootFolderName, project.name, data, fileName).catch(() => {})
-        }
       } catch { /* skip */ }
     }
     setPhotoUploading(false)
@@ -294,10 +291,6 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
       try {
         const data = await stampPhoto(file, project.name, project.address)
         addRoomPhoto(projectId, roomPhotoModal, data)
-        if (oneDrive.connected) {
-          const fileName = `room_${roomPhotoModal}_${Date.now()}.jpg`
-          uploadPhotoToOneDrive(oneDrive.rootFolderName, project.name, data, fileName).catch(() => {})
-        }
       } catch { /* skip */ }
     }
     setPhotoUploading(false)
@@ -317,10 +310,6 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
           const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' })
           const stamped = await stampPhoto(file, project.name, project.address, item?.rowNum)
           addPhoto(projectId, photoModalItemId, stamped)
-          if (oneDrive.connected) {
-            const fileName = `${photoModalItemId}_${Date.now()}.jpg`
-            uploadPhotoToOneDrive(oneDrive.rootFolderName, project.name, stamped, fileName).catch(() => {})
-          }
         } catch { /* skip */ }
       }
     } else if (cameraSource === 'room' && roomPhotoModal) {
@@ -331,10 +320,6 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
           const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' })
           const stamped = await stampPhoto(file, project.name, project.address)
           addRoomPhoto(projectId, roomPhotoModal, stamped)
-          if (oneDrive.connected) {
-            const fileName = `room_${roomPhotoModal}_${Date.now()}.jpg`
-            uploadPhotoToOneDrive(oneDrive.rootFolderName, project.name, stamped, fileName).catch(() => {})
-          }
         } catch { /* skip */ }
       }
     }
@@ -808,7 +793,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                       const assignedSub = subcontractors.find(s => s.id === item.subcontractorId)
                       const displayRcv = subPercentage != null ? item.rcv * subPercentage / 100 : item.rcv
                       return (
-                        <div key={item.id} className={`${item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : 'bg-white'} ${selectedIds.has(item.id) ? 'ring-1 ring-inset ring-blue-400' : ''}`}>
+                        <div key={item.id} className={`${item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : item.returned ? 'bg-red-50/60' : 'bg-white'} ${selectedIds.has(item.id) ? 'ring-1 ring-inset ring-blue-400' : ''}`}>
                           {/* Card row */}
                           <div className="flex items-start gap-3 px-4 py-3">
                             {/* Bulk select checkbox (contractor only, assign mode only) */}
@@ -820,26 +805,29 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                 className="mt-1 w-4 h-4 rounded border-slate-300 text-blue-600 flex-shrink-0 cursor-pointer"
                               />
                             )}
-                            {/* Completion checkbox + item # below */}
+                            {/* Completion circle + item # below */}
                             <div className="flex flex-col items-center gap-1 flex-shrink-0">
                               <button
                                 onClick={() => {
                                   if (isSubUser) {
-                                    if (item.pendingApproval) rejectItem(projectId, item.id)
+                                    if (item.returned) setPendingApproval(projectId, item.id, true)
+                                    else if (item.pendingApproval) rejectItem(projectId, item.id)
                                     else if (!item.completed) setPendingApproval(projectId, item.id, true)
                                   } else if (item.pendingApproval && canApprove) {
-                                    approveItem(projectId, item.id)
+                                    setApprovalModal(item)
                                   } else {
                                     toggleItem(projectId, item.id)
                                   }
                                 }}
-                                disabled={item.completed && isSubUser}
+                                disabled={item.completed && isSubUser && !item.returned}
                                 className={`mt-0.5 w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
                                   item.completed
                                     ? 'bg-green-500 border-green-500 text-white'
                                     : item.pendingApproval
                                       ? 'bg-amber-400 border-amber-400 text-white'
-                                      : 'border-slate-300'
+                                      : item.returned
+                                        ? 'bg-red-500 border-red-500 text-white'
+                                        : 'border-slate-300'
                                 }`}
                               >
                                 {item.completed ? (
@@ -849,6 +837,10 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                 ) : item.pendingApproval ? (
                                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                  </svg>
+                                ) : item.returned ? (
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                                   </svg>
                                 ) : null}
                               </button>
@@ -961,6 +953,60 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
           </div>
         )}
       </div>
+
+      {/* Approval modal — contractor reviewing a pending item */}
+      {approvalModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
+          <div className="absolute inset-0 bg-black/50" onClick={() => { setApprovalModal(null); setApprovalComment('') }} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Review Item</p>
+                <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{approvalModal.description}</p>
+              </div>
+              <button onClick={() => { setApprovalModal(null); setApprovalComment('') }} className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div className="px-5 py-4">
+              <div className="flex flex-wrap gap-2 mb-4 text-xs text-slate-500">
+                <span className="bg-slate-100 px-2 py-1 rounded-md">{approvalModal.room}</span>
+                <span className="bg-slate-100 px-2 py-1 rounded-md">#{approvalModal.rowNum}</span>
+                {approvalModal.activity && <span className="bg-slate-100 px-2 py-1 rounded-md">{approvalModal.activity}</span>}
+                {approvalModal.coverage && <span className="bg-violet-50 text-violet-600 px-2 py-1 rounded-md">{approvalModal.coverage}</span>}
+                {approvalModal.rcv > 0 && <span className="bg-green-50 text-green-700 px-2 py-1 rounded-md font-semibold">{approvalModal.rcv.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}</span>}
+              </div>
+              {approvalModal.comment && (
+                <p className="text-xs text-slate-500 italic mb-3 bg-blue-50 px-3 py-2 rounded-lg">"{approvalModal.comment}"</p>
+              )}
+              <label className="text-xs text-slate-500 font-medium mb-1.5 block">Comment (optional)</label>
+              <textarea
+                value={approvalComment}
+                onChange={e => setApprovalComment(e.target.value)}
+                placeholder="Add a note about this decision…"
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                rows={2}
+              />
+            </div>
+            <div className="px-5 pb-5 flex gap-2">
+              <button
+                onClick={() => { returnItem(projectId, approvalModal.id, approvalComment); setApprovalModal(null); setApprovalComment('') }}
+                className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-red-300 text-red-600 hover:bg-red-50 transition-colors"
+              >
+                Return
+              </button>
+              <button
+                onClick={() => { approveItem(projectId, approvalModal.id, approvalComment); setApprovalModal(null); setApprovalComment('') }}
+                className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-green-500 text-white hover:bg-green-600 transition-colors"
+              >
+                Approve
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sub picker bottom sheet */}
       {subPickerItemId && (

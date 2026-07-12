@@ -4,7 +4,7 @@ import type { ScopeItem, Walk, WalkNote, WalkGroupNote, WalkRoomPhoto, WalkGener
 import { useStore } from '../store/useStore'
 import { buildWalkReportPdfBlob, openWalkReportPdf } from '../lib/exportReport'
 import { downloadWalkPhotos, buildPhotosZipBlob, downloadSelectedPhotos } from '../lib/downloadPhotos'
-import { uploadPhotoToOneDrive } from '../lib/oneDrive'
+
 import { useViewMode } from '../hooks/useViewMode'
 import { CameraCapture } from './CameraCapture'
 import { translateTexts } from '../lib/translate'
@@ -309,7 +309,7 @@ interface Props {
 }
 
 export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, onAddRoom }: Props) {
-  const { updateWalkItem, addWalkGroupNote, deleteWalkGroupNote, addWalkRoomPhoto, deleteWalkRoomPhoto, bulkDeleteWalkRoomPhotos, updateWalkRoomPhoto, addWalkGeneralNote, deleteWalkGeneralNote, deleteWalkCustomRoom, addWalkCustomRoom, projects, oneDrive, walkPresets, setTranslationCache } = useStore()
+  const { updateWalkItem, addWalkGroupNote, deleteWalkGroupNote, addWalkRoomPhoto, deleteWalkRoomPhoto, bulkDeleteWalkRoomPhotos, updateWalkRoomPhoto, addWalkGeneralNote, deleteWalkGeneralNote, deleteWalkCustomRoom, addWalkCustomRoom, projects, walkPresets, setTranslationCache } = useStore()
   const { isMobile } = useViewMode()
   const project = projects.find(p => p.id === projectId)
   const spanishMode = project?.spanishMode ?? false
@@ -592,12 +592,6 @@ export function WalkView({ projectId, walk, items, roomFilter, onRoomDeleted, on
         const data = await stampPhoto(file, project.name)
         const photo: WalkRoomPhoto = { id: crypto.randomUUID(), room, data, createdAt: new Date().toISOString() }
         addWalkRoomPhoto(projectId, walk.id, photo)
-
-        // Fire-and-forget OneDrive sync
-        if (oneDrive.connected && project) {
-          const fileName = `walk_${room}_${photo.id}.jpg`
-          uploadPhotoToOneDrive(oneDrive.rootFolderName, project.name, data, fileName).catch(() => {})
-        }
       } catch {
         // skip unreadable files
       }

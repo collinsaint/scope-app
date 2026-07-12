@@ -1,14 +1,38 @@
 import { useStore } from '../store/useStore'
 import { useAuth } from '../hooks/useAuth'
+import type { CurrentUser } from '../types'
 
-export function UserSettingsView() {
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Admin',
+  manager: 'Manager',
+  superintendent: 'Superintendent',
+  user: 'User',
+}
+
+interface Props {
+  currentUser?: CurrentUser | null
+}
+
+export function UserSettingsView({ currentUser }: Props) {
   const { walkPresets, setWalkPreset, darkMode, setDarkMode } = useStore()
   const { user, signOut } = useAuth()
+
+  const displayName = currentUser?.profile.display_name ?? user?.email?.replace('@proscope.app', '') ?? '—'
+  const orgName = currentUser?.contractorOrg?.name ?? currentUser?.subcontractorOrg?.name ?? null
+  const roleKey = currentUser?.contractorRole ?? currentUser?.subcontractorRole ?? null
+  const roleLabel = roleKey ? (ROLE_LABELS[roleKey] ?? roleKey) : null
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="page-header">
-        <h1 className="page-title">User Settings</h1>
+        <div>
+          <h1 className="page-title">User Settings</h1>
+          {(displayName || orgName || roleLabel) && (
+            <p className="page-subtitle">
+              {[displayName, orgName, roleLabel].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto px-6 py-6">

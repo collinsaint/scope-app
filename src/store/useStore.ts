@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Project, ScopeItem, Subcontractor, GlobalSubcontractor, JobGroup, Superintendent, ProjectSketch, SketchLabel, Walk, WalkItemOverride, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, OneDriveSettings, CommentNote } from '../types'
+import type { Project, ScopeItem, Subcontractor, GlobalSubcontractor, JobGroup, Superintendent, ProjectSketch, SketchLabel, Walk, WalkItemOverride, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, CommentNote } from '../types'
 
 interface StoreState {
   projects: Project[]
@@ -8,12 +8,10 @@ interface StoreState {
   globalSubcontractors: GlobalSubcontractor[]
   jobGroups: JobGroup[]
   superintendents: Superintendent[]
-  oneDrive: OneDriveSettings
   viewMode: 'auto' | 'desktop' | 'mobile'
   walkPresets: string[]
   darkMode: boolean
 
-  setOneDrive: (settings: Partial<OneDriveSettings>) => void
   setViewMode: (mode: 'auto' | 'desktop' | 'mobile') => void
   setDarkMode: (dark: boolean) => void
   setWalkPreset: (index: number, text: string) => void
@@ -36,8 +34,9 @@ interface StoreState {
   bulkComplete: (projectId: string, itemIds: string[]) => void
   bulkUncomplete: (projectId: string, itemIds: string[]) => void
   setPendingApproval: (projectId: string, itemId: string, pending: boolean) => void
-  approveItem: (projectId: string, itemId: string) => void
+  approveItem: (projectId: string, itemId: string, comment?: string) => void
   rejectItem: (projectId: string, itemId: string) => void
+  returnItem: (projectId: string, itemId: string, comment?: string) => void
   bulkSetPending: (projectId: string, itemIds: string[]) => void
   bulkClearPending: (projectId: string, itemIds: string[]) => void
   setComment: (projectId: string, itemId: string, comment: string) => void
@@ -84,18 +83,9 @@ export const useStore = create<StoreState>()(
       globalSubcontractors: [],
       jobGroups: [],
       superintendents: [],
-      oneDrive: {
-        connected: false,
-        accountName: null,
-        accountEmail: null,
-        rootFolderName: 'Verascope',
-      },
       viewMode: 'auto',
       walkPresets: ['', '', '', '', '', ''],
       darkMode: false,
-
-      setOneDrive: (settings) =>
-        set((s) => ({ oneDrive: { ...s.oneDrive, ...settings } })),
 
       setViewMode: (mode) => set({ viewMode: mode }),
       setDarkMode: (dark) => set({ darkMode: dark }),
@@ -624,13 +614,14 @@ export const useStore = create<StoreState>()(
                   ...item,
                   pendingApproval: pending || undefined,
                   pendingApprovalAt: pending ? new Date().toISOString() : undefined,
+                  ...(pending ? { returned: undefined, returnComment: undefined } : {}),
                 }
               ),
             }
           ),
         })),
 
-      approveItem: (projectId, itemId) =>
+      approveItem: (projectId, itemId, comment) =>
         set((s) => ({
           projects: s.projects.map((p) =>
             p.id !== projectId ? p : {
@@ -642,6 +633,7 @@ export const useStore = create<StoreState>()(
                   completedAt: new Date().toISOString(),
                   pendingApproval: undefined,
                   pendingApprovalAt: undefined,
+                  approvalComment: comment || undefined,
                 }
               ),
             }
@@ -658,6 +650,25 @@ export const useStore = create<StoreState>()(
                   ...item,
                   pendingApproval: undefined,
                   pendingApprovalAt: undefined,
+                }
+              ),
+            }
+          ),
+        })),
+
+      returnItem: (projectId, itemId, comment) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId ? p : {
+              ...p,
+              items: p.items.map((item) =>
+                item.id !== itemId ? item : {
+                  ...item,
+                  returned: true,
+                  returnComment: comment || undefined,
+                  pendingApproval: undefined,
+                  pendingApprovalAt: undefined,
+                  completed: false,
                 }
               ),
             }

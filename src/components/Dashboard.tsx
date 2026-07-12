@@ -15,6 +15,7 @@ interface Props {
   isAppAdmin?: boolean
   onNavigateAdmin?: () => void
   isSuperintendent?: boolean
+  isSuperintendentRole?: boolean
   isSubUser?: boolean
   superintendentUserId?: string | null
   superintendentName?: string | null
@@ -28,8 +29,13 @@ const statusConfig: Record<string, { dot: string; pill: string }> = {
   'Closed':           { dot: 'bg-slate-300',   pill: 'bg-slate-50 border-slate-200 text-slate-600' },
 }
 
-export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendent = false, superintendentUserId, superintendentName }: Props) {
-  const { projects: allProjects, deleteProject, approveItem, rejectItem } = useStore()
+interface PendingItemDetail {
+  item: ScopeItem
+  project: Project
+}
+
+export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendentRole = false, superintendentUserId, superintendentName }: Props) {
+  const { projects: allProjects, deleteProject, approveItem, returnItem } = useStore()
   const { isMobile } = useViewMode()
   const [showModal, setShowModal] = useState(false)
   const [search, setSearch] = useState('')
@@ -38,11 +44,9 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
   const [filterSuperintendent, setFilterSuperintendent] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [expandedApprovalIds, setExpandedApprovalIds] = useState<Set<string>>(new Set())
+  const [itemDetail, setItemDetail] = useState<PendingItemDetail | null>(null)
+  const [detailComment, setDetailComment] = useState('')
 
-  // Superintendent-role users only see projects assigned to them.
-  // Match by user_id (new) with name as legacy fallback for projects that
-  // predate the superintendentId field. Falls back to all projects if nothing
-  // matches (prevents blank screen when display_name hasn't been configured).
   const projects = (() => {
     if (!superintendentUserId) return allProjects
     const nameLower = superintendentName?.trim().toLowerCase()
@@ -75,6 +79,25 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
     setFilterJobGroup('')
     setFilterSuperintendent('')
     setFilterStatus('')
+  }
+
+  // Pending approval queue — only for superintendent role users
+  const pendingByProject = isSuperintendentRole
+    ? projects
+        .map(p => ({
+          project: p,
+          items: p.items.filter(i => !i.isHeader && i.pendingApproval),
+        }))
+        .filter(x => x.items.length > 0)
+    : []
+  const totalPending = pendingByProject.reduce((s, x) => s + x.items.length, 0)
+
+  function toggleProject(id: string) {
+    setExpandedApprovalIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
   }
 
   return (
@@ -128,107 +151,6 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
       )}
 
       <div className="flex-1 overflow-y-auto px-6 py-5">
-
-        {/* Approval Queue — visible to superintendent/admin/manager */}
-        {isSuperintendent && (() => {
-          const pendingByProject: { project: Project; items: ScopeItem[] }[] = projects
-            .map(p => ({
-              project: p,
-              items: p.items.filter(i => !i.isHeader && i.pendingApproval),
-            }))
-            .filter(x => x.items.length > 0)
-
-          if (pendingByProject.length === 0) return null
-
-          const totalPending = pendingByProject.reduce((s, x) => s + x.items.length, 0)
-
-          function toggleProject(id: string) {
-            setExpandedApprovalIds(prev => {
-              const next = new Set(prev)
-              next.has(id) ? next.delete(id) : next.add(id)
-              return next
-            })
-          }
-
-          return (
-            <div className="mb-6">
-              <div className="flex items-center gap-2 mb-3">
-                <h2 className="text-sm font-semibold text-slate-800">Pending Approvals</h2>
-                <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold leading-none">
-                  {totalPending}
-                </span>
-              </div>
-              <div className="section-card overflow-hidden divide-y divide-slate-100">
-                {pendingByProject.map(({ project, items: pending }) => {
-                  const isExpanded = expandedApprovalIds.has(project.id)
-                  return (
-                    <div key={project.id}>
-                      {/* Collapsible project row */}
-                      <button
-                        onClick={() => toggleProject(project.id)}
-                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors text-left"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <svg
-                            width="14" height="14"
-                            viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                            className={`flex-shrink-0 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                          >
-                            <polyline points="9 18 15 12 9 6"/>
-                          </svg>
-                          <span className="text-sm font-semibold text-slate-800 truncate">{project.name}</span>
-                          {project.address && (
-                            <span className="text-xs text-slate-400 truncate hidden sm:block">{project.address}</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-                          <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                            {pending.length} pending
-                          </span>
-                          <button
-                            onClick={e => { e.stopPropagation(); onOpenProject(project.id) }}
-                            className="text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:underline"
-                          >
-                            Open
-                          </button>
-                        </div>
-                      </button>
-
-                      {/* Expanded item list */}
-                      {isExpanded && (
-                        <div className="divide-y divide-slate-100 bg-slate-50/60">
-                          {pending.map(item => (
-                            <div key={item.id} className="flex items-center gap-3 px-4 py-3 pl-10">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[13px] font-medium text-slate-800 leading-snug">{item.description}</p>
-                                <p className="text-[11px] text-slate-400 mt-0.5">{item.room} · #{item.rowNum}</p>
-                              </div>
-                              <div className="flex items-center gap-1.5 flex-shrink-0">
-                                <button
-                                  onClick={() => rejectItem(project.id, item.id)}
-                                  className="px-2.5 py-1 text-[11px] font-semibold rounded-md border border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                >
-                                  Reject
-                                </button>
-                                <button
-                                  onClick={() => approveItem(project.id, item.id)}
-                                  className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-green-500 text-white hover:bg-green-600 transition-colors"
-                                >
-                                  Approve
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })()}
 
         {/* Mobile header */}
         {isMobile && (
@@ -364,24 +286,196 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((p) => (
-              <ProjectCard key={p.id} project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} />
-            ))}
-            <button
-              onClick={() => setShowModal(true)}
-              className="h-full min-h-[160px] flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-[14px] text-slate-400 hover:border-blue-400/60 hover:bg-blue-50/40 hover:text-blue-500 transition-all duration-150"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              <span className="text-sm font-medium">New project</span>
-            </button>
+          /* Horizontal-scroll project cards */
+          <div className="overflow-x-auto -mx-6 px-6 pb-3">
+            <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
+              {filtered.map((p) => (
+                <div key={p.id} className="w-72 flex-shrink-0">
+                  <ProjectCard project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} />
+                </div>
+              ))}
+              <div className="w-72 flex-shrink-0">
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="w-full h-full min-h-[200px] flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-[14px] text-slate-400 hover:border-blue-400/60 hover:bg-blue-50/40 hover:text-blue-500 transition-all duration-150"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                  <span className="text-sm font-medium">New project</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Pending Approvals — superintendent role only, shown below project cards */}
+        {isSuperintendentRole && pendingByProject.length > 0 && (
+          <div className="mt-6">
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="text-sm font-semibold text-slate-800">Pending Approvals</h2>
+              <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold leading-none">
+                {totalPending}
+              </span>
+            </div>
+            <div className="section-card overflow-hidden divide-y divide-slate-100">
+              {pendingByProject.map(({ project, items: pending }) => {
+                const isExpanded = expandedApprovalIds.has(project.id)
+                return (
+                  <div key={project.id}>
+                    <button
+                      onClick={() => toggleProject(project.id)}
+                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <svg
+                          width="14" height="14"
+                          viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                          className={`flex-shrink-0 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                        >
+                          <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                        <span className="text-sm font-semibold text-slate-800 truncate">{project.name}</span>
+                        {project.address && (
+                          <span className="text-xs text-slate-400 truncate hidden sm:block">{project.address}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                        <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                          {pending.length} pending
+                        </span>
+                        <button
+                          onClick={e => { e.stopPropagation(); onOpenProject(project.id) }}
+                          className="text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                        >
+                          Open
+                        </button>
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="divide-y divide-slate-100 bg-slate-50/60">
+                        {pending.map(item => (
+                          <button
+                            key={item.id}
+                            onClick={() => { setItemDetail({ item, project }); setDetailComment('') }}
+                            className="w-full flex items-center gap-3 px-4 py-3 pl-10 hover:bg-slate-100/80 transition-colors text-left"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[13px] font-medium text-slate-800 leading-snug">{item.description}</p>
+                              <p className="text-[11px] text-slate-400 mt-0.5">{item.room} · #{item.rowNum}</p>
+                            </div>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                              <polyline points="9 18 15 12 9 6"/>
+                            </svg>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 
         {showModal && <NewProjectModal onClose={() => setShowModal(false)} onCreated={onOpenProject} />}
       </div>
+
+      {/* Item detail popup */}
+      {itemDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setItemDetail(null); setDetailComment('') }} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-start justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider mb-1">{itemDetail.project.name}</p>
+                <p className="text-sm font-semibold text-slate-800 leading-snug">{itemDetail.item.description}</p>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  <span className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">{itemDetail.item.room}</span>
+                  <span className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">#{itemDetail.item.rowNum}</span>
+                  {itemDetail.item.activity && <span className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">{itemDetail.item.activity}</span>}
+                  {itemDetail.item.coverage && <span className="text-[11px] bg-violet-50 text-violet-600 px-2 py-0.5 rounded-md">{itemDetail.item.coverage}</span>}
+                  {itemDetail.item.rcv > 0 && <span className="text-[11px] bg-green-50 text-green-700 px-2 py-0.5 rounded-md font-semibold">{fmt(itemDetail.item.rcv)}</span>}
+                </div>
+              </div>
+              <button onClick={() => { setItemDetail(null); setDetailComment('') }} className="p-1.5 ml-3 rounded-lg text-slate-400 hover:bg-slate-100 flex-shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+              {itemDetail.item.note && (
+                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/>
+                  </svg>
+                  <p className="text-xs text-amber-800 leading-relaxed">{itemDetail.item.note}</p>
+                </div>
+              )}
+              {itemDetail.item.photos.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Photos ({itemDetail.item.photos.length})</p>
+                  <div className="flex flex-wrap gap-2">
+                    {itemDetail.item.photos.map((src, i) => (
+                      <img key={i} src={src} alt="" className="h-20 w-20 object-cover rounded-lg border border-slate-200" />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(itemDetail.item.comment || (itemDetail.item.commentNotes?.length ?? 0) > 0) && (
+                <div>
+                  <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Comments</p>
+                  {itemDetail.item.comment && (
+                    <p className="text-sm text-slate-700 bg-blue-50 px-3 py-2 rounded-lg leading-relaxed">{itemDetail.item.comment}</p>
+                  )}
+                  {(itemDetail.item.commentNotes ?? []).map((note, i) => (
+                    <p key={i} className="text-xs text-slate-500 mt-1.5 leading-relaxed">{note.text}</p>
+                  ))}
+                </div>
+              )}
+              {isSuperintendentRole && (
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 block">Decision Comment (optional)</label>
+                  <textarea
+                    value={detailComment}
+                    onChange={e => setDetailComment(e.target.value)}
+                    placeholder="Add a note about your decision…"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    rows={2}
+                  />
+                </div>
+              )}
+            </div>
+            {isSuperintendentRole && (
+              <div className="px-5 py-4 border-t border-slate-100 flex gap-2 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    returnItem(itemDetail.project.id, itemDetail.item.id, detailComment)
+                    setItemDetail(null)
+                    setDetailComment('')
+                  }}
+                  className="flex-1 py-2 text-sm font-semibold rounded-lg border border-red-300 text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  Return
+                </button>
+                <button
+                  onClick={() => {
+                    approveItem(itemDetail.project.id, itemDetail.item.id, detailComment)
+                    setItemDetail(null)
+                    setDetailComment('')
+                  }}
+                  className="flex-1 py-2 text-sm font-semibold text-white rounded-lg bg-green-600 hover:bg-green-700 transition-colors"
+                >
+                  Approve
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -389,7 +483,10 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
 function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelete }: { project: Project; onOpen: (id: string) => void; onOpenDetails: (id: string) => void; onOpenFinancials?: (id: string) => void; onDelete: (id: string) => void }) {
   const completed = project.items.filter(i => i.completed).length
   const total = project.items.length
-  const pct = total ? Math.round(completed / total * 100) : 0
+  const pending = project.items.filter(i => i.pendingApproval && !i.completed).length
+  const pctCompleted = total ? project.items.filter(i => i.completed).length / total * 100 : 0
+  const pctPending = total ? pending / total * 100 : 0
+  const pct = Math.round(pctCompleted + pctPending)
   const totalRcv = project.items.reduce((s, i) => s + i.rcv, 0)
   const completedRcv = project.items.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0)
 
@@ -398,7 +495,7 @@ function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelet
     : null
 
   return (
-    <div className="card card-hover p-5 flex flex-col gap-4">
+    <div className="card card-hover p-5 flex flex-col gap-4 h-full">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -464,12 +561,13 @@ function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelet
           <span className="text-xs text-slate-400">{completed}/{total} items</span>
           <span className="text-xs font-semibold text-slate-600">{pct}%</span>
         </div>
-        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-          <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden flex">
+          <div className="h-full bg-green-500 transition-all" style={{ width: `${pctCompleted}%` }} />
+          <div className="h-full bg-amber-400 transition-all" style={{ width: `${pctPending}%` }} />
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 mt-auto">
         <button onClick={() => onOpen(project.id)} className="btn-secondary flex-1 justify-center text-xs">
           Scope
         </button>

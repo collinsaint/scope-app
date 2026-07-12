@@ -14,28 +14,35 @@ export function SummaryCards({ items }: Props) {
   // DRV coverage items are excluded — they are not billable scope
   const billable = items.filter(i => i.coverage?.toUpperCase() !== 'DRV')
   const completed = billable.filter(i => i.completed)
+  const pending = billable.filter(i => i.pendingApproval && !i.completed)
   const totalRcv = billable.reduce((s, i) => s + i.rcv, 0)
   const completedRcv = completed.reduce((s, i) => s + i.rcv, 0)
   const remainingRcv = totalRcv - completedRcv
-  const pct = billable.length ? Math.round(completed.length / billable.length * 100) : 0
+  // Progress counts completed + pending; bar split green/yellow
+  const pctCompleted = billable.length ? completed.length / billable.length * 100 : 0
+  const pctPending = billable.length ? pending.length / billable.length * 100 : 0
+  const pctTotal = Math.round(pctCompleted + pctPending)
+
+  const progressBar = (
+    <div className="flex items-center gap-2 mt-1">
+      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden flex" style={{ minWidth: 48 }}>
+        <div className="h-full bg-green-500 transition-all" style={{ width: `${pctCompleted}%` }} />
+        <div className="h-full bg-amber-400 transition-all" style={{ width: `${pctPending}%` }} />
+      </div>
+      <span className="text-[11px] text-slate-400">{pctTotal}%</span>
+    </div>
+  )
 
   if (isMobile) {
     return (
       <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide">
         <Card compact label="Total Amount" value={fmt(totalRcv)} sub={`${billable.length} items`} />
-        <Card compact label="Completed" value={fmt(completedRcv)} sub={`${pct}% of total`} valueColor="text-green-600" />
+        <Card compact label="Completed" value={fmt(completedRcv)} sub={`${pctTotal}% done`} valueColor="text-green-600" />
         <Card
           compact
-          label="Items complete"
-          value={`${completed.length} / ${billable.length}`}
-          sub={
-            <div className="flex items-center gap-2 mt-1">
-              <div className="flex-1 h-1.5 bg-slate-100 rounded-full" style={{ minWidth: 48 }}>
-                <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-              </div>
-              <span className="text-[11px] text-slate-400">{pct}%</span>
-            </div>
-          }
+          label="Progress"
+          value={`${completed.length + pending.length} / ${billable.length}`}
+          sub={progressBar}
         />
         <Card compact label="Remaining" value={fmt(remainingRcv)} sub={`${billable.length - completed.length} left`} valueColor={remainingRcv > 0 ? 'text-red-500' : 'text-slate-800'} />
       </div>
@@ -45,18 +52,11 @@ export function SummaryCards({ items }: Props) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-6 py-4">
       <Card label="Total Amount" value={fmt(totalRcv)} sub={`${billable.length} items`} />
-      <Card label="Completed Amount" value={fmt(completedRcv)} sub={`${pct}% of total`} valueColor="text-green-600" />
+      <Card label="Completed Amount" value={fmt(completedRcv)} sub={`${pctTotal}% done`} valueColor="text-green-600" />
       <Card
-        label="Items complete"
-        value={`${completed.length} / ${billable.length}`}
-        sub={
-          <div className="flex items-center gap-2 mt-1">
-            <div className="flex-1 h-1.5 bg-slate-100 rounded-full">
-              <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-            </div>
-            <span className="text-[11px] text-slate-400">{pct}%</span>
-          </div>
-        }
+        label="Progress"
+        value={`${completed.length + pending.length} / ${billable.length}`}
+        sub={progressBar}
       />
       <Card label="Remaining Amount" value={fmt(remainingRcv)} sub={`${billable.length - completed.length} items left`} valueColor={remainingRcv > 0 ? 'text-red-500' : 'text-slate-800'} />
     </div>

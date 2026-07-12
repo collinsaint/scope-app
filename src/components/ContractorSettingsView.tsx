@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../store/useStore'
 import type { GlobalSubcontractor, JobGroup, Superintendent } from '../types'
-import { OneDriveSettings } from './OneDriveSettings'
 import { fetchContractorSubOrgs, type SubOrg } from '../lib/supabaseSync'
 import { supabase } from '../lib/supabase'
 
@@ -11,22 +10,113 @@ function generateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
+interface OrgUser {
+  user_id: string
+  role: string
+  display_name: string | null
+  email: string
+  project_ids: string[]
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Admin',
+  manager: 'Manager',
+  superintendent: 'Superintendent',
+}
+const ROLE_COLORS: Record<string, string> = {
+  admin: 'bg-violet-50 border-violet-200 text-violet-700',
+  manager: 'bg-blue-50 border-blue-200 text-blue-700',
+  superintendent: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+}
+
 export function ContractorSettingsView() {
-  const { globalSubcontractors, addGlobalSubcontractor, updateGlobalSubcontractor, deleteGlobalSubcontractor, jobGroups, addJobGroup, updateJobGroup, deleteJobGroup, superintendents, addSuperintendent, updateSuperintendent, deleteSuperintendent } = useStore()
+  const { globalSubcontractors, addGlobalSubcontractor, updateGlobalSubcontractor, deleteGlobalSubcontractor, jobGroups, addJobGroup, updateJobGroup, deleteJobGroup, superintendents, addSuperintendent, updateSuperintendent, deleteSuperintendent, projects } = useStore()
 
   const [linkedSubOrgs, setLinkedSubOrgs] = useState<SubOrg[]>([])
+  const [orgId, setOrgId] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  // Users section state
+  const [orgUsers, setOrgUsers] = useState<OrgUser[]>([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [usersError, setUsersError] = useState<string | null>(null)
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null)
+  const [pendingToggles, setPendingToggles] = useState<Set<string>>(new Set()) // "userId:projectId"
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data: member } = await supabase.from('org_members').select('org_id').eq('user_id', user.id).maybeSingle()
+      const { data: member } = await supabase.from('org_members').select('org_id, role').eq('user_id', user.id).maybeSingle()
       if (!member?.org_id) return
+      setOrgId(member.org_id)
+      const adminOrManager = member.role === 'admin' || member.role === 'manager'
+      setIsAdmin(adminOrManager)
       const orgs = await fetchContractorSubOrgs(member.org_id)
       setLinkedSubOrgs(orgs)
     }
     load()
   }, [])
+
+  // Load org users whenever orgId + isAdmin become available
+  useEffect(() => {
+    if (!orgId || !isAdmin) return
+    async function loadUsers() {
+      setUsersLoading(true)
+      setUsersError(null)
+      try {
+        const { data, error } = await supabase.rpc('get_org_user_access', { p_org_id: orgId })
+        if (error) throw error
+        setOrgUsers((data ?? []).map((row: { user_id: string; role: string; display_name: string | null; email: string; project_ids: string[] }) => ({
+          ...row,
+          project_ids: row.project_ids ?? [],
+        })))
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (msg.includes('not exist') || msg.includes('function')) {
+          setUsersError('Run supabase/add_user_project_access_rpc.sql in your Supabase dashboard to enable this feature.')
+        } else {
+          setUsersError('Failed to load users.')
+        }
+      } finally {
+        setUsersLoading(false)
+      }
+    }
+    loadUsers()
+  }, [orgId, isAdmin])
+
+  async function toggleProjectAccess(targetUser: OrgUser, projectId: string) {
+    if (!orgId) return
+    const key = `${targetUser.user_id}:${projectId}`
+    if (pendingToggles.has(key)) return
+    const hasAccess = targetUser.project_ids.includes(projectId)
+    const project = projects.find(p => p.id === projectId)
+    const action = hasAccess ? 'Remove' : 'Grant'
+    if (!confirm(`${action} access to "${project?.name ?? projectId}" for ${targetUser.display_name ?? targetUser.email}?`)) return
+
+    setPendingToggles(prev => new Set(prev).add(key))
+    try {
+      const { error } = await supabase.rpc('manage_user_project_access', {
+        p_org_id: orgId,
+        p_user_id: targetUser.user_id,
+        p_project_id: projectId,
+        p_grant: !hasAccess,
+      })
+      if (error) throw error
+      // Optimistic update
+      setOrgUsers(prev => prev.map(u => {
+        if (u.user_id !== targetUser.user_id) return u
+        const newIds = hasAccess
+          ? u.project_ids.filter(id => id !== projectId)
+          : [...u.project_ids, projectId]
+        return { ...u, project_ids: newIds }
+      }))
+    } catch (err) {
+      alert('Failed to update access: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setPendingToggles(prev => { const next = new Set(prev); next.delete(key); return next })
+    }
+  }
 
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(PRESET_COLORS[0])
@@ -150,6 +240,8 @@ export function ContractorSettingsView() {
     setEditingSuperId(null)
   }
 
+  const billableProjects = projects.filter(p => !p.isDemo)
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="page-header">
@@ -161,6 +253,107 @@ export function ContractorSettingsView() {
 
       <div className="flex-1 overflow-auto px-6 py-6">
         <div className="max-w-2xl flex flex-col gap-5">
+
+          {/* Users section — admin/manager only */}
+          {isAdmin && (
+            <div className="section-card">
+              <div className="section-card-header">
+                <h2 className="text-sm font-semibold text-slate-800">Users</h2>
+                <p className="text-xs text-slate-400 mt-0.5">View org members and manage project access for superintendents.</p>
+              </div>
+
+              {usersLoading ? (
+                <div className="px-5 py-8 text-center">
+                  <p className="text-sm text-slate-400">Loading users…</p>
+                </div>
+              ) : usersError ? (
+                <div className="px-5 py-6">
+                  <p className="text-xs text-red-500">{usersError}</p>
+                </div>
+              ) : orgUsers.length === 0 ? (
+                <div className="px-5 py-8 text-center">
+                  <p className="text-sm text-slate-400">No users found.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {orgUsers.map(u => {
+                    const roleCfg = ROLE_COLORS[u.role] ?? 'bg-slate-50 border-slate-200 text-slate-600'
+                    const roleLabel = ROLE_LABELS[u.role] ?? u.role
+                    const isSuper = u.role === 'superintendent'
+                    const isExpanded = expandedUserId === u.user_id
+                    const accessCount = u.project_ids.length
+
+                    return (
+                      <div key={u.user_id}>
+                        <div className="flex items-center gap-3 px-5 py-3.5">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-800 truncate">
+                              {u.display_name ?? u.email}
+                            </p>
+                            <p className="text-xs text-slate-400 truncate">{u.email}</p>
+                          </div>
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${roleCfg} flex-shrink-0`}>
+                            {roleLabel}
+                          </span>
+                          {isSuper ? (
+                            <button
+                              onClick={() => setExpandedUserId(isExpanded ? null : u.user_id)}
+                              className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium flex-shrink-0"
+                            >
+                              {accessCount}/{billableProjects.length} projects
+                              <svg
+                                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                                className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                              >
+                                <polyline points="6 9 12 15 18 9"/>
+                              </svg>
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-400 flex-shrink-0">All projects</span>
+                          )}
+                        </div>
+
+                        {isSuper && isExpanded && (
+                          <div className="px-5 pb-3 bg-slate-50/60">
+                            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 pt-2">Project Access</p>
+                            {billableProjects.length === 0 ? (
+                              <p className="text-xs text-slate-400 py-2">No projects yet.</p>
+                            ) : (
+                              <div className="flex flex-col gap-1">
+                                {billableProjects.map(p => {
+                                  const hasAccess = u.project_ids.includes(p.id)
+                                  const key = `${u.user_id}:${p.id}`
+                                  const loading = pendingToggles.has(key)
+                                  return (
+                                    <label key={p.id} className="flex items-center gap-2.5 py-1.5 cursor-pointer group">
+                                      <div className="relative flex-shrink-0">
+                                        <input
+                                          type="checkbox"
+                                          checked={hasAccess}
+                                          disabled={loading}
+                                          onChange={() => toggleProjectAccess(u, p.id)}
+                                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30 cursor-pointer"
+                                        />
+                                      </div>
+                                      <span className="text-sm text-slate-700 group-hover:text-slate-900 truncate flex-1">{p.name}</span>
+                                      {loading && (
+                                        <span className="text-[11px] text-slate-400 flex-shrink-0">Saving…</span>
+                                      )}
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Subcontractors */}
           <div className="section-card">
@@ -428,10 +621,6 @@ export function ContractorSettingsView() {
               </div>
               {superAddError && <p className="text-xs text-red-500 mt-2">{superAddError}</p>}
             </div>
-          </div>
-
-          <div>
-            <OneDriveSettings />
           </div>
 
         </div>
