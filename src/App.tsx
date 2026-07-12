@@ -9,6 +9,7 @@ import { MobileNav } from './components/MobileNav'
 import { Dashboard } from './components/Dashboard'
 import { ProjectView } from './components/ProjectView'
 import { ContractorSettingsView } from './components/ContractorSettingsView'
+import { SubcontractorSettingsView } from './components/SubcontractorSettingsView'
 import { UserSettingsView } from './components/UserSettingsView'
 import { AdminPortalView } from './components/AdminPortalView'
 import { FinancialsView } from './components/FinancialsView'
@@ -17,9 +18,9 @@ import { VerascopeLoader } from './components/VerascopeLoader'
 import { seedDemoProject } from './lib/seedDemoProject'
 import { loadProjectsFromSupabase, syncProjectToSupabase, deleteProjectFromSupabase, loadSettingsFromSupabase, syncSettingsToSupabase, loadOrgSettingsForUser, syncOrgSettingsToSupabase } from './lib/supabaseSync'
 
-type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings' | 'admin-portal' | 'financials'
+type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'subcontractor-settings' | 'user-settings' | 'admin-portal' | 'financials'
 
-const VALID_VIEWS: AppView[] = ['dashboard', 'project', 'contractor-settings', 'user-settings', 'admin-portal', 'financials']
+const VALID_VIEWS: AppView[] = ['dashboard', 'project', 'contractor-settings', 'subcontractor-settings', 'user-settings', 'admin-portal', 'financials']
 
 function readSavedView(): AppView {
   try {
@@ -189,6 +190,7 @@ export default function App() {
   const isContractorAdmin = isAppAdmin || currentUser?.contractorRole === 'admin' || currentUser?.contractorRole === 'manager'
   const canManageProjectSubs = isAppAdmin || !!currentUser?.contractorOrg
   const isSubUser = !!currentUser?.subcontractorOrg
+  const isSubManager = isSubUser && currentUser?.subcontractorRole === 'manager'
   const isSuperintendent = isAppAdmin || !!currentUser?.contractorOrg
   const canApprove = !isSubUser
 
@@ -205,7 +207,7 @@ export default function App() {
     <>
       <div className="flex overflow-hidden bg-slate-100" style={{ height: '100dvh' }}>
         {(syncing || navigating) && <VerascopeLoader message={navigating ? 'Loading…' : 'Syncing your projects…'} />}
-        <Sidebar view={view} onNavigate={navigate} onSignOut={signOut} userEmail={user?.email} isAppAdmin={isAppAdmin} isContractorAdmin={isContractorAdmin} isSubUser={isSubUser} />
+        <Sidebar view={view} onNavigate={navigate} onSignOut={signOut} userEmail={user?.email} isAppAdmin={isAppAdmin} isContractorAdmin={isContractorAdmin} isSubUser={isSubUser} isSubManager={isSubManager} />
         <main className={`flex-1 flex flex-col overflow-hidden ${isMobile ? 'pb-[60px]' : ''}`}>
           {view === 'dashboard' ? (
             <Dashboard
@@ -237,6 +239,11 @@ export default function App() {
             <FinancialsView />
           ) : view === 'contractor-settings' ? (
             <ContractorSettingsView />
+          ) : view === 'subcontractor-settings' ? (
+            <SubcontractorSettingsView
+              subOrgId={currentUser?.subcontractorOrg?.id ?? ''}
+              subOrgName={currentUser?.subcontractorOrg?.name ?? ''}
+            />
           ) : view === 'admin-portal' ? (
             <AdminPortalView />
           ) : (
@@ -254,6 +261,7 @@ export default function App() {
             isAppAdmin={isAppAdmin}
             isContractorAdmin={isContractorAdmin}
             isSubUser={isSubUser}
+            isSubManager={isSubManager}
           />
         )}
       </div>

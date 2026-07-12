@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useStore } from '../store/useStore'
 import type { GlobalSubcontractor, JobGroup, Superintendent } from '../types'
 import { OneDriveSettings } from './OneDriveSettings'
+import { fetchContractorSubOrgs, type SubOrg } from '../lib/supabaseSync'
+import { supabase } from '../lib/supabase'
 
 const PRESET_COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#f97316', '#8b5cf6', '#ec4899', '#14b8a6', '#84cc16']
 
@@ -12,15 +14,31 @@ function generateId() {
 export function ContractorSettingsView() {
   const { globalSubcontractors, addGlobalSubcontractor, updateGlobalSubcontractor, deleteGlobalSubcontractor, jobGroups, addJobGroup, updateJobGroup, deleteJobGroup, superintendents, addSuperintendent, updateSuperintendent, deleteSuperintendent } = useStore()
 
+  const [linkedSubOrgs, setLinkedSubOrgs] = useState<SubOrg[]>([])
+
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: member } = await supabase.from('org_members').select('org_id').eq('user_id', user.id).maybeSingle()
+      if (!member?.org_id) return
+      const orgs = await fetchContractorSubOrgs(member.org_id)
+      setLinkedSubOrgs(orgs)
+    }
+    load()
+  }, [])
+
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(PRESET_COLORS[0])
   const [newPct, setNewPct] = useState('')
+  const [newSubOrgId, setNewSubOrgId] = useState('')
   const [addError, setAddError] = useState('')
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editColor, setEditColor] = useState(PRESET_COLORS[0])
   const [editPct, setEditPct] = useState('')
+  const [editSubOrgId, setEditSubOrgId] = useState('')
   const [editError, setEditError] = useState('')
 
   const [newGroupName, setNewGroupName] = useState('')
@@ -44,10 +62,11 @@ export function ContractorSettingsView() {
     }
     const pct = parseFloat(newPct)
     if (isNaN(pct) || pct < 0 || pct > 100) { setAddError('Enter a percentage between 0 and 100.'); return }
-    addGlobalSubcontractor({ id: generateId(), name, color: newColor, defaultPercentage: pct })
+    addGlobalSubcontractor({ id: generateId(), name, color: newColor, defaultPercentage: pct, subOrgId: newSubOrgId || undefined })
     setNewName('')
     setNewPct('')
     setNewColor(PRESET_COLORS[0])
+    setNewSubOrgId('')
     setAddError('')
   }
 
@@ -56,6 +75,7 @@ export function ContractorSettingsView() {
     setEditName(sub.name)
     setEditColor(sub.color)
     setEditPct(String(sub.defaultPercentage))
+    setEditSubOrgId(sub.subOrgId ?? '')
     setEditError('')
   }
 
@@ -68,7 +88,7 @@ export function ContractorSettingsView() {
     }
     const pct = parseFloat(editPct)
     if (isNaN(pct) || pct < 0 || pct > 100) { setEditError('Enter a percentage between 0 and 100.'); return }
-    updateGlobalSubcontractor(id, { name, color: editColor, defaultPercentage: pct })
+    updateGlobalSubcontractor(id, { name, color: editColor, defaultPercentage: pct, subOrgId: editSubOrgId || undefined })
     setEditingId(null)
   }
 
@@ -178,6 +198,12 @@ export function ContractorSettingsView() {
                             <span className="absolute right-2.5 text-xs text-slate-400 pointer-events-none">%</span>
                           </div>
                         </div>
+                        {linkedSubOrgs.length > 0 && (
+                          <select value={editSubOrgId} onChange={e => setEditSubOrgId(e.target.value)} className="input-base">
+                            <option value="">— No linked org —</option>
+                            {linkedSubOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                          </select>
+                        )}
                         <div className="flex items-center gap-3">
                           <div className="flex gap-1.5 flex-wrap">
                             {PRESET_COLORS.map(c => (
@@ -245,6 +271,12 @@ export function ContractorSettingsView() {
                   <span className="absolute right-2.5 text-xs text-slate-400 pointer-events-none">%</span>
                 </div>
               </div>
+              {linkedSubOrgs.length > 0 && (
+                <select value={newSubOrgId} onChange={e => setNewSubOrgId(e.target.value)} className="input-base">
+                  <option value="">— No linked org —</option>
+                  {linkedSubOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+              )}
               <div className="flex items-center gap-3">
                 <div className="flex gap-1.5 flex-wrap">
                   {PRESET_COLORS.map(c => (

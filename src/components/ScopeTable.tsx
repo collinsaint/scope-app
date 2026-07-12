@@ -479,6 +479,19 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                         ? () => isSubUser ? bulkSetPending(projectId, incompleteIds) : bulkComplete(projectId, incompleteIds)
                         : undefined
                     })()}
+                    isSubUser={isSubUser}
+                    onSelectAll={!isSubUser ? (() => {
+                      const roomIds = visibleData.filter(i => i.room === row.room).map(i => i.id)
+                      const allSel = roomIds.every(id => effectiveSelected.has(id))
+                      setSelectedIds(prev => {
+                        const next = new Set(prev)
+                        if (allSel) roomIds.forEach(id => next.delete(id))
+                        else roomIds.forEach(id => next.add(id))
+                        return next
+                      })
+                    }) : undefined}
+                    roomAllSelected={!isSubUser && visibleData.filter(i => i.room === row.room).length > 0 && visibleData.filter(i => i.room === row.room).every(i => effectiveSelected.has(i.id))}
+                    roomSomeSelected={!isSubUser && !visibleData.filter(i => i.room === row.room).every(i => effectiveSelected.has(i.id)) && visibleData.filter(i => i.room === row.room).some(i => effectiveSelected.has(i.id))}
                   />
                 ) : row.isHeader ? (
                   <HeaderRow key={row.id} label={row.description} />
@@ -507,11 +520,31 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   )
 }
 
-function RoomHeaderRow({ room, onCompleteAll }: { room: string; onCompleteAll?: () => void }) {
+function RoomHeaderRow({ room, onCompleteAll, isSubUser, onSelectAll, roomAllSelected, roomSomeSelected }: {
+  room: string
+  onCompleteAll?: () => void
+  isSubUser?: boolean
+  onSelectAll?: () => void
+  roomAllSelected?: boolean
+  roomSomeSelected?: boolean
+}) {
+  const cbRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (cbRef.current) cbRef.current.indeterminate = !!roomSomeSelected
+  }, [roomSomeSelected])
   return (
     <tr>
       <td colSpan={COL_COUNT} className="sticky top-[40px] z-[5] px-4 pt-4 pb-2 bg-white border-b border-slate-200">
         <div className="flex items-center gap-3">
+          {!isSubUser && onSelectAll && (
+            <input
+              ref={cbRef}
+              type="checkbox"
+              checked={!!roomAllSelected}
+              onChange={onSelectAll}
+              className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 flex-shrink-0 cursor-pointer"
+            />
+          )}
           <span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest whitespace-nowrap">
             {roomLabel(room)}
           </span>

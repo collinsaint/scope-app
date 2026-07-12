@@ -79,6 +79,7 @@ export interface GlobalSubcontractor {
   name: string
   color: string
   defaultPercentage: number
+  subOrgId?: string  // UUID of the linked subcontractor org in Supabase
 }
 
 export interface JobGroup {

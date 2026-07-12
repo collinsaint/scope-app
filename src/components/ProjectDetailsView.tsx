@@ -3,6 +3,8 @@ import type { Project, SketchLabel } from '../types'
 import { SKETCH_LABELS } from '../types'
 import { useStore } from '../store/useStore'
 import { resetDemoProject } from '../lib/seedDemoProject'
+import { grantProjectAccessToSubOrg, revokeProjectAccessForSubOrg } from '../lib/supabaseSync'
+import { supabase } from '../lib/supabase'
 
 function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -47,7 +49,7 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
   const subcontractors = project.subcontractors ?? []
   const unassignedGlobals = globalSubcontractors.filter(g => !subcontractors.some(s => s.id === g.id))
 
-  function handleAddSubcontractor() {
+  async function handleAddSubcontractor() {
     const global = globalSubcontractors.find(g => g.id === selectedGlobalId)
     if (!global) return
     addSubcontractor(project.id, {
@@ -57,6 +59,18 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
       percentage: global.defaultPercentage > 0 ? global.defaultPercentage : undefined,
     })
     setSelectedGlobalId('')
+    if (global.subOrgId) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) grantProjectAccessToSubOrg(project.id, global.subOrgId, user.id)
+    }
+  }
+
+  async function handleRemoveSubcontractor(subId: string) {
+    deleteSubcontractor(project.id, subId)
+    const global = globalSubcontractors.find(g => g.id === subId)
+    if (global?.subOrgId) {
+      revokeProjectAccessForSubOrg(project.id, global.subOrgId)
+    }
   }
 
   function commitPct(subId: string) {
@@ -433,7 +447,7 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
                         />
                         <span className="text-xs text-slate-400">%</span>
                       </div>
-                      <button onClick={() => deleteSubcontractor(project.id, sub.id)} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
+                      <button onClick={() => handleRemoveSubcontractor(sub.id)} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
                         </svg>

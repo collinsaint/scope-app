@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { useViewMode } from '../hooks/useViewMode'
 
-type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'user-settings' | 'admin-portal' | 'financials'
+type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'subcontractor-settings' | 'user-settings' | 'admin-portal' | 'financials'
 
 interface Props {
   view: AppView
@@ -12,12 +12,13 @@ interface Props {
   isAppAdmin?: boolean
   isContractorAdmin?: boolean
   isSubUser?: boolean
+  isSubManager?: boolean
 }
 
 const FULL_WIDTH = 224
 const STRIP_WIDTH = 16
 
-export function Sidebar({ view, onNavigate, onSignOut, userEmail, isAppAdmin, isContractorAdmin }: Props) {
+export function Sidebar({ view, onNavigate, onSignOut, userEmail, isAppAdmin, isContractorAdmin, isSubManager }: Props) {
   const { projects, activeProjectId } = useStore()
   const { isMobile, toggle } = useViewMode()
   const [collapsed, setCollapsed] = useState(false)
@@ -89,6 +90,21 @@ export function Sidebar({ view, onNavigate, onSignOut, userEmail, isAppAdmin, is
                 <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
               </svg>
               Contractor Settings
+            </button>
+          )}
+          {isSubManager && (
+            <button
+              onClick={() => onNavigate('subcontractor-settings')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-colors ${
+                view === 'subcontractor-settings'
+                  ? 'bg-white/10 text-white font-medium'
+                  : 'text-white/40 hover:text-white hover:bg-white/[0.06]'
+              }`}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+              </svg>
+              Sub Settings
             </button>
           )}
           <button

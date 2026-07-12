@@ -135,3 +135,52 @@ export async function revokeProjectAccess(projectId: string, userId: string): Pr
     .eq('project_id', projectId)
     .eq('user_id', userId)
 }
+
+export interface SubOrg {
+  id: string
+  name: string
+}
+
+export async function fetchContractorSubOrgs(contractorOrgId: string): Promise<SubOrg[]> {
+  try {
+    const { data, error } = await supabase
+      .from('contractor_subcontractors')
+      .select('subcontractor_org_id, organizations!contractor_subcontractors_subcontractor_org_id_fkey(id, name)')
+      .eq('contractor_org_id', contractorOrgId)
+
+    if (error || !data) return []
+    return data.map((row: any) => ({ id: row.organizations.id, name: row.organizations.name }))
+  } catch {
+    return []
+  }
+}
+
+export async function grantProjectAccessToSubOrg(projectId: string, subOrgId: string, grantedBy: string): Promise<void> {
+  try {
+    const { data } = await supabase
+      .from('subcontractor_members')
+      .select('user_id')
+      .eq('org_id', subOrgId)
+
+    await Promise.all(
+      (data ?? []).map(row => grantProjectAccess(projectId, row.user_id, grantedBy))
+    )
+  } catch {
+    // silent
+  }
+}
+
+export async function revokeProjectAccessForSubOrg(projectId: string, subOrgId: string): Promise<void> {
+  try {
+    const { data } = await supabase
+      .from('subcontractor_members')
+      .select('user_id')
+      .eq('org_id', subOrgId)
+
+    await Promise.all(
+      (data ?? []).map(row => revokeProjectAccess(projectId, row.user_id))
+    )
+  } catch {
+    // silent
+  }
+}

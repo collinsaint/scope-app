@@ -152,8 +152,8 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   a.click()
 }
 
-export function MobileScopeList({ projectId, items, roomFilter, isSubUser = false, canApprove = true }: Props) {
-  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, bulkSetPending, bulkClearPending } = useStore()
+export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true }: Props) {
+  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, oneDrive, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, bulkSetPending, bulkClearPending, assignSubcontractor } = useStore()
   const project = projects.find(p => p.id === projectId)
   const spanishMode = project?.spanishMode ?? false
   const translationCache = project?.translationCache ?? {}
@@ -179,9 +179,27 @@ export function MobileScopeList({ projectId, items, roomFilter, isSubUser = fals
   const [commentModalItemId, setCommentModalItemId] = useState<string | null>(null)
   const [commentDraft, setCommentDraft] = useState('')
   const [commentDeleteConfirm, setCommentDeleteConfirm] = useState<number | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [subPickerItemId, setSubPickerItemId] = useState<string | null>(null)
+  const [bulkSubId, setBulkSubId] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
   const roomGalleryRef = useRef<HTMLInputElement>(null)
+
+  function toggleSelectItem(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function handleBulkAssign() {
+    if (!selectedIds.size) return
+    assignSubcontractor(projectId, [...selectedIds], bulkSubId || null)
+    setSelectedIds(new Set())
+    setBulkSubId('')
+  }
 
   useEffect(() => {
     if (showSearch) {
@@ -656,6 +674,27 @@ export function MobileScopeList({ projectId, items, roomFilter, isSubUser = fals
                             : { background: '#EEEDFE', borderColor: '#CECBF6' }
                         }
                       >
+                        {!isSubUser && (() => {
+                          const roomIds = group.roomItems.map(i => i.id)
+                          const allSel = roomIds.length > 0 && roomIds.every(id => selectedIds.has(id))
+                          const someSel = !allSel && roomIds.some(id => selectedIds.has(id))
+                          return (
+                            <input
+                              type="checkbox"
+                              checked={allSel}
+                              ref={el => { if (el) el.indeterminate = someSel }}
+                              onChange={() => {
+                                setSelectedIds(prev => {
+                                  const next = new Set(prev)
+                                  if (allSel) roomIds.forEach(id => next.delete(id))
+                                  else roomIds.forEach(id => next.add(id))
+                                  return next
+                                })
+                              }}
+                              className="w-4 h-4 rounded border-slate-400 text-blue-600 flex-shrink-0 cursor-pointer"
+                            />
+                          )
+                        })()}
                         <span
                           className="text-[11px] font-bold uppercase tracking-widest flex-1 min-w-0 truncate"
                           style={{ color: headerDone ? '#15803d' : '#3C3489' }}
@@ -724,11 +763,21 @@ export function MobileScopeList({ projectId, items, roomFilter, isSubUser = fals
 
                   <div className="divide-y divide-slate-100">
                     {group.roomItems.map(item => {
+                      const assignedSub = subcontractors.find(s => s.id === item.subcontractorId)
                       return (
-                        <div key={item.id} className={item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : 'bg-white'}>
+                        <div key={item.id} className={`${item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : 'bg-white'} ${selectedIds.has(item.id) ? 'ring-1 ring-inset ring-blue-400' : ''}`}>
                           {/* Card row */}
                           <div className="flex items-start gap-3 px-4 py-3">
-                            {/* Checkbox */}
+                            {/* Bulk select checkbox (contractor only) */}
+                            {!isSubUser && (
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(item.id)}
+                                onChange={() => toggleSelectItem(item.id)}
+                                className="mt-1 w-4 h-4 rounded border-slate-300 text-blue-600 flex-shrink-0 cursor-pointer"
+                              />
+                            )}
+                            {/* Completion checkbox */}
                             <button
                               onClick={() => {
                                 if (isSubUser) {
@@ -834,6 +883,24 @@ export function MobileScopeList({ projectId, items, roomFilter, isSubUser = fals
                               <span className="text-[11px] text-slate-400 leading-none">#{item.rowNum}</span>
                             </div>
                           </div>
+                          {/* Sub assignment row (contractor only) */}
+                          {!isSubUser && subcontractors.length > 0 && (
+                            <div className="px-4 pb-2.5 flex items-center gap-2">
+                              <button
+                                onClick={() => setSubPickerItemId(item.id)}
+                                className="flex items-center gap-1.5 text-[11px] font-medium px-2 py-1 rounded-md border transition-colors"
+                                style={assignedSub
+                                  ? { borderColor: assignedSub.color + '60', background: assignedSub.color + '18', color: assignedSub.color }
+                                  : { borderColor: '#e2e8f0', background: '#f8fafc', color: '#94a3b8' }
+                                }
+                              >
+                                {assignedSub
+                                  ? <><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: assignedSub.color }} />{assignedSub.name}</>
+                                  : <><span className="w-2 h-2 rounded-full border border-slate-300 flex-shrink-0" />Assign sub</>
+                                }
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )
                     })}
@@ -844,6 +911,72 @@ export function MobileScopeList({ projectId, items, roomFilter, isSubUser = fals
           </div>
         )}
       </div>
+
+      {/* Sub picker bottom sheet */}
+      {subPickerItemId && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setSubPickerItemId(null)}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative bg-white rounded-t-2xl pb-[calc(16px+env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <span className="text-sm font-semibold text-slate-800">Assign Subcontractor</span>
+              <button onClick={() => setSubPickerItemId(null)} className="p-1 text-slate-400">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="px-4 py-2">
+              <button
+                onClick={() => { assignSubcontractor(projectId, [subPickerItemId], null); setSubPickerItemId(null) }}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm text-slate-500 hover:bg-slate-50 transition-colors"
+              >
+                <span className="w-4 h-4 rounded-full border-2 border-slate-300 flex-shrink-0" />
+                None
+              </button>
+              {subcontractors.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => { assignSubcontractor(projectId, [subPickerItemId], s.id); setSubPickerItemId(null) }}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors"
+                  style={{ color: s.color }}
+                >
+                  <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk action bar */}
+      {!isSubUser && selectedIds.size > 0 && (
+        <div
+          className="fixed bottom-0 left-0 right-0 z-40 flex items-center gap-2 px-4 py-3 bg-white border-t border-slate-200 shadow-lg"
+          style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom) + 60px)' }}
+        >
+          <span className="text-xs font-semibold text-slate-600 flex-shrink-0">{selectedIds.size} selected</span>
+          <select
+            value={bulkSubId}
+            onChange={e => setBulkSubId(e.target.value)}
+            className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none"
+          >
+            <option value="">— Assign sub —</option>
+            {subcontractors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <button
+            onClick={handleBulkAssign}
+            disabled={!bulkSubId}
+            className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg disabled:opacity-40 flex-shrink-0"
+          >
+            Assign
+          </button>
+          <button
+            onClick={() => { setSelectedIds(new Set()); setBulkSubId('') }}
+            className="px-3 py-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg flex-shrink-0"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* Comment bottom sheet */}
       {commentModalItemId && (() => {
