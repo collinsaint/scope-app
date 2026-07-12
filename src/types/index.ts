@@ -108,6 +108,7 @@ export interface ScopeItem {
   pendingApproval?: boolean
   pendingApprovalAt?: string
   returned?: boolean
+  returnedAt?: string
   returnComment?: string
   returnCommentBy?: string
   approvalComment?: string

@@ -8,6 +8,10 @@ function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 }
 
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+}
+
 interface Props {
   onOpenProject: (id: string) => void
   onOpenProjectDetails: (id: string) => void
@@ -382,35 +386,17 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
               </table>
             </div>
           </div>
-        ) : isMobile ? (
-          /* Mobile: full-width stacked cards */
-          <div className="flex flex-col gap-4">
-            {filtered.map((p) => (
-              <ProjectCard key={p.id} project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} canDelete={isContractorAdmin || isAppAdmin} />
-            ))}
-            {(isContractorAdmin || isAppAdmin) && (
-              <button
-                onClick={() => setShowModal(true)}
-                className="w-full py-5 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-[14px] text-slate-400 hover:border-blue-400/60 hover:bg-blue-50/40 hover:text-blue-500 transition-all duration-150"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                <span className="text-sm font-medium">New project</span>
-              </button>
-            )}
-          </div>
         ) : (
-          /* Desktop: horizontal-scroll cards */
+          /* Horizontal-scroll cards — all roles, all screen sizes */
           <div className="overflow-x-auto -mx-6 px-6 pb-3">
             <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
               {filtered.map((p) => (
-                <div key={p.id} className="w-72 flex-shrink-0">
+                <div key={p.id} className={`${isMobile ? 'w-64' : 'w-72'} flex-shrink-0`}>
                   <ProjectCard project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} canDelete={isContractorAdmin || isAppAdmin} />
                 </div>
               ))}
               {(isContractorAdmin || isAppAdmin) && (
-                <div className="w-72 flex-shrink-0">
+                <div className={`${isMobile ? 'w-64' : 'w-72'} flex-shrink-0`}>
                   <button
                     onClick={() => setShowModal(true)}
                     className="w-full h-full min-h-[200px] flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-[14px] text-slate-400 hover:border-blue-400/60 hover:bg-blue-50/40 hover:text-blue-500 transition-all duration-150"
@@ -549,9 +535,9 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                     <p className="text-sm text-slate-700 bg-blue-50 px-3 py-2 rounded-lg leading-relaxed">{itemDetail.item.comment}</p>
                   )}
                   {(itemDetail.item.commentNotes ?? []).map((note, i) => (
-                    <div key={i} className="mt-1.5">
+                    <div key={i} className="mt-1.5 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
                       {note.type && (
-                        <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded mb-0.5 ${
+                        <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded mb-1 ${
                           note.type === 'approval' ? 'bg-green-100 text-green-700' :
                           note.type === 'return' ? 'bg-red-100 text-red-700' :
                           'bg-slate-100 text-slate-600'
@@ -560,7 +546,10 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                         </span>
                       )}
                       <p className="text-xs text-slate-700 leading-relaxed">{note.text}</p>
-                      {note.by && <p className="text-[10px] text-slate-400 mt-0.5">{note.by}</p>}
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        {note.by && <span className="font-medium text-slate-500">{note.by} · </span>}
+                        {fmtDate(note.createdAt)}
+                      </p>
                     </div>
                   ))}
                 </div>

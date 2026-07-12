@@ -130,8 +130,20 @@ export function CommentsView({ items, onEditComment }: Props) {
                         <div className="flex flex-col gap-2 mt-1">
                           {notes.map((n, i) => (
                             <div key={i} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
+                              {n.type && (
+                                <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded mb-1 ${
+                                  n.type === 'approval' ? 'bg-green-100 text-green-700' :
+                                  n.type === 'return' ? 'bg-red-100 text-red-700' :
+                                  'bg-slate-100 text-slate-600'
+                                }`}>
+                                  {n.type === 'approval' ? 'Approved' : n.type === 'return' ? 'Returned' : 'Comment'}
+                                </span>
+                              )}
                               <p className="text-sm text-slate-800 leading-snug whitespace-pre-wrap">{n.text}</p>
-                              <p className="text-[10px] text-slate-400 mt-1">{formatDate(n.createdAt)}</p>
+                              <p className="text-[10px] text-slate-400 mt-1">
+                                {n.by && <span className="font-medium text-slate-500">{n.by} · </span>}
+                                {formatDate(n.createdAt)}
+                              </p>
                             </div>
                           ))}
                         </div>

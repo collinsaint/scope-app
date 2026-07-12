@@ -901,12 +901,14 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                 <p className="text-[11px] text-red-600 mt-1 leading-snug">
                                   <span className="font-semibold">Returned:</span> {item.returnComment}
                                   {item.returnCommentBy && <span className="text-red-400"> — {item.returnCommentBy}</span>}
+                                  {item.returnedAt && <span className="text-red-300"> · {new Date(item.returnedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
                                 </p>
                               )}
                               {item.completed && item.approvalComment && (
                                 <p className="text-[11px] text-green-700 mt-1 leading-snug">
                                   <span className="font-semibold">Approved:</span> {item.approvalComment}
                                   {item.approvalCommentBy && <span className="text-green-500"> — {item.approvalCommentBy}</span>}
+                                  {item.completedAt && <span className="text-green-400"> · {new Date(item.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
                                 </p>
                               )}
                             </div>

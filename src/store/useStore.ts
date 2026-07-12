@@ -670,6 +670,7 @@ export const useStore = create<StoreState>()(
                 item.id !== itemId ? item : {
                   ...item,
                   returned: true,
+                  returnedAt: new Date().toISOString(),
                   returnComment: comment || undefined,
                   returnCommentBy: by || undefined,
                   pendingApproval: undefined,
