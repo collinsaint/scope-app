@@ -38,6 +38,7 @@ interface Props {
   initialView?: 'scope' | 'comments' | 'details'
   onSubViewChange?: (view: 'scope' | 'details' | 'comments') => void
   canManageProjectSubs?: boolean
+  isContractorAdmin?: boolean
   isSubUser?: boolean
   canApprove?: boolean
   subOrgName?: string
@@ -45,7 +46,7 @@ interface Props {
   currentUserName?: string
 }
 
-export function ProjectView({ projectId, onBack, initialView = 'scope', onSubViewChange, canManageProjectSubs = false, isSubUser = false, canApprove = true, subOrgName, contractorOrgId, currentUserName }: Props) {
+export function ProjectView({ projectId, onBack, initialView = 'scope', onSubViewChange, canManageProjectSubs = false, isContractorAdmin = false, isSubUser = false, canApprove = true, subOrgName, contractorOrgId, currentUserName }: Props) {
   const { isMobile } = useViewMode()
   const { projects, updateProjectItems, addWalk, addSketch, removeSketch, addWalkCustomRoom, addCommentNote, deleteCommentNote } = useStore()
   const project = projects.find(p => p.id === projectId)
@@ -233,7 +234,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                     onChange={e => { setActiveWalkId(e.target.value || null); setActiveView('scope') }}
                     className="px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                   >
-                    <option value="">Main Scope</option>
+                    <option value="">Scope of Work</option>
                     {(project.walks ?? []).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </select>
                   <button onClick={() => setShowNewWalk(true)} className="flex items-center gap-1 px-2 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors" title="New Walk">
@@ -358,7 +359,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
               className="flex-1 px-2.5 py-1.5 text-xs rounded-lg text-white focus:outline-none"
               style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)' }}
             >
-              <option value="" style={{ background: '#3C3489' }}>Main Scope</option>
+              <option value="" style={{ background: '#3C3489' }}>Scope of Work</option>
               {(project.walks ?? []).map(w => <option key={w.id} value={w.id} style={{ background: '#3C3489' }}>{w.name}</option>)}
             </select>
             <button
@@ -544,7 +545,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
             onAddRoom={isMobile ? () => setAddRoomName('') : undefined}
           />
         ) : activeView === 'scope' && project.items.length === 0 ? (
-          <EmptyScopeState projectId={projectId} isSubUser={isSubUser} />
+          <EmptyScopeState projectId={projectId} canUpload={isContractorAdmin} />
 
         ) : activeView === 'scope' ? (
           <ScopeTable
@@ -565,7 +566,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
             onEditComment={(itemId) => { openComment(itemId) }}
           />
         ) : (
-          <ProjectDetailsView project={project} canManage={canManageProjectSubs} isSubUser={isSubUser} contractorOrgId={contractorOrgId} />
+          <ProjectDetailsView project={project} canManage={canManageProjectSubs} canManageDocs={isContractorAdmin} isSubUser={isSubUser} contractorOrgId={contractorOrgId} />
         )}
       </div>
 
@@ -796,7 +797,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
   )
 }
 
-function EmptyScopeState({ projectId, isSubUser }: { projectId: string; isSubUser: boolean }) {
+function EmptyScopeState({ projectId, canUpload }: { projectId: string; canUpload: boolean }) {
   const { uploadProjectDocument } = useStore()
   const siteVisitRef = useRef<HTMLInputElement>(null)
   const approvedRef = useRef<HTMLInputElement>(null)
@@ -828,7 +829,7 @@ function EmptyScopeState({ projectId, isSubUser }: { projectId: string; isSubUse
         <p className="text-sm font-medium text-slate-700">No scope uploaded yet</p>
         <p className="text-xs text-slate-400 mt-1">Upload a scope Excel file to get started.</p>
       </div>
-      {!isSubUser && (
+      {canUpload && (
         <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={() => siteVisitRef.current?.click()}

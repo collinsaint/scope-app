@@ -14,6 +14,7 @@ function fmt(n: number) {
 interface Props {
   project: Project
   canManage?: boolean
+  canManageDocs?: boolean
   isSubUser?: boolean
   contractorOrgId?: string | null
 }
@@ -23,7 +24,7 @@ interface OrgSuperintendent {
   name: string
 }
 
-export function ProjectDetailsView({ project, canManage = false, isSubUser = false, contractorOrgId }: Props) {
+export function ProjectDetailsView({ project, canManage = false, canManageDocs = false, isSubUser = false, contractorOrgId }: Props) {
   const { updateProjectDetails, jobGroups, addSketch, removeSketch, setSpanishMode,
     globalSubcontractors, addSubcontractor, deleteSubcontractor, updateProjectSubcontractor,
     uploadProjectDocument, removeProjectDocument } = useStore()
@@ -416,7 +417,7 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
         {/* Documents */}
         <DocumentsSection
           project={project}
-          canManage={canManage}
+          canManage={canManageDocs}
           onUpload={uploadProjectDocument}
           onRemove={removeProjectDocument}
         />
@@ -699,6 +700,12 @@ function DocumentsSection({ project, canManage, onUpload, onRemove }: DocSection
   const [_activeFileType, setActiveFileType] = useState<'excel' | 'pdf'>('excel')
   const [uploading, setUploading] = useState(false)
   const [pdfViewing, setPdfViewing] = useState<string | null>(null)
+  // Confirmation state: 'delete' or 'replace' with the doc id / designation+type
+  const [confirm, setConfirm] = useState<
+    | { kind: 'delete'; docId: string; label: string }
+    | { kind: 'replace'; designation: DocumentDesignation; fileType: 'excel' | 'pdf'; label: string }
+    | null
+  >(null)
 
   const docs = project.documents ?? []
 
@@ -706,11 +713,34 @@ function DocumentsSection({ project, canManage, onUpload, onRemove }: DocSection
     return docs.find(d => d.designation === designation && d.fileType === fileType) ?? null
   }
 
-  function triggerUpload(designation: DocumentDesignation, fileType: 'excel' | 'pdf') {
+  function requestUpload(designation: DocumentDesignation, fileType: 'excel' | 'pdf') {
+    const existing = getDoc(designation, fileType)
+    if (existing) {
+      setConfirm({ kind: 'replace', designation, fileType, label: `${DESIGNATION_LABELS[designation]} ${fileType === 'excel' ? 'Excel' : 'PDF'}` })
+    } else {
+      doTriggerUpload(designation, fileType)
+    }
+  }
+
+  function doTriggerUpload(designation: DocumentDesignation, fileType: 'excel' | 'pdf') {
     setActiveDesignation(designation)
     setActiveFileType(fileType)
     if (fileType === 'excel') excelInputRef.current?.click()
     else pdfInputRef.current?.click()
+  }
+
+  function requestDelete(docId: string, label: string) {
+    setConfirm({ kind: 'delete', docId, label })
+  }
+
+  function handleConfirm() {
+    if (!confirm) return
+    if (confirm.kind === 'delete') {
+      onRemove(project.id, confirm.docId)
+    } else {
+      doTriggerUpload(confirm.designation, confirm.fileType)
+    }
+    setConfirm(null)
   }
 
   async function handleExcelFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -762,7 +792,7 @@ function DocumentsSection({ project, canManage, onUpload, onRemove }: DocSection
     <div className="section-card overflow-hidden">
       <div className="section-card-header">
         <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em]">Documents</h2>
-        <p className="text-[11px] text-slate-400 mt-0.5">One Excel + one PDF per designation. Site Visit Excel powers Walk View; Approved SOW Excel powers Main Scope.</p>
+        <p className="text-[11px] text-slate-400 mt-0.5">One Excel + one PDF per designation. Site Visit Excel powers Walk View; Approved SOW Excel powers Scope of Work.</p>
       </div>
       <div className="divide-y divide-slate-100">
         {ALL_DESIGNATIONS.map(desig => {
@@ -788,13 +818,16 @@ function DocumentsSection({ project, canManage, onUpload, onRemove }: DocSection
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <button
                         disabled={uploading}
-                        onClick={() => triggerUpload(desig, 'excel')}
+                        onClick={() => requestUpload(desig, 'excel')}
                         className="text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:underline disabled:opacity-50"
                       >
                         {excelDoc ? 'Replace' : 'Upload'}
                       </button>
                       {excelDoc && (
-                        <button onClick={() => onRemove(project.id, excelDoc.id)} className="text-slate-300 hover:text-red-400 transition-colors ml-1">
+                        <button
+                          onClick={() => requestDelete(excelDoc.id, `${DESIGNATION_LABELS[desig]} Excel`)}
+                          className="text-slate-300 hover:text-red-400 transition-colors ml-1"
+                        >
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                           </svg>
@@ -822,13 +855,16 @@ function DocumentsSection({ project, canManage, onUpload, onRemove }: DocSection
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <button
                         disabled={uploading}
-                        onClick={() => triggerUpload(desig, 'pdf')}
+                        onClick={() => requestUpload(desig, 'pdf')}
                         className="text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:underline disabled:opacity-50"
                       >
                         {pdfDoc ? 'Replace' : 'Upload'}
                       </button>
                       {pdfDoc && (
-                        <button onClick={() => onRemove(project.id, pdfDoc.id)} className="text-slate-300 hover:text-red-400 transition-colors ml-1">
+                        <button
+                          onClick={() => requestDelete(pdfDoc.id, `${DESIGNATION_LABELS[desig]} PDF`)}
+                          className="text-slate-300 hover:text-red-400 transition-colors ml-1"
+                        >
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                           </svg>
@@ -846,6 +882,37 @@ function DocumentsSection({ project, canManage, onUpload, onRemove }: DocSection
       {/* Hidden file inputs */}
       <input ref={excelInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelFile} />
       <input ref={pdfInputRef} type="file" accept=".pdf" className="hidden" onChange={handlePdfFile} />
+
+      {/* Confirmation dialog */}
+      {confirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirm(null)} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+            <h3 className="text-sm font-semibold text-slate-900 mb-2">
+              {confirm.kind === 'delete' ? 'Remove document?' : 'Replace document?'}
+            </h3>
+            <p className="text-xs text-slate-500 mb-5">
+              {confirm.kind === 'delete'
+                ? `This will permanently remove the ${confirm.label} from this project.`
+                : `This will replace the existing ${confirm.label}. The old file will be removed.`}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirm(null)}
+                className="flex-1 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirm}
+                className={`flex-1 py-2 text-sm text-white rounded-lg transition-colors ${confirm.kind === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+              >
+                {confirm.kind === 'delete' ? 'Remove' : 'Replace'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PDF viewer overlay */}
       {pdfViewing && (

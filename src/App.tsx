@@ -275,6 +275,7 @@ export default function App() {
               initialView={projectInitialView}
               onSubViewChange={setProjectSubView}
               canManageProjectSubs={canManageProjectSubs}
+              isContractorAdmin={isContractorAdmin}
               isSubUser={isSubUser}
               canApprove={canApprove}
               subOrgName={subOrgName}
