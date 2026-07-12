@@ -769,7 +769,11 @@ export const useStore = create<StoreState>()(
               doc,
             ]
             const { items, walkSourceItems } = recomputeFromDocuments(docs, p.items)
-            return { ...p, documents: docs, items, walkSourceItems }
+            // Auto-create a "Site Visit" walk when the first site-visit Excel is uploaded
+            const walks = (doc.designation === 'site-visit' && doc.fileType === 'excel' && !(p.walks ?? []).length)
+              ? [{ id: Math.random().toString(36).slice(2, 10), name: 'Site Visit', createdAt: new Date().toISOString() }]
+              : p.walks
+            return { ...p, documents: docs, items, walkSourceItems, walks }
           }),
         })),
 
