@@ -155,7 +155,7 @@ function downloadDataUrl(dataUrl: string, filename: string) {
 }
 
 export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName }: Props) {
-  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending, bulkClearPending, assignSubcontractor } = useStore()
+  const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending, bulkClearPending, assignSubcontractor, bulkApproveItems } = useStore()
   const project = projects.find(p => p.id === projectId)
   const spanishMode = project?.spanishMode ?? false
   const translationCache = project?.translationCache ?? {}
@@ -182,6 +182,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   const [commentDraft, setCommentDraft] = useState('')
   const [commentDeleteConfirm, setCommentDeleteConfirm] = useState<number | null>(null)
   const [assignMode, setAssignMode] = useState(false)
+  const [bulkSelectMode, setBulkSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [subPickerItemId, setSubPickerItemId] = useState<string | null>(null)
   const [bulkSubId, setBulkSubId] = useState('')
@@ -254,7 +255,10 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
     ? dataItems.filter(i => i.coverage === coverageFilter)
     : dataItems
   const completedCount = progressItems.filter(i => i.completed).length
-  const pct = progressItems.length ? Math.round(completedCount / progressItems.length * 100) : 0
+  const pendingCount = progressItems.filter(i => i.pendingApproval && !i.completed).length
+  const pctCompleted = progressItems.length ? completedCount / progressItems.length * 100 : 0
+  const pctPending = progressItems.length ? pendingCount / progressItems.length * 100 : 0
+  const pct = Math.round(pctCompleted + pctPending)
 
   const groupedByRoom: Array<{ room: string; roomItems: ScopeItem[] }> = []
   for (const item of filtered) {
@@ -585,8 +589,9 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
 
       {/* Progress bar */}
       <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-3 flex-shrink-0">
-        <div className="flex-1 h-1.5 bg-slate-200 rounded-full">
-          <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+        <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden flex">
+          <div className="h-full bg-green-500 transition-all" style={{ width: `${pctCompleted}%` }} />
+          <div className="h-full bg-amber-400 transition-all" style={{ width: `${pctPending}%` }} />
         </div>
         <span className="text-xs text-slate-500 flex-shrink-0">
           {coverageFilter !== 'all' && <span className="text-blue-500 font-medium">{coverageFilter} · </span>}
@@ -630,10 +635,25 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
           </select>
         )}
         <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+          {/* Bulk select toggle — for approve (contractors) or request approval (subs) */}
+          <button
+            onClick={() => {
+              setBulkSelectMode(v => {
+                if (!v) { setAssignMode(false) }
+                if (v) setSelectedIds(new Set())
+                return !v
+              })
+            }}
+            className={`px-2.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+              bulkSelectMode ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-500 bg-white'
+            }`}
+          >
+            Select
+          </button>
           {/* Assign toggle — contractors only */}
           {!isSubUser && subcontractors.length > 0 && (
             <button
-              onClick={() => { setAssignMode(v => { if (v) setSelectedIds(new Set()); return !v }); }}
+              onClick={() => { setAssignMode(v => { if (!v) setBulkSelectMode(false); if (v) setSelectedIds(new Set()); return !v }); }}
               className={`px-2.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                 assignMode ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-500 bg-white'
               }`}
@@ -703,7 +723,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                             : { background: '#EEEDFE', borderColor: '#CECBF6' }
                         }
                       >
-                        {!isSubUser && assignMode && (() => {
+                        {((!isSubUser && assignMode) || bulkSelectMode) && (() => {
                           const roomIds = group.roomItems.map(i => i.id)
                           const allSel = roomIds.length > 0 && roomIds.every(id => selectedIds.has(id))
                           const someSel = !allSel && roomIds.some(id => selectedIds.has(id))
@@ -798,8 +818,8 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                         <div key={item.id} className={`${item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : item.returned ? 'bg-red-50/60' : 'bg-white'} ${selectedIds.has(item.id) ? 'ring-1 ring-inset ring-blue-400' : ''}`}>
                           {/* Card row */}
                           <div className="flex items-start gap-3 px-4 py-3">
-                            {/* Bulk select checkbox (contractor only, assign mode only) */}
-                            {!isSubUser && assignMode && (
+                            {/* Bulk select checkbox */}
+                            {((!isSubUser && assignMode) || bulkSelectMode) && (
                               <input
                                 type="checkbox"
                                 checked={selectedIds.has(item.id)}
@@ -1085,6 +1105,58 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Bulk select action bar — approve (contractors) or request approval (subs) */}
+      {bulkSelectMode && selectedIds.size > 0 && (
+        <div
+          className="fixed bottom-0 left-0 right-0 z-40 flex items-center gap-2 px-4 py-3 bg-white border-t border-slate-200 shadow-lg"
+          style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom) + 60px)' }}
+        >
+          <span className="text-xs font-semibold text-slate-600 flex-shrink-0">{selectedIds.size} selected</span>
+          <div className="flex-1" />
+          {isSubUser ? (
+            <button
+              onClick={() => {
+                const ids = [...selectedIds].filter(id => {
+                  const item = dataItems.find(i => i.id === id)
+                  return item && !item.completed && (!item.pendingApproval || item.returned)
+                })
+                if (ids.length) bulkSetPending(projectId, ids)
+                setSelectedIds(new Set())
+                setBulkSelectMode(false)
+              }}
+              className="px-4 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg flex-shrink-0"
+            >
+              Request Approval ({[...selectedIds].filter(id => {
+                const item = dataItems.find(i => i.id === id)
+                return item && !item.completed && (!item.pendingApproval || item.returned)
+              }).length})
+            </button>
+          ) : (() => {
+            const pendingIds = [...selectedIds].filter(id => dataItems.find(i => i.id === id)?.pendingApproval)
+            return pendingIds.length > 0 ? (
+              <button
+                onClick={() => {
+                  bulkApproveItems(projectId, pendingIds, currentUserName)
+                  setSelectedIds(new Set())
+                  setBulkSelectMode(false)
+                }}
+                className="px-4 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg flex-shrink-0"
+              >
+                Approve ({pendingIds.length})
+              </button>
+            ) : (
+              <span className="text-xs text-slate-400 flex-shrink-0">No pending items selected</span>
+            )
+          })()}
+          <button
+            onClick={() => { setSelectedIds(new Set()); setBulkSelectMode(false) }}
+            className="px-3 py-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg flex-shrink-0"
+          >
+            Cancel
+          </button>
         </div>
       )}
 

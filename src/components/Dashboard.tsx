@@ -20,6 +20,7 @@ interface Props {
   superintendentUserId?: string | null
   superintendentName?: string | null
   currentUserName?: string
+  isContractorAdmin?: boolean
 }
 
 const statusConfig: Record<string, { dot: string; pill: string }> = {
@@ -35,7 +36,7 @@ interface PendingItemDetail {
   project: Project
 }
 
-export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendentRole = false, superintendentUserId, superintendentName, currentUserName }: Props) {
+export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendentRole = false, superintendentUserId, superintendentName, currentUserName, isContractorAdmin = false }: Props) {
   const { projects: allProjects, deleteProject, approveItem, returnItem } = useStore()
   const { isMobile } = useViewMode()
   const [showModal, setShowModal] = useState(false)
@@ -143,12 +144,14 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                 : `${projects.length} project${projects.length !== 1 ? 's' : ''}`}
             </p>
           </div>
-          <button onClick={() => setShowModal(true)} className="btn-primary">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            New project
-          </button>
+          {(isContractorAdmin || isAppAdmin) && (
+            <button onClick={() => setShowModal(true)} className="btn-primary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              New project
+            </button>
+          )}
         </div>
       )}
 
@@ -165,12 +168,14 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                   : `${projects.length} project${projects.length !== 1 ? 's' : ''}`}
               </p>
             </div>
-            <button onClick={() => setShowModal(true)} className="btn-primary btn-sm">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              New
-            </button>
+            {(isContractorAdmin || isAppAdmin) && (
+              <button onClick={() => setShowModal(true)} className="btn-primary btn-sm">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                New
+              </button>
+            )}
           </div>
         )}
 
@@ -293,9 +298,11 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
             </div>
             <h2 className="text-base font-semibold text-slate-800 mb-1">No projects yet</h2>
             <p className="text-sm text-slate-400 mb-6 max-w-xs">Create your first project and upload an Xactimate scope of work.</p>
-            <button onClick={() => setShowModal(true)} className="btn-primary">
-              Create project
-            </button>
+            {(isContractorAdmin || isAppAdmin) && (
+              <button onClick={() => setShowModal(true)} className="btn-primary">
+                Create project
+              </button>
+            )}
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -379,17 +386,19 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
           /* Mobile: full-width stacked cards */
           <div className="flex flex-col gap-4">
             {filtered.map((p) => (
-              <ProjectCard key={p.id} project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} />
+              <ProjectCard key={p.id} project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} canDelete={isContractorAdmin || isAppAdmin} />
             ))}
-            <button
-              onClick={() => setShowModal(true)}
-              className="w-full py-5 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-[14px] text-slate-400 hover:border-blue-400/60 hover:bg-blue-50/40 hover:text-blue-500 transition-all duration-150"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              <span className="text-sm font-medium">New project</span>
-            </button>
+            {(isContractorAdmin || isAppAdmin) && (
+              <button
+                onClick={() => setShowModal(true)}
+                className="w-full py-5 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-[14px] text-slate-400 hover:border-blue-400/60 hover:bg-blue-50/40 hover:text-blue-500 transition-all duration-150"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                <span className="text-sm font-medium">New project</span>
+              </button>
+            )}
           </div>
         ) : (
           /* Desktop: horizontal-scroll cards */
@@ -397,20 +406,22 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
             <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
               {filtered.map((p) => (
                 <div key={p.id} className="w-72 flex-shrink-0">
-                  <ProjectCard project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} />
+                  <ProjectCard project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} canDelete={isContractorAdmin || isAppAdmin} />
                 </div>
               ))}
-              <div className="w-72 flex-shrink-0">
-                <button
-                  onClick={() => setShowModal(true)}
-                  className="w-full h-full min-h-[200px] flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-[14px] text-slate-400 hover:border-blue-400/60 hover:bg-blue-50/40 hover:text-blue-500 transition-all duration-150"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                  </svg>
-                  <span className="text-sm font-medium">New project</span>
-                </button>
-              </div>
+              {(isContractorAdmin || isAppAdmin) && (
+                <div className="w-72 flex-shrink-0">
+                  <button
+                    onClick={() => setShowModal(true)}
+                    className="w-full h-full min-h-[200px] flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-[14px] text-slate-400 hover:border-blue-400/60 hover:bg-blue-50/40 hover:text-blue-500 transition-all duration-150"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    <span className="text-sm font-medium">New project</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -598,7 +609,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
   )
 }
 
-function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelete }: { project: Project; onOpen: (id: string) => void; onOpenDetails: (id: string) => void; onOpenFinancials?: (id: string) => void; onDelete: (id: string) => void }) {
+function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelete, canDelete = false }: { project: Project; onOpen: (id: string) => void; onOpenDetails: (id: string) => void; onOpenFinancials?: (id: string) => void; onDelete: (id: string) => void; canDelete?: boolean }) {
   const completed = project.items.filter(i => i.completed).length
   const total = project.items.length
   const pending = project.items.filter(i => i.pendingApproval && !i.completed).length
@@ -630,14 +641,16 @@ function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelet
           </div>
           {project.address && <p className="text-xs text-slate-400 mt-0.5 truncate">{project.address}</p>}
         </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); if (confirm('Delete this project?')) onDelete(project.id) }}
-          className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0 p-1"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-          </svg>
-        </button>
+        {canDelete && (
+          <button
+            onClick={(e) => { e.stopPropagation(); if (confirm('Delete this project?')) onDelete(project.id) }}
+            className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0 p-1"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+            </svg>
+          </button>
+        )}
       </div>
 
       {(project.projectCode || project.jobGroup || project.superintendent) && (

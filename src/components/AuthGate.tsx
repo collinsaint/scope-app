@@ -9,8 +9,8 @@ function toEmail(username: string) {
 }
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
-  const { user, loading, signIn, signUp } = useAuth()
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const { user, loading, signIn, signUp, resetPassword } = useAuth()
+  const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -31,7 +31,15 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
     const email = toEmail(username)
 
-    if (mode === 'login') {
+    if (mode === 'reset') {
+      const err = await resetPassword(email)
+      if (err) {
+        setError('Could not send reset email. Check your username.')
+      } else {
+        setInfo('Password reset email sent! Check your inbox.')
+        setMode('login')
+      }
+    } else if (mode === 'login') {
       const err = await signIn(email, password)
       if (err) setError('Invalid username or password.')
     } else {
@@ -113,7 +121,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             }}
           >
             <h2 className="text-base font-semibold text-white mb-5">
-              {mode === 'login' ? 'Sign in to your account' : 'Create an account'}
+              {mode === 'login' ? 'Sign in to your account' : mode === 'reset' ? 'Reset your password' : 'Create an account'}
             </h2>
 
             {error && (
@@ -128,6 +136,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             )}
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              {mode === 'reset' && (
+                <p className="text-xs" style={{ color: '#AFA9EC' }}>
+                  Enter your username and we'll send a password reset link to your email.
+                </p>
+              )}
               {mode === 'signup' && (
                 <div>
                   <label className="block text-xs font-medium mb-1.5" style={{ color: '#AFA9EC' }}>Full Name</label>
@@ -160,19 +173,33 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: '#AFA9EC' }}>Password</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                  className="w-full px-3 py-2.5 rounded-lg text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30"
-                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(206,203,246,0.25)' }}
-                />
-              </div>
+              {mode !== 'reset' && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-medium" style={{ color: '#AFA9EC' }}>Password</label>
+                    {mode === 'login' && (
+                      <button
+                        type="button"
+                        onClick={() => { setMode('reset'); setError(''); setInfo('') }}
+                        className="text-xs"
+                        style={{ color: 'rgba(206,203,246,0.65)' }}
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                    className="w-full px-3 py-2.5 rounded-lg text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/30"
+                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(206,203,246,0.25)' }}
+                  />
+                </div>
+              )}
 
               <button
                 type="submit"
@@ -182,7 +209,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
               >
-                {submitting ? 'Please wait…' : mode === 'login' ? 'Sign In' : 'Create Account'}
+                {submitting ? 'Please wait…' : mode === 'login' ? 'Sign In' : mode === 'reset' ? 'Send Reset Link' : 'Create Account'}
               </button>
             </form>
 
@@ -194,9 +221,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                   </button>
                 </>
               ) : (
-                <>Already have an account?{' '}
+                <>
                   <button onClick={() => { setMode('login'); setError(''); setInfo('') }} className="font-medium" style={{ color: '#CECBF6' }}>
-                    Sign in
+                    Back to sign in
                   </button>
                 </>
               )}

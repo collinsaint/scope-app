@@ -106,7 +106,7 @@ interface Props {
 
 export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName }: Props) {
   const { isMobile } = useViewMode()
-  const { toggleItem, assignSubcontractor, bulkComplete, bulkUncomplete, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending } = useStore()
+  const { toggleItem, assignSubcontractor, bulkComplete, bulkUncomplete, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending, bulkApproveItems } = useStore()
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
   const [search, setSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -283,18 +283,37 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12"/>
             </svg>
-            Mark complete
+            {isSubUser ? 'Request Approval' : 'Mark complete'}
           </button>
           {!isSubUser && (
-            <button
-              onClick={() => setConfirmUncomplete(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>
-              </svg>
-              Mark incomplete
-            </button>
+            <>
+              <button
+                onClick={() => setConfirmUncomplete(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>
+                </svg>
+                Mark incomplete
+              </button>
+              {canApprove && (() => {
+                const pendingSelected = [...effectiveSelected].filter(id => {
+                  const item = visibleData.find(i => i.id === id)
+                  return item?.pendingApproval
+                })
+                return pendingSelected.length > 0 ? (
+                  <button
+                    onClick={() => { bulkApproveItems(projectId, pendingSelected, currentUserName); setSelectedIds(new Set()) }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    Approve ({pendingSelected.length})
+                  </button>
+                ) : null
+              })()}
+            </>
           )}
           <div className="w-px h-4 bg-blue-200" />
           <span className="text-xs text-slate-500">Assign to:</span>
@@ -328,10 +347,13 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                   <polyline points="20 6 9 17 4 12"/>
                 </svg>
               </div>
-              <h3 className="text-sm font-semibold text-slate-900">Mark items as complete</h3>
+              <h3 className="text-sm font-semibold text-slate-900">{isSubUser ? 'Request approval' : 'Mark items as complete'}</h3>
             </div>
             <p className="text-sm text-slate-500 mb-5 pl-12">
-              Mark <span className="font-semibold text-slate-700">{effectiveSelected.size} item{effectiveSelected.size !== 1 ? 's' : ''}</span> as complete? Today's date will be recorded as the completion date.
+              {isSubUser
+                ? <>Submit <span className="font-semibold text-slate-700">{effectiveSelected.size} item{effectiveSelected.size !== 1 ? 's' : ''}</span> for approval?</>
+                : <>Mark <span className="font-semibold text-slate-700">{effectiveSelected.size} item{effectiveSelected.size !== 1 ? 's' : ''}</span> as complete? Today's date will be recorded as the completion date.</>
+              }
             </p>
             <div className="flex justify-end gap-2">
               <button

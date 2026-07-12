@@ -156,11 +156,14 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
   }
 
   function roomProgress(r: string) {
-    const items = (r === 'all' ? project!.items : project!.items.filter(i => i.room === r))
+    const its = (r === 'all' ? project!.items : project!.items.filter(i => i.room === r))
       .filter(i => !i.isHeader)
-    if (!items.length) return { pct: 0, count: 0 }
-    const done = items.filter(i => i.completed).length
-    return { pct: Math.round(done / items.length * 100), count: items.length }
+    if (!its.length) return { pct: 0, pctCompleted: 0, pctPending: 0, count: 0 }
+    const done = its.filter(i => i.completed).length
+    const pending = its.filter(i => i.pendingApproval && !i.completed).length
+    const pctCompleted = done / its.length * 100
+    const pctPending = pending / its.length * 100
+    return { pct: Math.round(pctCompleted + pctPending), pctCompleted, pctPending, count: its.length }
   }
 
   return (
@@ -382,7 +385,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
       {activeView !== 'details' && (
         <div className={`flex gap-2 bg-white border-b border-slate-100 flex-shrink-0 ${isMobile ? 'px-4 py-2.5 overflow-x-auto scrollbar-hide' : 'flex-wrap px-6 py-3'}`}>
           {rooms.map(r => {
-            const { pct, count } = roomProgress(r)
+            const { pct, pctCompleted, pctPending, count } = roomProgress(r)
             const isActive = roomFilter === r
             const isCustom = walkCustomRooms.includes(r)
             return (
@@ -402,8 +405,14 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                   <span className={`text-[10px] ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>{count}</span>
                 )}
                 {r !== 'all' && !isCustom && pct > 0 && (
-                  <span className={`flex items-center gap-0.5 text-[10px] font-medium ${isActive ? 'text-slate-300' : pct === 100 ? 'text-green-500' : 'text-blue-500'}`}>
-                    {pct}%
+                  <span className="flex items-center gap-1">
+                    <span className={`text-[10px] font-medium ${isActive ? 'text-slate-300' : pct === 100 ? 'text-green-500' : 'text-slate-500'}`}>
+                      {pct}%
+                    </span>
+                    <span className={`w-8 h-1 rounded-full overflow-hidden flex ${isActive ? 'bg-white/20' : 'bg-slate-200'}`}>
+                      <span className="h-full bg-green-500" style={{ width: `${pctCompleted}%` }} />
+                      <span className="h-full bg-amber-400" style={{ width: `${pctPending}%` }} />
+                    </span>
                   </span>
                 )}
               </button>

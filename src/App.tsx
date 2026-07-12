@@ -259,6 +259,7 @@ export default function App() {
               superintendentUserId={superintendentUserId}
               superintendentName={superintendentName}
               currentUserName={currentUserName}
+              isContractorAdmin={isContractorAdmin}
             />
           ) : view === 'project' ? (
             <ProjectView
