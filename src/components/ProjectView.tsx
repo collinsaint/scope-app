@@ -537,29 +537,8 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
             onAddRoom={isMobile ? () => setAddRoomName('') : undefined}
           />
         ) : activeView === 'scope' && project.items.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8">
-            <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center">
-              <svg className="text-slate-300" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-700">No scope uploaded yet</p>
-              <p className="text-xs text-slate-400 mt-1">Upload a Main Scope Excel file to get started.</p>
-            </div>
-            <label className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer transition-colors">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-              Upload Main Scope
-              <input type="file" accept=".xlsx,.xls" className="hidden" onChange={async e => {
-                const f = e.target.files?.[0]
-                if (!f) return
-                await onDrop([f])
-                e.target.value = ''
-              }} />
-            </label>
-          </div>
+          <EmptyScopeState projectId={projectId} isSubUser={isSubUser} />
+
         ) : activeView === 'scope' ? (
           <ScopeTable
             projectId={projectId}
@@ -806,6 +785,66 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
           </div>
         )
       })()}
+    </div>
+  )
+}
+
+function EmptyScopeState({ projectId, isSubUser }: { projectId: string; isSubUser: boolean }) {
+  const { uploadProjectDocument } = useStore()
+  const siteVisitRef = useRef<HTMLInputElement>(null)
+  const approvedRef = useRef<HTMLInputElement>(null)
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>, designation: 'site-visit' | 'approved-sow') {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const buffer = await file.arrayBuffer()
+    const parsedItems = parseExcelFile(buffer)
+    uploadProjectDocument(projectId, {
+      id: Math.random().toString(36).slice(2, 10),
+      designation,
+      fileType: 'excel',
+      fileName: file.name,
+      uploadedAt: new Date().toISOString(),
+      parsedItems,
+    })
+    e.target.value = ''
+  }
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center p-8">
+      <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center">
+        <svg className="text-slate-300" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <div>
+        <p className="text-sm font-medium text-slate-700">No scope uploaded yet</p>
+        <p className="text-xs text-slate-400 mt-1">Upload a scope Excel file to get started.</p>
+      </div>
+      {!isSubUser && (
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            onClick={() => siteVisitRef.current?.click()}
+            className="flex items-center gap-2 px-4 py-2 text-sm border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Upload Site Visit SOW
+          </button>
+          <button
+            onClick={() => approvedRef.current?.click()}
+            className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Upload Approved SOW
+          </button>
+        </div>
+      )}
+      <input ref={siteVisitRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => handleFile(e, 'site-visit')} />
+      <input ref={approvedRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => handleFile(e, 'approved-sow')} />
     </div>
   )
 }
