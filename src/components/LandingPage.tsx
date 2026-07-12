@@ -25,7 +25,7 @@ type Tab = 'signin' | 'signup'
 export function LandingPage() {
   const [tab, setTab] = useState<Tab>('signin')
   const [showPassword, setShowPassword] = useState(false)
-  const { signIn, signUp } = useAuth()
+  const { signIn, signUp, resetPassword } = useAuth()
 
   // ── Sign In ─────────────────────────────────────
   const [siInput, setSiInput] = useState('')
@@ -39,9 +39,33 @@ export function LandingPage() {
   const [suError, setSuError] = useState('')
   const [suLoading, setSuLoading] = useState(false)
 
+  // ── Forgot Password ──────────────────────────────
+  const [showReset, setShowReset] = useState(false)
+  const [resetInput, setResetInput] = useState('')
+  const [resetError, setResetError] = useState('')
+  const [resetInfo, setResetInfo] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+
+  async function handleReset(e: React.FormEvent) {
+    e.preventDefault()
+    setResetError(''); setResetInfo('')
+    const input = resetInput.trim()
+    if (!input) { setResetError('Enter your email or username.'); return }
+    const email = input.includes('@') ? input.toLowerCase() : toEmail(input)
+    setResetLoading(true)
+    const err = await resetPassword(email)
+    if (err) {
+      setResetError('Could not send reset email. Check your email or username.')
+    } else {
+      setResetInfo('Reset link sent! Check your inbox.')
+    }
+    setResetLoading(false)
+  }
+
   function switchTab(t: Tab) {
     setTab(t)
     setSiError(''); setSuError('')
+    setShowReset(false); setResetError(''); setResetInfo('')
   }
 
   async function handleSignIn(e: React.FormEvent) {
@@ -138,7 +162,7 @@ export function LandingPage() {
             <div className="p-6">
 
               {/* ── Sign In ── */}
-              {tab === 'signin' && (
+              {tab === 'signin' && !showReset && (
                 <form onSubmit={handleSignIn} className="flex flex-col gap-4">
                   <h2 className="text-base font-semibold text-white mb-1">Sign in to your account</h2>
                   {siError && <div className="px-3 py-2.5 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>{siError}</div>}
@@ -147,7 +171,19 @@ export function LandingPage() {
                     <input type="text" value={siInput} onChange={e => setSiInput(e.target.value)} placeholder="jsmith or email@company.com" autoCapitalize="off" autoCorrect="off" spellCheck={false} className={inputClass} style={inputStyle} />
                   </div>
                   <div>
-                    <label className={labelClass} style={labelStyle}>Password</label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className={labelClass} style={{ ...labelStyle, marginBottom: 0 }}>Password</label>
+                      <button
+                        type="button"
+                        onClick={() => { setShowReset(true); setResetInput(siInput); setResetError(''); setResetInfo('') }}
+                        className="text-xs transition-colors"
+                        style={{ color: 'rgba(206,203,246,0.55)' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = '#CECBF6')}
+                        onMouseLeave={e => (e.currentTarget.style.color = 'rgba(206,203,246,0.55)')}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
                     <div className="relative">
                       <input type={showPassword ? 'text' : 'password'} value={siPassword} onChange={e => setSiPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" className={inputClass} style={{ ...inputStyle, paddingRight: '2.5rem' }} />
                       <button
@@ -174,6 +210,50 @@ export function LandingPage() {
                     onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}>
                     {siLoading ? 'Signing in…' : 'Sign In'}
                   </button>
+                </form>
+              )}
+
+              {/* ── Forgot Password ── */}
+              {tab === 'signin' && showReset && (
+                <form onSubmit={handleReset} className="flex flex-col gap-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <button
+                      type="button"
+                      onClick={() => { setShowReset(false); setResetError(''); setResetInfo('') }}
+                      className="p-1 -ml-1 transition-colors"
+                      style={{ color: 'rgba(206,203,246,0.55)' }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+                      </svg>
+                    </button>
+                    <h2 className="text-base font-semibold text-white">Reset your password</h2>
+                  </div>
+                  <p className="text-xs -mt-2" style={{ color: 'rgba(206,203,246,0.55)' }}>
+                    Enter your email or username and we'll send you a reset link.
+                  </p>
+                  {resetError && <div className="px-3 py-2.5 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>{resetError}</div>}
+                  {resetInfo && <div className="px-3 py-2.5 rounded-lg text-sm" style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#86efac' }}>{resetInfo}</div>}
+                  {!resetInfo && (
+                    <>
+                      <div>
+                        <label className={labelClass} style={labelStyle}>Email or Username</label>
+                        <input type="text" value={resetInput} onChange={e => setResetInput(e.target.value)} placeholder="jsmith or email@company.com" autoCapitalize="off" autoCorrect="off" spellCheck={false} className={inputClass} style={inputStyle} />
+                      </div>
+                      <button type="submit" disabled={resetLoading} className="w-full py-2.5 text-sm font-semibold rounded-lg transition-colors mt-1 disabled:opacity-50" style={btnStyle}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}>
+                        {resetLoading ? 'Sending…' : 'Send Reset Link'}
+                      </button>
+                    </>
+                  )}
+                  {resetInfo && (
+                    <button type="button" onClick={() => { setShowReset(false); setResetInfo('') }} className="w-full py-2.5 text-sm font-semibold rounded-lg transition-colors" style={btnStyle}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.25)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}>
+                      Back to Sign In
+                    </button>
+                  )}
                 </form>
               )}
 
