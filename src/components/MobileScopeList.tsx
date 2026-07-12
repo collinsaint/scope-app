@@ -1284,7 +1284,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                   <button
                     onClick={() => {
                       if (!commentDraft.trim()) return
-                      addCommentNote(projectId, commentModalItemId, { text: commentDraft.trim(), createdAt: new Date().toISOString() })
+                      addCommentNote(projectId, commentModalItemId, { text: commentDraft.trim(), createdAt: new Date().toISOString(), by: currentUserName })
                       setCommentDraft('')
                     }}
                     disabled={!commentDraft.trim()}

@@ -105,7 +105,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
 
   function addNote() {
     if (!commentItemId || !commentDraft.trim()) return
-    addCommentNote(projectId, commentItemId, { text: commentDraft.trim(), createdAt: new Date().toISOString() })
+    addCommentNote(projectId, commentItemId, { text: commentDraft.trim(), createdAt: new Date().toISOString(), by: currentUserName })
     setCommentDraft('')
   }
 
