@@ -16,6 +16,7 @@ interface Props {
   onNavigateAdmin?: () => void
   isSuperintendent?: boolean
   isSubUser?: boolean
+  superintendentUserId?: string | null
   superintendentName?: string | null
 }
 
@@ -27,7 +28,7 @@ const statusConfig: Record<string, { dot: string; pill: string }> = {
   'Closed':           { dot: 'bg-slate-300',   pill: 'bg-slate-50 border-slate-200 text-slate-600' },
 }
 
-export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendent = false, superintendentName }: Props) {
+export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendent = false, superintendentUserId, superintendentName }: Props) {
   const { projects: allProjects, deleteProject, approveItem, rejectItem } = useStore()
   const { isMobile } = useViewMode()
   const [showModal, setShowModal] = useState(false)
@@ -38,14 +39,17 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
   const [filterStatus, setFilterStatus] = useState('')
   const [expandedApprovalIds, setExpandedApprovalIds] = useState<Set<string>>(new Set())
 
-  // Superintendent-role users only see projects assigned to them by name.
-  // If no projects match (display_name mismatch), fall back to all projects
-  // so the superintendent isn't left with a blank screen.
+  // Superintendent-role users only see projects assigned to them.
+  // Match by user_id (new) with name as legacy fallback for projects that
+  // predate the superintendentId field. Falls back to all projects if nothing
+  // matches (prevents blank screen when display_name hasn't been configured).
   const projects = (() => {
-    if (!superintendentName) return allProjects
-    const name = superintendentName.trim().toLowerCase()
+    if (!superintendentUserId) return allProjects
+    const nameLower = superintendentName?.trim().toLowerCase()
     const matched = allProjects.filter(p =>
-      p.isDemo || (p.superintendent?.trim().toLowerCase() === name)
+      p.isDemo ||
+      p.superintendentId === superintendentUserId ||
+      (nameLower && p.superintendent?.trim().toLowerCase() === nameLower)
     )
     return matched.length > 0 ? matched : allProjects
   })()

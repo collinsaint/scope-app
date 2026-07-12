@@ -190,6 +190,7 @@ export interface Project {
   subcontractors?: Subcontractor[]
   projectCode?: string
   superintendent?: string
+  superintendentId?: string
   projectStatus?: string
   jobGroup?: string
   applicantName?: string

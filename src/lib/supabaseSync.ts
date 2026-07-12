@@ -129,6 +129,21 @@ export async function syncProjectToSupabase(project: Project, ownerId: string, o
   }
 }
 
+export async function assignProjectSuperintendent(
+  projectId: string,
+  newUserId: string | null,
+  oldUserId?: string | null,
+): Promise<void> {
+  const { error } = await supabase.rpc('assign_project_superintendent', {
+    p_project_id:  projectId,
+    p_new_user_id: newUserId,
+    p_old_user_id: oldUserId ?? null,
+  })
+  if (error) {
+    console.error('Failed to assign superintendent:', error.message)
+  }
+}
+
 export async function deleteProjectFromSupabase(projectId: string): Promise<void> {
   const { error } = await supabase
     .from('projects')

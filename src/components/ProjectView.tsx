@@ -41,9 +41,10 @@ interface Props {
   isSubUser?: boolean
   canApprove?: boolean
   subOrgName?: string
+  contractorOrgId?: string | null
 }
 
-export function ProjectView({ projectId, onBack, initialView = 'scope', onSubViewChange, canManageProjectSubs = false, isSubUser = false, canApprove = true, subOrgName }: Props) {
+export function ProjectView({ projectId, onBack, initialView = 'scope', onSubViewChange, canManageProjectSubs = false, isSubUser = false, canApprove = true, subOrgName, contractorOrgId }: Props) {
   const { isMobile } = useViewMode()
   const { projects, updateProjectItems, addWalk, addSketch, removeSketch, addWalkCustomRoom, addCommentNote, deleteCommentNote } = useStore()
   const project = projects.find(p => p.id === projectId)
@@ -567,7 +568,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
             onEditComment={(itemId) => { openComment(itemId) }}
           />
         ) : (
-          <ProjectDetailsView project={project} canManage={canManageProjectSubs} isSubUser={isSubUser} />
+          <ProjectDetailsView project={project} canManage={canManageProjectSubs} isSubUser={isSubUser} contractorOrgId={contractorOrgId} />
         )}
       </div>
 

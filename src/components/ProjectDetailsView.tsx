@@ -3,7 +3,7 @@ import type { Project, SketchLabel } from '../types'
 import { SKETCH_LABELS } from '../types'
 import { useStore } from '../store/useStore'
 import { resetDemoProject } from '../lib/seedDemoProject'
-import { grantProjectAccessToSubOrg, revokeProjectAccessForSubOrg, fetchMyContractorSubOrgs, type SubOrg } from '../lib/supabaseSync'
+import { grantProjectAccessToSubOrg, revokeProjectAccessForSubOrg, fetchMyContractorSubOrgs, assignProjectSuperintendent, type SubOrg } from '../lib/supabaseSync'
 import { supabase } from '../lib/supabase'
 
 function fmt(n: number) {
@@ -14,10 +14,16 @@ interface Props {
   project: Project
   canManage?: boolean
   isSubUser?: boolean
+  contractorOrgId?: string | null
 }
 
-export function ProjectDetailsView({ project, canManage = false, isSubUser = false }: Props) {
-  const { updateProjectDetails, jobGroups, superintendents, addSketch, removeSketch, setSpanishMode,
+interface OrgSuperintendent {
+  userId: string
+  name: string
+}
+
+export function ProjectDetailsView({ project, canManage = false, isSubUser = false, contractorOrgId }: Props) {
+  const { updateProjectDetails, jobGroups, addSketch, removeSketch, setSpanishMode,
     globalSubcontractors, addSubcontractor, deleteSubcontractor, updateProjectSubcontractor } = useStore()
   const sketches = project.sketches ?? []
   const usedLabels = new Set(sketches.map(s => s.label))
@@ -29,6 +35,8 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
   const [address, setAddress] = useState(project.address)
   const [projectCode, setProjectCode] = useState(project.projectCode ?? '')
   const [superintendent, setSuperintendent] = useState(project.superintendent ?? '')
+  const [superintendentId, setSuperintendentId] = useState(project.superintendentId ?? '')
+  const [orgSuperintendents, setOrgSuperintendents] = useState<OrgSuperintendent[]>([])
   const [projectStatus, setProjectStatus] = useState(project.projectStatus ?? 'Site Visit')
   const [jobGroup, setJobGroup] = useState(project.jobGroup ?? '')
   const [applicantName, setApplicantName] = useState(project.applicantName ?? '')
@@ -45,6 +53,30 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
   useEffect(() => {
     fetchMyContractorSubOrgs().then(setLinkedSubOrgs)
   }, [])
+
+  // Load actual superintendent org members so we have their user_id for project_access
+  useEffect(() => {
+    if (!contractorOrgId) return
+    async function load() {
+      const { data: members } = await supabase
+        .from('org_members')
+        .select('user_id')
+        .eq('org_id', contractorOrgId!)
+        .eq('role', 'superintendent')
+      if (!members?.length) return
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, display_name, email')
+        .in('id', members.map(m => m.user_id))
+      if (profiles) {
+        setOrgSuperintendents(profiles.map(p => ({
+          userId: p.id,
+          name: p.display_name || p.email || p.id,
+        })))
+      }
+    }
+    load()
+  }, [contractorOrgId])
 
   const dataItems = project.items.filter(i => !i.isHeader)
   const completed = dataItems.filter(i => i.completed)
@@ -105,12 +137,19 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
       address: address.trim(),
       projectCode: projectCode.trim() || undefined,
       superintendent: superintendent.trim() || undefined,
+      superintendentId: superintendentId || undefined,
       projectStatus: projectStatus || undefined,
       jobGroup: jobGroup.trim() || undefined,
       applicantName: applicantName.trim() || undefined,
       applicantPhone: applicantPhone.trim() || undefined,
       applicantEmail: applicantEmail.trim() || undefined,
     })
+    // If superintendent changed, update project_access in the DB
+    const prevId = project.superintendentId ?? null
+    const nextId = superintendentId || null
+    if (nextId !== prevId) {
+      assignProjectSuperintendent(project.id, nextId, prevId)
+    }
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -120,6 +159,7 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
     address.trim() !== project.address ||
     projectCode.trim() !== (project.projectCode ?? '') ||
     superintendent.trim() !== (project.superintendent ?? '') ||
+    superintendentId !== (project.superintendentId ?? '') ||
     projectStatus !== (project.projectStatus ?? '') ||
     jobGroup.trim() !== (project.jobGroup ?? '') ||
     applicantName.trim() !== (project.applicantName ?? '') ||
@@ -239,12 +279,22 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
               </div>
               <div>
                 <label className="label-base">Superintendent</label>
-                <select value={superintendent} onChange={e => { setSuperintendent(e.target.value); setSaved(false) }} className="input-base">
+                <select
+                  value={superintendentId}
+                  onChange={e => {
+                    const userId = e.target.value
+                    const member = orgSuperintendents.find(s => s.userId === userId)
+                    setSuperintendentId(userId)
+                    setSuperintendent(member?.name ?? '')
+                    setSaved(false)
+                  }}
+                  className="input-base"
+                >
                   <option value="">— None —</option>
-                  {superintendents.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                  {orgSuperintendents.map(s => <option key={s.userId} value={s.userId}>{s.name}</option>)}
                 </select>
-                {superintendents.length === 0 && (
-                  <p className="text-[11px] text-slate-400 mt-1">No superintendents yet — add them in Contractor Settings.</p>
+                {orgSuperintendents.length === 0 && contractorOrgId && (
+                  <p className="text-[11px] text-slate-400 mt-1">No superintendents found — invite them via Contractor Settings with the Superintendent role.</p>
                 )}
               </div>
               <div>
