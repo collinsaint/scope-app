@@ -24,19 +24,15 @@ export function SubcontractorSettingsView({ subOrgId, subOrgName }: { subOrgId: 
   async function loadCrew() {
     setLoading(true)
     try {
-      const { data } = await supabase
-        .from('subcontractor_members')
-        .select('id, user_id, role, profiles(email, display_name, language)')
-        .eq('org_id', subOrgId)
-
+      const { data } = await supabase.rpc('get_sub_org_crew', { p_org_id: subOrgId })
       setCrew(
         (data ?? []).map((row: any) => ({
-          id: row.id,
+          id: row.member_id,
           user_id: row.user_id,
           role: row.role as SubcontractorRole,
-          email: row.profiles?.email ?? '',
-          display_name: row.profiles?.display_name ?? null,
-          language: (row.profiles?.language ?? 'en') as 'en' | 'es',
+          email: row.email ?? '',
+          display_name: row.display_name ?? null,
+          language: (row.language ?? 'en') as 'en' | 'es',
         }))
       )
     } finally {
