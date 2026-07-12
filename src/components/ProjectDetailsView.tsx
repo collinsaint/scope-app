@@ -1,9 +1,9 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { Project, SketchLabel } from '../types'
 import { SKETCH_LABELS } from '../types'
 import { useStore } from '../store/useStore'
 import { resetDemoProject } from '../lib/seedDemoProject'
-import { grantProjectAccessToSubOrg, revokeProjectAccessForSubOrg } from '../lib/supabaseSync'
+import { grantProjectAccessToSubOrg, revokeProjectAccessForSubOrg, fetchMyContractorSubOrgs, type SubOrg } from '../lib/supabaseSync'
 import { supabase } from '../lib/supabase'
 
 function fmt(n: number) {
@@ -39,6 +39,11 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
   const [resetConfirm, setResetConfirm] = useState(false)
   const [pctDraft, setPctDraft] = useState<Record<string, string>>({})
   const [selectedGlobalId, setSelectedGlobalId] = useState('')
+  const [linkedSubOrgs, setLinkedSubOrgs] = useState<SubOrg[]>([])
+
+  useEffect(() => {
+    fetchMyContractorSubOrgs().then(setLinkedSubOrgs)
+  }, [])
 
   const dataItems = project.items.filter(i => !i.isHeader)
   const completed = dataItems.filter(i => i.completed)
@@ -48,6 +53,11 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
   const pct = dataItems.length ? Math.round(completed.length / dataItems.length * 100) : 0
   const subcontractors = project.subcontractors ?? []
   const unassignedGlobals = globalSubcontractors.filter(g => !subcontractors.some(s => s.id === g.id))
+
+  function resolveSubOrgId(globalName: string, explicitSubOrgId?: string): string | undefined {
+    if (explicitSubOrgId) return explicitSubOrgId
+    return linkedSubOrgs.find(o => o.name.toLowerCase() === globalName.toLowerCase())?.id
+  }
 
   async function handleAddSubcontractor() {
     const global = globalSubcontractors.find(g => g.id === selectedGlobalId)
@@ -59,17 +69,19 @@ export function ProjectDetailsView({ project, canManage = false, isSubUser = fal
       percentage: global.defaultPercentage > 0 ? global.defaultPercentage : undefined,
     })
     setSelectedGlobalId('')
-    if (global.subOrgId) {
+    const subOrgId = resolveSubOrgId(global.name, global.subOrgId)
+    if (subOrgId) {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) grantProjectAccessToSubOrg(project.id, global.subOrgId, user.id)
+      if (user) grantProjectAccessToSubOrg(project.id, subOrgId, user.id)
     }
   }
 
   async function handleRemoveSubcontractor(subId: string) {
     deleteSubcontractor(project.id, subId)
     const global = globalSubcontractors.find(g => g.id === subId)
-    if (global?.subOrgId) {
-      revokeProjectAccessForSubOrg(project.id, global.subOrgId)
+    if (global) {
+      const subOrgId = resolveSubOrgId(global.name, global.subOrgId)
+      if (subOrgId) revokeProjectAccessForSubOrg(project.id, subOrgId)
     }
   }
 

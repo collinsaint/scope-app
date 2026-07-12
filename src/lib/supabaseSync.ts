@@ -155,6 +155,21 @@ export async function fetchContractorSubOrgs(contractorOrgId: string): Promise<S
   }
 }
 
+// Fetches all sub orgs linked to the current user's contractor org (no org ID needed)
+export async function fetchMyContractorSubOrgs(): Promise<SubOrg[]> {
+  try {
+    const { data } = await supabase
+      .from('contractor_subcontractors')
+      .select('organizations!contractor_subcontractors_subcontractor_org_id_fkey(id, name)')
+    if (!data) return []
+    return data
+      .map((row: any) => ({ id: row.organizations?.id ?? '', name: row.organizations?.name ?? '' }))
+      .filter(o => o.id)
+  } catch {
+    return []
+  }
+}
+
 export async function grantProjectAccessToSubOrg(projectId: string, subOrgId: string, grantedBy: string): Promise<void> {
   try {
     const { data } = await supabase
