@@ -122,7 +122,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
     setReuploadError('')
     try {
       const buffer = await accepted[0].arrayBuffer()
-      const incoming = parseExcelFile(buffer)
+      const { items: incoming } = parseExcelFile(buffer)
       const merged = mergeItems(project.items, incoming)
       updateProjectItems(projectId, merged)
     } catch {
@@ -806,7 +806,7 @@ function EmptyScopeState({ projectId, canUpload }: { projectId: string; canUploa
     const file = e.target.files?.[0]
     if (!file) return
     const buffer = await file.arrayBuffer()
-    const parsedItems = parseExcelFile(buffer)
+    const { items: parsedItems } = parseExcelFile(buffer)
     uploadProjectDocument(projectId, {
       id: Math.random().toString(36).slice(2, 10),
       designation,

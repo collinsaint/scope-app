@@ -699,6 +699,7 @@ function DocumentsSection({ project, canManage, onUpload, onRemove }: DocSection
   const [activeDesignation, setActiveDesignation] = useState<DocumentDesignation | null>(null)
   const [_activeFileType, setActiveFileType] = useState<'excel' | 'pdf'>('excel')
   const [uploading, setUploading] = useState(false)
+  const [noActivityWarning, setNoActivityWarning] = useState(false)
   const [pdfViewing, setPdfViewing] = useState<string | null>(null)
   // Confirmation state: 'delete' or 'replace' with the doc id / designation+type
   const [confirm, setConfirm] = useState<
@@ -749,7 +750,8 @@ function DocumentsSection({ project, canManage, onUpload, onRemove }: DocSection
     setUploading(true)
     try {
       const buffer = await file.arrayBuffer()
-      const parsedItems = parseExcelFile(buffer)
+      const { items: parsedItems, hasActivity } = parseExcelFile(buffer)
+      if (!hasActivity) setNoActivityWarning(true)
       onUpload(project.id, {
         id: randomId(),
         designation: activeDesignation,
@@ -794,6 +796,22 @@ function DocumentsSection({ project, canManage, onUpload, onRemove }: DocSection
         <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em]">Documents</h2>
         <p className="text-[11px] text-slate-400 mt-0.5">One Excel + one PDF per designation. Site Visit Excel powers Walk View; Approved SOW Excel powers Scope of Work.</p>
       </div>
+      {noActivityWarning && (
+        <div className="flex items-start gap-3 px-5 py-3 bg-amber-50 border-b border-amber-100">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <div className="flex-1">
+            <p className="text-xs font-semibold text-amber-800">Activity data missing</p>
+            <p className="text-[11px] text-amber-700 mt-0.5">This file does not include Activity data (R&amp;R, D&amp;R, Remove, Replace, etc.). To include Activity, export the Excel file from the <strong>Xactimate Desktop App</strong>.</p>
+          </div>
+          <button onClick={() => setNoActivityWarning(false)} className="text-amber-400 hover:text-amber-600 flex-shrink-0">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      )}
       <div className="divide-y divide-slate-100">
         {ALL_DESIGNATIONS.map(desig => {
           const excelDoc = getDoc(desig, 'excel')

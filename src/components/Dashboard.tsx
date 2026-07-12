@@ -386,35 +386,17 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
               </table>
             </div>
           </div>
-        ) : isMobile ? (
-          /* Mobile: full-width stacked cards */
-          <div className="flex flex-col gap-4">
-            {filtered.map((p) => (
-              <ProjectCard key={p.id} project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} canDelete={isContractorAdmin || isAppAdmin} />
-            ))}
-            {(isContractorAdmin || isAppAdmin) && (
-              <button
-                onClick={() => setShowModal(true)}
-                className="w-full py-5 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-[14px] text-slate-400 hover:border-blue-400/60 hover:bg-blue-50/40 hover:text-blue-500 transition-all duration-150"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                <span className="text-sm font-medium">New project</span>
-              </button>
-            )}
-          </div>
         ) : (
-          /* Desktop: horizontal-scroll cards */
-          <div className="overflow-x-auto -mx-6 px-6 pb-3">
+          /* Horizontal-scroll slider — full-width cards on mobile, fixed-width on desktop */
+          <div className="overflow-x-auto -mx-6 px-6 pb-3 snap-x snap-mandatory">
             <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
               {filtered.map((p) => (
-                <div key={p.id} className="w-72 flex-shrink-0">
+                <div key={p.id} className={`flex-shrink-0 snap-center ${isMobile ? 'w-[calc(100vw-48px)]' : 'w-72'}`}>
                   <ProjectCard project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} canDelete={isContractorAdmin || isAppAdmin} />
                 </div>
               ))}
               {(isContractorAdmin || isAppAdmin) && (
-                <div className="w-72 flex-shrink-0">
+                <div className={`flex-shrink-0 snap-center ${isMobile ? 'w-[calc(100vw-48px)]' : 'w-72'}`}>
                   <button
                     onClick={() => setShowModal(true)}
                     className="w-full h-full min-h-[200px] flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-[14px] text-slate-400 hover:border-blue-400/60 hover:bg-blue-50/40 hover:text-blue-500 transition-all duration-150"

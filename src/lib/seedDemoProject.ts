@@ -88,7 +88,7 @@ export async function seedDemoProject(): Promise<void> {
   if (!xlsxRes.ok) return
 
   const xlsxBuffer = await xlsxRes.arrayBuffer()
-  const items = parseExcelFile(xlsxBuffer)
+  const { items } = parseExcelFile(xlsxBuffer)
 
   let sketch: ProjectSketch
   try {
@@ -127,7 +127,7 @@ export async function resetDemoProject(): Promise<void> {
   if (!xlsxRes.ok) return
 
   const xlsxBuffer = await xlsxRes.arrayBuffer()
-  const items = parseExcelFile(xlsxBuffer)
+  const { items } = parseExcelFile(xlsxBuffer)
 
   let sketch: ProjectSketch
   try {
