@@ -202,7 +202,7 @@ export function parseExcelFile(buffer: ArrayBuffer): ParseResult {
   }
 
   return {
-    items: removeOrphanedHeaders(cancelCreditedItems(items)),
+    items: removeOrphanedHeaders(items),
     hasActivity: cols.activity !== null,
   }
 }

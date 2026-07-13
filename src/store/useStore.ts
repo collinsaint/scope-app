@@ -18,15 +18,17 @@ function recomputeFromDocuments(documents: ProjectDocument[], currentItems: Scop
   if (scopeDocs.length === 0) return { items: currentItems, walkSourceItems }
 
   if (scopeDocs.length === 1) {
-    // Single base document — no change-order comparison needed.
-    const items = mergeItems(currentItems, scopeDocs[0].parsedItems!)
+    // Single base document — cancel any internal credit pairs before merging.
+    const items = mergeItems(currentItems, cancelCreditedItems(scopeDocs[0].parsedItems!))
     return { items, walkSourceItems }
   }
 
-  // Build the "clean" previous state by collapsing all docs except the last
-  // using cancelCreditedItems (removes pairs, no tags — gives us a neutral
-  // baseline for diffing against the latest document).
-  let prevClean: ScopeItem[] = scopeDocs[0].parsedItems!
+  // Build the "clean" previous state by collapsing all docs except the last.
+  // cancelCreditedItems is applied to the SOW (and any intermediate COs) to
+  // produce a neutral baseline.  The FINAL CO is passed raw so that its credit
+  // items survive into diffAndMergeChangeOrder, which needs them to tag the
+  // matching SOW lines as 'removed'.
+  let prevClean: ScopeItem[] = cancelCreditedItems(scopeDocs[0].parsedItems!)
   for (let i = 1; i < scopeDocs.length - 1; i++) {
     const nonHeaderPrev = prevClean.filter(item => !item.isHeader)
     const nonHeaderCo   = scopeDocs[i].parsedItems!.filter(item => !item.isHeader)
