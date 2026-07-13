@@ -251,32 +251,17 @@ export function diffAndMergeChangeOrder(
   const removedPrevIds  = new Set<string>()
   const creditByPrevId  = new Map<string, ScopeItem>()
 
-  if (coCredits.length > 0) {
-    // CO has explicit credit lines — match each to its SOW counterpart.
-    for (const credit of coCredits) {
-      const match = prevNonHeaders.find(p =>
-        !removedPrevIds.has(p.id) &&
-        p.room.trim()        === credit.room.trim() &&
-        p.description.trim() === credit.description.trim() &&
-        Math.abs(Math.abs(p.qty) - Math.abs(credit.qty)) < 0.001 &&
-        Math.abs(Math.abs(p.rcv) - Math.abs(credit.rcv)) < 0.10
-      )
-      if (match) {
-        removedPrevIds.add(match.id)
-        creditByPrevId.set(match.id, credit)
-      }
-    }
-  } else if (coPositive.length > 0) {
-    // No credits in CO — may have been stripped by a prior parse.
-    // Fallback: SOW items absent from CO = removed (full-scope format only).
-    const coKey  = (i: ScopeItem) => `${i.room.trim()}||${i.description.trim()}||${i.qty}`
-    const coKeySet  = new Set(coPositive.map(coKey))
-    const prevKeyFn = (p: ScopeItem) => `${p.room.trim()}||${p.description.trim()}||${p.qty}`
-    const hasOverlap = coPositive.some(c => prevNonHeaders.some(p => prevKeyFn(p) === coKey(c)))
-    if (hasOverlap) {
-      for (const p of prevNonHeaders) {
-        if (!coKeySet.has(prevKeyFn(p))) removedPrevIds.add(p.id)
-      }
+  for (const credit of coCredits) {
+    const match = prevNonHeaders.find(p =>
+      !removedPrevIds.has(p.id) &&
+      p.room.trim()        === credit.room.trim() &&
+      p.description.trim() === credit.description.trim() &&
+      Math.abs(Math.abs(p.qty) - Math.abs(credit.qty)) < 0.001 &&
+      Math.abs(Math.abs(p.rcv) - Math.abs(credit.rcv)) < 0.10
+    )
+    if (match) {
+      removedPrevIds.add(match.id)
+      creditByPrevId.set(match.id, credit)
     }
   }
 
