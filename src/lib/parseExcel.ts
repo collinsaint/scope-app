@@ -308,8 +308,11 @@ export function diffAndMergeChangeOrder(
     }
 
     if (removedPrevIds.has(item.id)) {
-      result.push({ ...item, changeTag: 'removed' as const })
       const credit = creditByPrevId.get(item.id)
+      // Use the credit's absolute RCV as the authoritative value — the CO may have
+      // updated O&P or rounding vs the original SOW estimate.
+      const rcv = credit ? Math.abs(credit.rcv) : item.rcv
+      result.push({ ...item, rcv, changeTag: 'removed' as const })
       if (credit) result.push({ ...credit, changeTag: 'removed' as const })
     } else {
       result.push({ ...item, changeTag: undefined })
