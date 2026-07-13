@@ -373,34 +373,6 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
           </div>
         </div>
 
-        {/* Financial summary */}
-        <div className="section-card p-5">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-4">Financial Summary</h2>
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div>
-              <p className="text-[11px] text-slate-400 mb-0.5">Total Amount</p>
-              <p className="text-base font-semibold text-slate-900">{fmt(totalAmount)}</p>
-            </div>
-            <div>
-              <p className="text-[11px] text-slate-400 mb-0.5">Completed Amount</p>
-              <p className="text-base font-semibold text-emerald-600">{fmt(completedAmount)}</p>
-            </div>
-            <div>
-              <p className="text-[11px] text-slate-400 mb-0.5">Remaining Amount</p>
-              <p className={`text-base font-semibold ${remainingAmount > 0 ? 'text-red-500' : 'text-slate-900'}`}>{fmt(remainingAmount)}</p>
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-slate-400">{completed.length} of {dataItems.length} items complete</span>
-              <span className="text-xs font-semibold text-slate-600">{pct}%</span>
-            </div>
-            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-            </div>
-          </div>
-        </div>
-
         {/* Scope details */}
         <div className="section-card p-5">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-4">Scope Details</h2>
