@@ -251,18 +251,21 @@ export function diffAndMergeChangeOrder(
   const removedPrevIds  = new Set<string>()
   const creditByPrevId  = new Map<string, ScopeItem>()
 
-  console.log('[diffMerge] coCredits:', coCredits.map(c => ({ room: c.room, desc: c.description, qty: c.qty, rcv: c.rcv })))
-  console.log('[diffMerge] prevNonHeaders count:', prevNonHeaders.length)
+  console.log('[diffMerge] coCredits count:', coCredits.length, 'prevNonHeaders count:', prevNonHeaders.length)
 
   for (const credit of coCredits) {
-    const match = prevNonHeaders.find(p =>
+    const descMatch = prevNonHeaders.filter(p => p.description.trim() === credit.description.trim())
+    const match = descMatch.find(p =>
       !removedPrevIds.has(p.id) &&
       p.room.trim()        === credit.room.trim() &&
-      p.description.trim() === credit.description.trim() &&
       Math.abs(Math.abs(p.qty) - Math.abs(credit.qty)) < 0.001 &&
       Math.abs(Math.abs(p.rcv) - Math.abs(credit.rcv)) < 0.10
     )
-    console.log('[diffMerge] credit:', credit.description, credit.qty, credit.rcv, '→ match:', match ? match.id : 'NONE')
+    console.log('[diffMerge] credit room:', JSON.stringify(credit.room), 'desc:', credit.description, 'qty:', credit.qty, 'rcv:', credit.rcv)
+    if (descMatch.length > 0 && !match) {
+      console.log('  → desc matched but room/qty/rcv failed. SOW candidates:', descMatch.map(p => ({ room: JSON.stringify(p.room), qty: p.qty, rcv: p.rcv })))
+    }
+    console.log('  → match:', match ? match.id : 'NONE')
     if (match) {
       removedPrevIds.add(match.id)
       creditByPrevId.set(match.id, credit)
