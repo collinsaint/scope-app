@@ -727,7 +727,6 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
         {/* Amount */}
         <td className="px-3 py-3 text-[13px] font-medium whitespace-nowrap">
           <span className={
-            isRemoved && item.rcv < 0 ? 'text-red-500 font-semibold' :
             isRemoved ? 'text-slate-400 line-through' :
             item.completed ? 'text-green-600' : 'text-slate-800'
           }>
