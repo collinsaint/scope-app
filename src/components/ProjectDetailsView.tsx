@@ -49,8 +49,6 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
   const [selectedGlobalId, setSelectedGlobalId] = useState('')
   const [linkedSubOrgs, setLinkedSubOrgs] = useState<SubOrg[]>([])
   const [confirmRemoveSubId, setConfirmRemoveSubId] = useState<string | null>(null)
-  const [grantingAccessId, setGrantingAccessId] = useState<string | null>(null)
-  const [grantedAccessId, setGrantedAccessId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchMyContractorSubOrgs().then(setLinkedSubOrgs)
@@ -80,6 +78,24 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
     load()
   }, [contractorOrgId])
 
+  // Auto-grant project access to all currently assigned subs when a contractor opens this page.
+  // This is idempotent (upsert) so it's safe to run every time and fixes existing projects.
+  useEffect(() => {
+    if (!canManage) return
+    async function grantAll() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const subs = project.subcontractors ?? []
+      for (const sub of subs) {
+        const global = globalSubcontractors.find(g => g.id === sub.id)
+        const subOrgId = await resolveSubOrgIdAsync(sub.name, global?.subOrgId)
+        if (subOrgId) grantProjectAccessToSubOrg(project.id, subOrgId, user.id)
+      }
+    }
+    grantAll()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id])
+
   const dataItems = project.items.filter(i => !i.isHeader)
   const subcontractors = project.subcontractors ?? []
   const unassignedGlobals = globalSubcontractors.filter(g => !subcontractors.some(s => s.id === g.id))
@@ -107,23 +123,6 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
     if (!user) return
     const subOrgId = await resolveSubOrgIdAsync(global.name, global.subOrgId)
     if (subOrgId) grantProjectAccessToSubOrg(project.id, subOrgId, user.id)
-  }
-
-  async function handleGrantAccess(sub: { id: string; name: string }) {
-    setGrantingAccessId(sub.id)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const global = globalSubcontractors.find(g => g.id === sub.id)
-      const subOrgId = await resolveSubOrgIdAsync(sub.name, global?.subOrgId)
-      if (subOrgId) {
-        await grantProjectAccessToSubOrg(project.id, subOrgId, user.id)
-        setGrantedAccessId(sub.id)
-        setTimeout(() => setGrantedAccessId(null), 2000)
-      }
-    } finally {
-      setGrantingAccessId(null)
-    }
   }
 
   async function handleRemoveSubcontractor(subId: string) {
@@ -508,18 +507,6 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
                         />
                         <span className="text-xs text-slate-400">%</span>
                       </div>
-                      <button
-                        onClick={() => handleGrantAccess(sub)}
-                        disabled={grantingAccessId === sub.id}
-                        title="Grant project access to this subcontractor"
-                        className="text-xs font-medium px-2 py-1 rounded-md border transition-colors flex-shrink-0 disabled:opacity-40"
-                        style={grantedAccessId === sub.id
-                          ? { color: '#15803d', borderColor: '#86efac', background: '#f0fdf4' }
-                          : { color: '#6366f1', borderColor: '#c7d2fe', background: '#eef2ff' }
-                        }
-                      >
-                        {grantedAccessId === sub.id ? '✓ Access granted' : grantingAccessId === sub.id ? 'Granting…' : 'Grant access'}
-                      </button>
                       <button onClick={() => setConfirmRemoveSubId(sub.id)} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
