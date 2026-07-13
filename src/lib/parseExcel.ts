@@ -251,21 +251,32 @@ export function diffAndMergeChangeOrder(
   const removedPrevIds  = new Set<string>()
   const creditByPrevId  = new Map<string, ScopeItem>()
 
-  console.log('[diffMerge] coCredits count:', coCredits.length, 'prevNonHeaders count:', prevNonHeaders.length)
+  const matchedCredits = new Set<ScopeItem>()
 
+  // Pass 1: room + description + qty (RCV excluded — O&P can differ between SOW and CO).
   for (const credit of coCredits) {
-    const descMatch = prevNonHeaders.filter(p => p.description.trim() === credit.description.trim())
-    const match = descMatch.find(p =>
+    const match = prevNonHeaders.find(p =>
       !removedPrevIds.has(p.id) &&
       p.room.trim()        === credit.room.trim() &&
-      Math.abs(Math.abs(p.qty) - Math.abs(credit.qty)) < 0.001 &&
-      Math.abs(Math.abs(p.rcv) - Math.abs(credit.rcv)) < 0.10
+      p.description.trim() === credit.description.trim() &&
+      Math.abs(Math.abs(p.qty) - Math.abs(credit.qty)) < 0.001
     )
-    console.log('[diffMerge] credit room:', JSON.stringify(credit.room), 'desc:', credit.description, 'qty:', credit.qty, 'rcv:', credit.rcv)
-    if (descMatch.length > 0 && !match) {
-      console.log('  → desc matched but room/qty/rcv failed. SOW candidates:', descMatch.map(p => ({ room: JSON.stringify(p.room), qty: p.qty, rcv: p.rcv })))
+    if (match) {
+      removedPrevIds.add(match.id)
+      creditByPrevId.set(match.id, credit)
+      matchedCredits.add(credit)
     }
-    console.log('  → match:', match ? match.id : 'NONE')
+  }
+
+  // Pass 2: description + qty only — handles credits where room name differs
+  // between SOW and CO (e.g. "Front Elevation" in CO vs "Front" in SOW).
+  for (const credit of coCredits) {
+    if (matchedCredits.has(credit)) continue
+    const match = prevNonHeaders.find(p =>
+      !removedPrevIds.has(p.id) &&
+      p.description.trim() === credit.description.trim() &&
+      Math.abs(Math.abs(p.qty) - Math.abs(credit.qty)) < 0.001
+    )
     if (match) {
       removedPrevIds.add(match.id)
       creditByPrevId.set(match.id, credit)
