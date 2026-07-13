@@ -887,7 +887,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                 )}
                                 {item.qty > 0 && <span className="text-[11px] text-slate-400">{fmtQty(item.qty)} {item.unit}</span>}
                                 {item.rcv > 0 && <span className="text-[11px] font-semibold text-slate-600">{fmt(displayRcv)}</span>}
-                                {item.rcv < 0 && isRemoved && <span className="text-[11px] font-semibold text-slate-400 line-through">{fmt(item.rcv)}</span>}
+                                {item.rcv < 0 && isRemoved && <span className="text-[11px] font-semibold text-red-500">{fmt(item.rcv)}</span>}
                                 {item.coverage && (
                                   <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${coverageColorClass(item.coverage)}`}>
                                     {item.coverage}
