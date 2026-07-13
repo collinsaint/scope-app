@@ -75,12 +75,13 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
     return null
   })
 
-  // Auto-select the first walk when one is created (e.g. after Site Visit SOW upload)
+  // Auto-select the first walk when one is created (e.g. after Site Visit SOW upload).
+  // Only applies to Site Visit projects — other statuses default to scope view.
   useEffect(() => {
     if (activeWalkId || isSubUser) return
     const walks = project?.walks ?? []
-    if (walks.length > 0) setActiveWalkId(walks[0].id)
-  }, [project?.walks?.length]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (project?.projectStatus === 'Site Visit' && walks.length > 0) setActiveWalkId(walks[0].id)
+  }, [project?.walks?.length, project?.projectStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync activeView when the parent requests a specific view (e.g. mobile nav buttons)
   useEffect(() => { setActiveView(initialView) }, [initialView])

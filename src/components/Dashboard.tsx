@@ -5,7 +5,7 @@ import { NewProjectModal } from './NewProjectModal'
 import type { Project, ScopeItem } from '../types'
 
 function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function fmtDate(iso: string) {
@@ -25,6 +25,7 @@ interface Props {
   superintendentName?: string | null
   currentUserName?: string
   isContractorAdmin?: boolean
+  recentlyViewedProjectId?: string | null
 }
 
 const statusConfig: Record<string, { dot: string; pill: string }> = {
@@ -40,7 +41,7 @@ interface PendingItemDetail {
   project: Project
 }
 
-export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendentRole = false, superintendentUserId, superintendentName, currentUserName, isContractorAdmin = false }: Props) {
+export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendentRole = false, superintendentUserId, superintendentName, currentUserName, isContractorAdmin = false, recentlyViewedProjectId }: Props) {
   const { projects: allProjects, deleteProject, approveItem, returnItem, bulkApproveItems } = useStore()
   const { isMobile } = useViewMode()
   const [showModal, setShowModal] = useState(false)
@@ -83,6 +84,11 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
     if (filterStatus && p.projectStatus !== filterStatus) return false
     return true
   }).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+
+  // Bubble the recently-viewed project to the top of the list/cards
+  const displayed = recentlyViewedProjectId
+    ? [...filtered.filter(p => p.id === recentlyViewedProjectId), ...filtered.filter(p => p.id !== recentlyViewedProjectId)]
+    : filtered
 
   function clearFilters() {
     setFilterJobGroup('')
@@ -310,7 +316,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
               </button>
             )}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : displayed.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-4">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7F77DD" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -339,12 +345,13 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {filtered.map(p => {
-                    const totalRcv = p.items.reduce((s, i) => s + i.rcv, 0)
+                  {displayed.map(p => {
+                    const totalRcv = p.scopeTotal ?? p.items.filter(i => !i.isHeader && i.changeTag !== 'removed').reduce((s, i) => s + i.rcv, 0)
                     const completedRcv = p.items.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0)
-                    const total = p.items.length
-                    const completed = p.items.filter(i => i.completed).length
-                    const pending = p.items.filter(i => i.pendingApproval && !i.completed).length
+                    const billable = p.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+                    const total = billable.length
+                    const completed = billable.filter(i => i.completed).length
+                    const pending = billable.filter(i => i.pendingApproval && !i.completed).length
                     const pctCompleted = total ? completed / total * 100 : 0
                     const pctPending = total ? pending / total * 100 : 0
                     const pct = Math.round(pctCompleted + pctPending)
@@ -392,9 +399,9 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
           /* Horizontal-scroll slider — full-width cards on mobile, fixed-width on desktop */
           <div className="overflow-x-auto -mx-6 px-6 pb-3 snap-x snap-mandatory">
             <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
-              {filtered.map((p) => (
+              {displayed.map((p) => (
                 <div key={p.id} className={`flex-shrink-0 snap-center ${isMobile ? 'w-[calc(100vw-48px)]' : 'w-72'}`}>
-                  <ProjectCard project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} canDelete={isContractorAdmin || isAppAdmin} />
+                  <ProjectCard project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} canDelete={isContractorAdmin || isAppAdmin} isRecentlyViewed={p.id === recentlyViewedProjectId} />
                 </div>
               ))}
               {(isContractorAdmin || isAppAdmin) && (
@@ -695,14 +702,15 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
   )
 }
 
-function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelete, canDelete = false }: { project: Project; onOpen: (id: string) => void; onOpenDetails: (id: string) => void; onOpenFinancials?: (id: string) => void; onDelete: (id: string) => void; canDelete?: boolean }) {
-  const completed = project.items.filter(i => i.completed).length
-  const total = project.items.length
-  const pending = project.items.filter(i => i.pendingApproval && !i.completed).length
-  const pctCompleted = total ? project.items.filter(i => i.completed).length / total * 100 : 0
+function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelete, canDelete = false, isRecentlyViewed = false }: { project: Project; onOpen: (id: string) => void; onOpenDetails: (id: string) => void; onOpenFinancials?: (id: string) => void; onDelete: (id: string) => void; canDelete?: boolean; isRecentlyViewed?: boolean }) {
+  const billable = project.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+  const completed = billable.filter(i => i.completed).length
+  const total = billable.length
+  const pending = billable.filter(i => i.pendingApproval && !i.completed).length
+  const pctCompleted = total ? completed / total * 100 : 0
   const pctPending = total ? pending / total * 100 : 0
   const pct = Math.round(pctCompleted + pctPending)
-  const totalRcv = project.items.reduce((s, i) => s + i.rcv, 0)
+  const totalRcv = project.scopeTotal ?? project.items.filter(i => !i.isHeader && i.changeTag !== 'removed').reduce((s, i) => s + i.rcv, 0)
   const completedRcv = project.items.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0)
 
   const statusCfg = project.projectStatus
@@ -727,16 +735,21 @@ function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelet
           </div>
           {project.address && <p className="text-xs text-slate-400 mt-0.5 truncate">{project.address}</p>}
         </div>
-        {canDelete && (
-          <button
-            onClick={(e) => { e.stopPropagation(); if (confirm('Delete this project?')) onDelete(project.id) }}
-            className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0 p-1"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-            </svg>
-          </button>
-        )}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {isRecentlyViewed && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-500">Recently Viewed</span>
+          )}
+          {canDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); if (confirm('Delete this project?')) onDelete(project.id) }}
+              className="text-slate-300 hover:text-red-400 transition-colors p-1"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {(project.projectCode || project.jobGroup || project.superintendent) && (

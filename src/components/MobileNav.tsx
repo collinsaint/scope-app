@@ -9,6 +9,7 @@ interface Props {
   onNavigate: (view: AppView, projectId?: string) => void
   onOpenProjectDetails: (id: string) => void
   onOpenProjectScope?: () => void
+  onOpenProjectFinancials?: (id: string) => void
   activeProjectSubView?: 'scope' | 'details' | 'comments'
   onSignOut?: () => void
   isAppAdmin?: boolean
@@ -17,7 +18,7 @@ interface Props {
   isSubManager?: boolean
 }
 
-export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjectScope, activeProjectSubView, onSignOut, isAppAdmin, isContractorAdmin, isSubUser: _isSubUser, isSubManager }: Props) {
+export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjectScope, onOpenProjectFinancials, activeProjectSubView, onSignOut, isAppAdmin, isContractorAdmin, isSubUser: _isSubUser, isSubManager }: Props) {
   const { projects, activeProjectId } = useStore()
   const { toggle } = useViewMode()
   const activeProject = projects.find(p => p.id === activeProjectId)
@@ -182,11 +183,18 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
           </button>
         )}
 
-        {/* Financials */}
+        {/* Financials — opens project financials when inside a project, global financials otherwise */}
         <button
-          onClick={() => { onNavigate('financials'); setShowSettingsPicker(false) }}
+          onClick={() => {
+            if (activeProjectId && onOpenProjectFinancials) {
+              onOpenProjectFinancials(activeProjectId)
+            } else {
+              onNavigate('financials')
+            }
+            setShowSettingsPicker(false)
+          }}
           className="flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors"
-          style={{ color: view === 'financials' ? '#ffffff' : 'rgba(255,255,255,0.30)' }}
+          style={{ color: (view === 'financials' || view === 'project-financials') ? '#ffffff' : 'rgba(255,255,255,0.30)' }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>

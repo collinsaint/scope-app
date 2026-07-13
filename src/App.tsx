@@ -51,6 +51,7 @@ export default function App() {
   const [projectSubView, setProjectSubView] = useState<'scope' | 'details' | 'comments'>('scope')
   const [syncing, setSyncing] = useState(false)
   const [navigating, setNavigating] = useState(false)
+  const [recentlyViewedProjectId, setRecentlyViewedProjectId] = useState<string | null>(null)
 
   // Persist view to sessionStorage
   useEffect(() => {
@@ -75,11 +76,15 @@ export default function App() {
   useEffect(() => {
     if (!user) {
       prevUserIdRef.current = null
+      // Clear saved view on logout so the next fresh login starts at dashboard
+      try { sessionStorage.removeItem('ps-view') } catch { /**/ }
       return
     }
     if (prevUserIdRef.current === user.id) return
-    // Fresh login — always land on the dashboard
-    setView('dashboard')
+    // Fresh login (not a refresh) — sessionStorage was cleared on logout, so go to dashboard.
+    // On a page refresh sessionStorage still has the saved view, so skip the reset.
+    const hasSavedView = (() => { try { return Boolean(sessionStorage.getItem('ps-view')) } catch { return false } })()
+    if (!hasSavedView) setView('dashboard')
     prevUserIdRef.current = user.id
 
     async function loadFromSupabase() {
@@ -206,6 +211,9 @@ export default function App() {
     if (v === 'project' && projectId) {
       openProject(projectId, 'scope')
     } else {
+      if (v === 'dashboard' && view === 'project' && activeProjectId) {
+        setRecentlyViewedProjectId(activeProjectId)
+      }
       setView(v)
       if (v !== 'project' && v !== 'project-financials') setActiveProject(null)
     }
@@ -260,11 +268,13 @@ export default function App() {
               superintendentName={superintendentName}
               currentUserName={currentUserName}
               isContractorAdmin={isContractorAdmin}
+              recentlyViewedProjectId={recentlyViewedProjectId}
             />
           ) : view === 'project' ? (
             <ProjectView
               projectId={activeProjectId ?? ''}
               onBack={() => {
+                setRecentlyViewedProjectId(activeProjectId)
                 setNavigating(true)
                 setTimeout(() => {
                   setView('dashboard')
@@ -317,6 +327,7 @@ export default function App() {
             onNavigate={navigate}
             onOpenProjectDetails={(id) => openProject(id, 'details')}
             onOpenProjectScope={activeProjectId ? () => openProject(activeProjectId, 'scope') : undefined}
+            onOpenProjectFinancials={openProjectFinancials}
             activeProjectSubView={projectSubView}
             onSignOut={signOut}
             isAppAdmin={isAppAdmin}

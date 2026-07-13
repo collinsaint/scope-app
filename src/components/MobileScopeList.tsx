@@ -1034,7 +1034,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                 <span className="bg-slate-100 px-2 py-1 rounded-md">#{approvalModal.rowNum}</span>
                 {approvalModal.activity && <span className="bg-slate-100 px-2 py-1 rounded-md">{approvalModal.activity}</span>}
                 {approvalModal.coverage && <span className="bg-violet-50 text-violet-600 px-2 py-1 rounded-md">{approvalModal.coverage}</span>}
-                {approvalModal.rcv > 0 && <span className="bg-green-50 text-green-700 px-2 py-1 rounded-md font-semibold">{approvalModal.rcv.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}</span>}
+                {approvalModal.rcv > 0 && <span className="bg-green-50 text-green-700 px-2 py-1 rounded-md font-semibold">{approvalModal.rcv.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
               </div>
               {approvalModal.comment && (
                 <p className="text-xs text-slate-500 italic mb-3 bg-blue-50 px-3 py-2 rounded-lg">"{approvalModal.comment}"</p>

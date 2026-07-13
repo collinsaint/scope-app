@@ -11,7 +11,7 @@ import {
 } from '../lib/supabaseSync'
 
 function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 const statusConfig: Record<POStatus, { label: string; pill: string }> = {
@@ -62,13 +62,38 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
     load()
   }, [project.id, isSubUser])
 
-  // Financial summary from project items
-  const nonHeaderItems = project.items.filter(i => !i.isHeader)
-  const totalRcv = nonHeaderItems.reduce((s, i) => s + i.rcv, 0)
-  const completedRcv = nonHeaderItems.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0)
-  const total = nonHeaderItems.length
-  const completed = nonHeaderItems.filter(i => i.completed).length
+  // Financial summary — mirrors SummaryCards: exclude headers, removed items, and DRV coverage
+  const billable = project.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+  const totalRcv = project.scopeTotal ?? billable.reduce((s, i) => s + i.rcv, 0)
+  const completedRcv = billable.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0)
+  const total = billable.length
+  const completed = billable.filter(i => i.completed).length
   const pct = total ? Math.round(completed / total * 100) : 0
+
+  // Scope history — one entry per uploaded Excel document, in stage order
+  const ALL_STAGES = [
+    { designation: 'site-visit',    label: 'Site Visit' },
+    { designation: 'approved-sow',  label: 'Approved SOW' },
+    { designation: 'change-order-1', label: 'Change Order 1' },
+    { designation: 'change-order-2', label: 'Change Order 2' },
+    { designation: 'change-order-3', label: 'Change Order 3' },
+  ] as const
+
+  const stageHistory = ALL_STAGES
+    .map(({ designation, label }) => {
+      const doc = (project.documents ?? []).find(
+        d => d.designation === designation && d.fileType === 'excel' && d.parsedItems?.length
+      )
+      if (!doc) return null
+      const total = doc.parsedItems!.filter(i => !i.isHeader).reduce((s, i) => s + i.rcv, 0)
+      return { designation, label, total }
+    })
+    .filter((s): s is { designation: string; label: string; total: number } => s !== null)
+
+  const stageHistoryWithDelta = stageHistory.map((stage, idx) => ({
+    ...stage,
+    delta: idx > 0 ? stage.total - stageHistory[idx - 1].total : null,
+  }))
 
   // By-subcontractor breakdown
   const subs: Subcontractor[] = project.subcontractors ?? []
@@ -202,6 +227,30 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
             <p className="text-lg font-semibold text-amber-600">{fmt(totalRcv - completedRcv)}</p>
           </div>
         </div>
+
+        {/* Scope history by stage — contractor only */}
+        {!isSubUser && stageHistoryWithDelta.length > 0 && (
+          <div className="section-card overflow-hidden">
+            <div className="section-card-header">
+              <h2 className="text-sm font-semibold text-slate-800">Scope History</h2>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {stageHistoryWithDelta.map(({ designation, label, total, delta }) => (
+                <div key={designation} className="flex items-center justify-between px-5 py-3.5">
+                  <p className="text-sm font-medium text-slate-700">{label}</p>
+                  <div className="flex items-center gap-3">
+                    {delta !== null && (
+                      <span className={`text-xs font-semibold ${delta > 0 ? 'text-emerald-600' : delta < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                        {delta > 0 ? '+' : ''}{delta !== 0 ? fmt(delta) : 'No change'}
+                      </span>
+                    )}
+                    <p className="text-sm font-semibold text-slate-900 tabular-nums w-24 text-right">{fmt(total)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* By-sub breakdown */}
         {subBreakdown.length > 0 && (
