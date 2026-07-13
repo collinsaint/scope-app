@@ -7,9 +7,6 @@ import { resetDemoProject } from '../lib/seedDemoProject'
 import { grantProjectAccessToSubOrg, revokeProjectAccessForSubOrg, fetchMyContractorSubOrgs, assignProjectSuperintendent, type SubOrg } from '../lib/supabaseSync'
 import { supabase } from '../lib/supabase'
 
-function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
 
 interface Props {
   project: Project
@@ -82,11 +79,6 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
   }, [contractorOrgId])
 
   const dataItems = project.items.filter(i => !i.isHeader)
-  const completed = dataItems.filter(i => i.completed)
-  const totalAmount = dataItems.reduce((s, i) => s + i.rcv, 0)
-  const completedAmount = completed.reduce((s, i) => s + i.rcv, 0)
-  const remainingAmount = totalAmount - completedAmount
-  const pct = dataItems.length ? Math.round(completed.length / dataItems.length * 100) : 0
   const subcontractors = project.subcontractors ?? []
   const unassignedGlobals = globalSubcontractors.filter(g => !subcontractors.some(s => s.id === g.id))
 
