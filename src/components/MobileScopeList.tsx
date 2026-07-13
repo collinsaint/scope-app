@@ -14,10 +14,7 @@ interface Props {
   subOrgName?: string
   subPercentage?: number
   currentUserName?: string
-  poSelectionMode?: boolean
-  selectedPoItemIds?: Set<string>
-  onTogglePoItem?: (id: string) => void
-  onReviewCreatePO?: () => void
+  onCreatePO?: (ids: Set<string>) => void
 }
 
 function fmt(n: number) {
@@ -158,7 +155,7 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   a.click()
 }
 
-export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName, poSelectionMode, selectedPoItemIds, onTogglePoItem, onReviewCreatePO }: Props) {
+export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName, onCreatePO }: Props) {
   const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending, bulkClearPending, assignSubcontractor, bulkApproveItems } = useStore()
   const project = projects.find(p => p.id === projectId)
   const spanishMode = project?.spanishMode ?? false
@@ -185,9 +182,9 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   const [commentModalItemId, setCommentModalItemId] = useState<string | null>(null)
   const [commentDraft, setCommentDraft] = useState('')
   const [commentDeleteConfirm, setCommentDeleteConfirm] = useState<number | null>(null)
-  const [assignMode, setAssignMode] = useState(false)
   const [bulkSelectMode, setBulkSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [showSubPicker, setShowSubPicker] = useState(false)
   const [subPickerItemId, setSubPickerItemId] = useState<string | null>(null)
   const [bulkSubId, setBulkSubId] = useState('')
   const [approvalModal, setApprovalModal] = useState<ScopeItem | null>(null)
@@ -643,8 +640,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
           <button
             onClick={() => {
               setBulkSelectMode(v => {
-                if (!v) { setAssignMode(false) }
-                if (v) setSelectedIds(new Set())
+                if (v) { setSelectedIds(new Set()); setShowSubPicker(false) }
                 return !v
               })
             }}
@@ -654,17 +650,6 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
           >
             Select
           </button>
-          {/* Assign toggle — contractors only */}
-          {!isSubUser && subcontractors.length > 0 && (
-            <button
-              onClick={() => { setAssignMode(v => { if (!v) setBulkSelectMode(false); if (v) setSelectedIds(new Set()); return !v }); }}
-              className={`px-2.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                assignMode ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-500 bg-white'
-              }`}
-            >
-              Assign
-            </button>
-          )}
           {/* Search */}
           <button
             onClick={() => setShowSearch(true)}
@@ -727,7 +712,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                             : { background: '#EEEDFE', borderColor: '#CECBF6' }
                         }
                       >
-                        {((!isSubUser && assignMode) || bulkSelectMode) && (() => {
+                        {bulkSelectMode && (() => {
                           const roomIds = group.roomItems.map(i => i.id)
                           const allSel = roomIds.length > 0 && roomIds.every(id => selectedIds.has(id))
                           const someSel = !allSel && roomIds.some(id => selectedIds.has(id))
@@ -821,28 +806,16 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                       const isRemoved = item.changeTag === 'removed'
                       const isNew     = item.changeTag === 'new'
                       return (
-                        <div key={item.id} className={`${isRemoved ? 'bg-slate-100/80 opacity-75' : item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : item.returned ? 'bg-red-50/60' : 'bg-white'} ${selectedIds.has(item.id) ? 'ring-1 ring-inset ring-blue-400' : ''} ${poSelectionMode && selectedPoItemIds?.has(item.id) ? 'ring-1 ring-inset ring-violet-400' : ''} ${poSelectionMode && item.purchaseOrderId && !selectedPoItemIds?.has(item.id) ? 'opacity-40' : ''}`}
-                          onClick={poSelectionMode && !item.isHeader ? () => onTogglePoItem?.(item.id) : undefined}
-                        >
+                        <div key={item.id} className={`${isRemoved ? 'bg-slate-100/80 opacity-75' : item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : item.returned ? 'bg-red-50/60' : 'bg-white'} ${selectedIds.has(item.id) ? 'ring-1 ring-inset ring-blue-400' : ''}`}>
                           {/* Card row */}
                           <div className="flex items-start gap-3 px-4 py-3">
                             {/* Bulk select checkbox */}
-                            {((!isSubUser && assignMode) || bulkSelectMode) && (
+                            {bulkSelectMode && (
                               <input
                                 type="checkbox"
                                 checked={selectedIds.has(item.id)}
                                 onChange={() => toggleSelectItem(item.id)}
                                 className="mt-1 w-4 h-4 rounded border-slate-300 text-blue-600 flex-shrink-0 cursor-pointer"
-                              />
-                            )}
-                            {/* PO select checkbox */}
-                            {poSelectionMode && !item.isHeader && (
-                              <input
-                                type="checkbox"
-                                checked={selectedPoItemIds?.has(item.id) ?? false}
-                                onChange={() => onTogglePoItem?.(item.id)}
-                                onClick={e => e.stopPropagation()}
-                                className="mt-1 w-4 h-4 rounded border-slate-300 text-violet-600 flex-shrink-0 cursor-pointer"
                               />
                             )}
                             {/* Completion circle + item # below */}
@@ -999,24 +972,6 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                               )}
                             </div>
                           )}
-                          {/* Sub assignment row (contractor only, assign mode only) */}
-                          {!isSubUser && assignMode && subcontractors.length > 0 && (
-                            <div className="px-4 pb-2.5 flex items-center gap-2">
-                              <button
-                                onClick={() => setSubPickerItemId(item.id)}
-                                className="flex items-center gap-1.5 text-[11px] font-medium px-2 py-1 rounded-md border transition-colors"
-                                style={assignedSub
-                                  ? { borderColor: assignedSub.color + '60', background: assignedSub.color + '18', color: assignedSub.color }
-                                  : { borderColor: '#e2e8f0', background: '#f8fafc', color: '#94a3b8' }
-                                }
-                              >
-                                {assignedSub
-                                  ? <><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: assignedSub.color }} />{assignedSub.name}</>
-                                  : <><span className="w-2 h-2 rounded-full border border-slate-300 flex-shrink-0" />Assign sub</>
-                                }
-                              </button>
-                            </div>
-                          )}
                         </div>
                       )
                     })}
@@ -1147,105 +1102,102 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
         </div>
       )}
 
-      {/* Bulk select action bar — approve (contractors) or request approval (subs) */}
-      {bulkSelectMode && selectedIds.size > 0 && (
-        <div
-          className="fixed bottom-0 left-0 right-0 z-40 flex items-center gap-2 px-4 py-3 bg-white border-t border-slate-200 shadow-lg"
-          style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom) + 60px)' }}
-        >
-          <span className="text-xs font-semibold text-slate-600 flex-shrink-0">{selectedIds.size} selected</span>
-          <div className="flex-1" />
-          {isSubUser ? (
-            <button
-              onClick={() => {
-                const ids = [...selectedIds].filter(id => {
-                  const item = dataItems.find(i => i.id === id)
-                  return item && !item.completed && (!item.pendingApproval || item.returned)
-                })
-                if (ids.length) bulkSetPending(projectId, ids)
-                setSelectedIds(new Set())
-                setBulkSelectMode(false)
-              }}
-              className="px-4 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg flex-shrink-0"
-            >
-              Request Approval ({[...selectedIds].filter(id => {
-                const item = dataItems.find(i => i.id === id)
-                return item && !item.completed && (!item.pendingApproval || item.returned)
-              }).length})
-            </button>
-          ) : (() => {
-            const pendingIds = [...selectedIds].filter(id => dataItems.find(i => i.id === id)?.pendingApproval)
-            return pendingIds.length > 0 ? (
+      {/* Unified bulk action bar */}
+      {bulkSelectMode && selectedIds.size > 0 && (() => {
+        const pendingIds = [...selectedIds].filter(id => dataItems.find(i => i.id === id)?.pendingApproval)
+        const approvableIds = [...selectedIds].filter(id => {
+          const item = dataItems.find(i => i.id === id)
+          return item && !item.completed && (!item.pendingApproval || item.returned)
+        })
+        function dismiss() { setSelectedIds(new Set()); setBulkSelectMode(false); setShowSubPicker(false); setBulkSubId('') }
+        return (
+          <div
+            className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-xl"
+            style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom) + 60px)' }}
+          >
+            {/* Sub picker row (toggled) */}
+            {showSubPicker && (
+              <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-slate-100">
+                <button onClick={() => { setShowSubPicker(false); setBulkSubId('') }} className="text-xs text-slate-400 hover:text-slate-600 flex-shrink-0">← Back</button>
+                <select
+                  value={bulkSubId}
+                  onChange={e => setBulkSubId(e.target.value)}
+                  className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none"
+                >
+                  <option value="">— Select subcontractor —</option>
+                  {subcontractors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <button
+                  onClick={() => { handleBulkAssign(); setShowSubPicker(false); dismiss() }}
+                  disabled={!bulkSubId}
+                  className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg disabled:opacity-40 flex-shrink-0"
+                >
+                  Assign
+                </button>
+              </div>
+            )}
+            {/* Main action row */}
+            <div className="flex items-center gap-2 px-4 py-3 overflow-x-auto">
+              <span className="text-xs font-semibold text-slate-600 flex-shrink-0">{selectedIds.size} selected</span>
+              <div className="flex-1" />
+              {isSubUser ? (
+                <button
+                  onClick={() => { if (approvableIds.length) bulkSetPending(projectId, approvableIds); dismiss() }}
+                  disabled={approvableIds.length === 0}
+                  className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg disabled:opacity-40 flex-shrink-0"
+                >
+                  Request Approval ({approvableIds.length})
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => { bulkComplete(projectId, [...selectedIds]); dismiss() }}
+                    className="px-3 py-1.5 text-xs font-semibold bg-green-600 text-white rounded-lg flex-shrink-0"
+                  >
+                    Complete
+                  </button>
+                  <button
+                    onClick={() => { bulkUncomplete(projectId, [...selectedIds]); dismiss() }}
+                    className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 text-slate-600 rounded-lg flex-shrink-0"
+                  >
+                    Undo
+                  </button>
+                  {canApprove && pendingIds.length > 0 && (
+                    <button
+                      onClick={() => { bulkApproveItems(projectId, pendingIds, currentUserName); dismiss() }}
+                      className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg flex-shrink-0"
+                    >
+                      Approve ({pendingIds.length})
+                    </button>
+                  )}
+                  {subcontractors.length > 0 && (
+                    <button
+                      onClick={() => setShowSubPicker(v => !v)}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex-shrink-0 ${showSubPicker ? 'bg-blue-600 text-white' : 'bg-white border border-slate-300 text-slate-600'}`}
+                    >
+                      Assign
+                    </button>
+                  )}
+                  {onCreatePO && (
+                    <button
+                      onClick={() => { onCreatePO(selectedIds); dismiss() }}
+                      className="px-3 py-1.5 text-xs font-semibold bg-violet-600 text-white rounded-lg flex-shrink-0"
+                    >
+                      Create PO
+                    </button>
+                  )}
+                </>
+              )}
               <button
-                onClick={() => {
-                  bulkApproveItems(projectId, pendingIds, currentUserName)
-                  setSelectedIds(new Set())
-                  setBulkSelectMode(false)
-                }}
-                className="px-4 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg flex-shrink-0"
+                onClick={dismiss}
+                className="px-3 py-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg flex-shrink-0"
               >
-                Approve ({pendingIds.length})
+                Done
               </button>
-            ) : (
-              <span className="text-xs text-slate-400 flex-shrink-0">No pending items selected</span>
-            )
-          })()}
-          <button
-            onClick={() => { setSelectedIds(new Set()); setBulkSelectMode(false) }}
-            className="px-3 py-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg flex-shrink-0"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* Bulk action bar */}
-      {!isSubUser && assignMode && selectedIds.size > 0 && (
-        <div
-          className="fixed bottom-0 left-0 right-0 z-40 flex items-center gap-2 px-4 py-3 bg-white border-t border-slate-200 shadow-lg"
-          style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom) + 60px)' }}
-        >
-          <span className="text-xs font-semibold text-slate-600 flex-shrink-0">{selectedIds.size} selected</span>
-          <select
-            value={bulkSubId}
-            onChange={e => setBulkSubId(e.target.value)}
-            className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none"
-          >
-            <option value="">— Assign sub —</option>
-            {subcontractors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <button
-            onClick={handleBulkAssign}
-            disabled={!bulkSubId}
-            className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg disabled:opacity-40 flex-shrink-0"
-          >
-            Assign
-          </button>
-          <button
-            onClick={() => { setSelectedIds(new Set()); setBulkSubId('') }}
-            className="px-3 py-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg flex-shrink-0"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* PO selection bar */}
-      {poSelectionMode && (selectedPoItemIds?.size ?? 0) > 0 && (
-        <div
-          className="fixed bottom-0 left-0 right-0 z-40 flex items-center gap-2 px-4 py-3 bg-slate-900 text-white shadow-xl"
-          style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom) + 60px)' }}
-        >
-          <span className="text-xs font-semibold flex-shrink-0">{selectedPoItemIds!.size} item{selectedPoItemIds!.size !== 1 ? 's' : ''} selected</span>
-          <div className="flex-1" />
-          <button
-            onClick={onReviewCreatePO}
-            className="px-3 py-1.5 text-xs font-semibold bg-blue-500 hover:bg-blue-400 text-white rounded-lg flex-shrink-0"
-          >
-            Review &amp; Create PO
-          </button>
-        </div>
-      )}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Comment bottom sheet */}
       {commentModalItemId && (() => {

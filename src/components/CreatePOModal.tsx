@@ -60,26 +60,33 @@ export function CreatePOModal({ project, selectedItemIds, existingPOs, contracto
 
   const [excludedIds, setExcludedIds] = useState<Set<string>>(conflictIds)
   const [step, setStep] = useState<'review' | 'configure' | 'confirm'>(conflicts.length > 0 ? 'review' : 'configure')
-  const [subOrgId, setSubOrgId] = useState('')
+  const [selectedProjectSubId, setSelectedProjectSubId] = useState('')
   const [notes, setNotes] = useState('')
   const [pendingDocs, setPendingDocs] = useState<File[]>([])
   const [saving, setSaving] = useState(false)
+  const [poPercentage, setPoPercentage] = useState<string>('')
 
   const finalItems = selectedItems.filter(i => !excludedIds.has(i.id))
   const totalAmount = finalItems.reduce((s, i) => s + i.rcv, 0)
   const poNumber = generatePONumber(project, existingPOs)
 
-  // Determine sub from items or let user pick
+  // Determine sub from items — pre-select if all items share one sub
   const itemSubIds = new Set(finalItems.filter(i => i.subcontractorId).map(i => i.subcontractorId!))
   const inferredSubId = itemSubIds.size === 1 ? [...itemSubIds][0] : ''
-  const projectSub = inferredSubId
-    ? (project.subcontractors ?? []).find(s => s.id === inferredSubId)
+  const projectSubs = project.subcontractors ?? []
+  // Use state if set, otherwise fall back to inferred
+  const effectiveProjectSubId = selectedProjectSubId || inferredSubId
+  const selectedProjectSub = projectSubs.find(s => s.id === effectiveProjectSubId)
+  // Map to org-level ID by name (for PO record — may be null if sub isn't an org user)
+  const matchedSubOrgId = selectedProjectSub
+    ? (subOrgs.find(o => o.name.toLowerCase() === selectedProjectSub.name.toLowerCase())?.id ?? null)
     : null
-  // Map project-level sub to org-level sub by name
-  const matchedSubOrg = projectSub
-    ? subOrgs.find(o => o.name.toLowerCase() === projectSub.name.toLowerCase())
-    : null
-  const effectiveSubOrgId = subOrgId || matchedSubOrg?.id || ''
+
+  // Effective percentage for this PO — user-editable, defaults to sub's configured percentage
+  const subDefaultPct = selectedProjectSub?.percentage ?? null
+  const parsedPoPct = poPercentage !== '' ? parseFloat(poPercentage) : null
+  const effectivePct = parsedPoPct != null && !isNaN(parsedPoPct) ? parsedPoPct : subDefaultPct
+  const subTotal = effectivePct != null ? totalAmount * effectivePct / 100 : null
 
   // Unassigned items that will be auto-assigned to the chosen sub
   const unassignedItems = finalItems.filter(i => !i.subcontractorId)
@@ -117,9 +124,9 @@ export function CreatePOModal({ project, selectedItemIds, existingPOs, contracto
       const created = await createPurchaseOrder({
         project_id: project.id,
         contractor_org_id: contractorOrgId,
-        sub_org_id: effectiveSubOrgId || null,
+        sub_org_id: matchedSubOrgId,
         title: poNumber,
-        amount: totalAmount,
+        amount: subTotal ?? totalAmount,
         notes: notes.trim() || null,
         poNumber,
         lineItemIds: finalItems.map(i => i.id),
@@ -131,15 +138,9 @@ export function CreatePOModal({ project, selectedItemIds, existingPOs, contracto
       // 3. Tag scope items with this PO
       assignItemsToPO(project.id, finalItems.map(i => i.id), created.id)
 
-      // 4. Auto-assign unassigned items to the selected sub (project-level sub lookup by org name)
-      if (effectiveSubOrgId && unassignedItems.length > 0) {
-        const subOrg = subOrgs.find(o => o.id === effectiveSubOrgId)
-        if (subOrg) {
-          const projectSubEntry = (project.subcontractors ?? []).find(s => s.name.toLowerCase() === subOrg.name.toLowerCase())
-          if (projectSubEntry) {
-            assignSubcontractor(project.id, unassignedItems.map(i => i.id), projectSubEntry.id)
-          }
-        }
+      // 4. Auto-assign unassigned items to the selected project-level sub
+      if (effectiveProjectSubId && unassignedItems.length > 0) {
+        assignSubcontractor(project.id, unassignedItems.map(i => i.id), effectiveProjectSubId)
       }
 
       // 5. Download the Excel breakdown
@@ -211,16 +212,16 @@ export function CreatePOModal({ project, selectedItemIds, existingPOs, contracto
             <div>
               <label className="label-base">Assign to Subcontractor</label>
               <select
-                value={subOrgId || matchedSubOrg?.id || ''}
-                onChange={e => setSubOrgId(e.target.value)}
+                value={effectiveProjectSubId}
+                onChange={e => setSelectedProjectSubId(e.target.value)}
                 className="input-base"
               >
                 <option value="">— Select subcontractor —</option>
-                {subOrgs.map(o => (
-                  <option key={o.id} value={o.id}>{o.name}</option>
+                {projectSubs.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
-              {unassignedItems.length > 0 && effectiveSubOrgId && (
+              {unassignedItems.length > 0 && effectiveProjectSubId && (
                 <p className="text-xs text-blue-600 mt-1.5">
                   {unassignedItems.length} unassigned item{unassignedItems.length !== 1 ? 's' : ''} will be auto-assigned to this subcontractor.
                 </p>
@@ -284,8 +285,8 @@ export function CreatePOModal({ project, selectedItemIds, existingPOs, contracto
           <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
             <button onClick={onClose} className="btn-ghost">Cancel</button>
             <button
-              onClick={() => setStep('confirm')}
-              disabled={!effectiveSubOrgId}
+              onClick={() => { if (poPercentage === '' && subDefaultPct != null) setPoPercentage(String(subDefaultPct)); setStep('confirm') }}
+              disabled={!effectiveProjectSubId}
               className="btn-primary"
             >
               Review &amp; Confirm
@@ -297,7 +298,6 @@ export function CreatePOModal({ project, selectedItemIds, existingPOs, contracto
   }
 
   // ── Step: Confirm ─────────────────────────────────────────────────────────
-  const selectedSubOrg = subOrgs.find(o => o.id === effectiveSubOrgId)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
@@ -306,14 +306,37 @@ export function CreatePOModal({ project, selectedItemIds, existingPOs, contracto
         </div>
         <div className="px-6 py-5 flex flex-col gap-3">
           <Row label="PO Number" value={poNumber} />
-          <Row label="Subcontractor" value={selectedSubOrg?.name ?? '—'} />
+          <Row label="Subcontractor" value={selectedProjectSub?.name ?? '—'} />
           <Row label="Items" value={`${finalItems.length} line item${finalItems.length !== 1 ? 's' : ''}`} />
-          <Row label="Total Amount" value={fmt(totalAmount)} bold />
+          <Row label="Item Total" value={fmt(totalAmount)} />
+          {/* Editable percentage row */}
+          <div className="flex items-center justify-between gap-4 text-sm">
+            <span className="text-slate-400 flex-shrink-0">Sub %</span>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={poPercentage}
+                onChange={e => setPoPercentage(e.target.value)}
+                placeholder={subDefaultPct != null ? String(subDefaultPct) : '100'}
+                className="w-20 px-2 py-1 text-sm text-right border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+              />
+              <span className="text-slate-400">%</span>
+            </div>
+          </div>
+          {subTotal != null && (
+            <Row label="Sub Total" value={fmt(subTotal)} bold />
+          )}
+          {subTotal == null && (
+            <Row label="Total Amount" value={fmt(totalAmount)} bold />
+          )}
           {notes && <Row label="Notes" value={notes} />}
           {pendingDocs.length > 0 && <Row label="Attachments" value={`${pendingDocs.length} file${pendingDocs.length !== 1 ? 's' : ''}`} />}
-          {unassignedItems.length > 0 && effectiveSubOrgId && (
+          {unassignedItems.length > 0 && effectiveProjectSubId && (
             <div className="mt-1 p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-700">
-              {unassignedItems.length} item{unassignedItems.length !== 1 ? 's' : ''} will be auto-assigned to {selectedSubOrg?.name}.
+              {unassignedItems.length} item{unassignedItems.length !== 1 ? 's' : ''} will be auto-assigned to {selectedProjectSub?.name}.
             </div>
           )}
           <p className="text-xs text-slate-400 mt-1">An Excel breakdown will be downloaded automatically.</p>

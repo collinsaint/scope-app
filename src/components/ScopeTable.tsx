@@ -103,13 +103,10 @@ interface Props {
   subOrgName?: string
   subPercentage?: number
   currentUserName?: string
-  poSelectionMode?: boolean
-  selectedPoItemIds?: Set<string>
-  onTogglePoItem?: (id: string) => void
-  onReviewCreatePO?: () => void
+  onCreatePO?: (ids: Set<string>) => void
 }
 
-export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName, poSelectionMode = false, selectedPoItemIds, onTogglePoItem, onReviewCreatePO }: Props) {
+export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName, onCreatePO }: Props) {
   const { isMobile } = useViewMode()
   const { toggleItem, assignSubcontractor, bulkComplete, bulkUncomplete, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending, bulkApproveItems } = useStore()
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
@@ -158,7 +155,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   }, [someSelected])
 
   if (isMobile) {
-    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} isSubUser={isSubUser} canApprove={canApprove} subOrgName={subOrgName} subPercentage={subPercentage} currentUserName={currentUserName} poSelectionMode={poSelectionMode} selectedPoItemIds={selectedPoItemIds} onTogglePoItem={onTogglePoItem} onReviewCreatePO={onReviewCreatePO} />
+    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} isSubUser={isSubUser} canApprove={canApprove} subOrgName={subOrgName} subPercentage={subPercentage} currentUserName={currentUserName} onCreatePO={onCreatePO} />
   }
 
   function handleItemToggle(item: ScopeItem) {
@@ -338,6 +335,18 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
           >
             Assign
           </button>
+          {!isSubUser && onCreatePO && (
+            <>
+              <div className="w-px h-4 bg-blue-200" />
+              <button
+                onClick={() => { onCreatePO(effectiveSelected); setSelectedIds(new Set()) }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                Create PO
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -542,9 +551,6 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                     isSubUser={isSubUser}
                     canApprove={canApprove}
                     subPercentage={subPercentage}
-                    poSelectionMode={poSelectionMode}
-                    poSelected={selectedPoItemIds?.has(row.id)}
-                    onPoSelect={() => onTogglePoItem?.(row.id)}
                   />
                 )
               )
@@ -553,17 +559,6 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
         </table>
       </div>
 
-      {/* PO selection floating bar */}
-      {poSelectionMode && (selectedPoItemIds?.size ?? 0) > 0 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-4 py-3 bg-slate-900 text-white rounded-2xl shadow-xl">
-          <span className="text-sm font-medium">
-            {selectedPoItemIds!.size} item{selectedPoItemIds!.size !== 1 ? 's' : ''} &nbsp;·&nbsp; {fmt(items.filter(i => selectedPoItemIds!.has(i.id)).reduce((s, i) => s + i.rcv, 0))}
-          </span>
-          <button onClick={onReviewCreatePO} className="px-3 py-1.5 bg-blue-500 hover:bg-blue-400 text-white text-xs font-semibold rounded-xl transition-colors">
-            Review &amp; Create PO
-          </button>
-        </div>
-      )}
     </div>
   )
 }
@@ -638,12 +633,9 @@ interface RowProps {
   isSubUser?: boolean
   canApprove?: boolean
   subPercentage?: number
-  poSelectionMode?: boolean
-  poSelected?: boolean
-  onPoSelect?: () => void
 }
 
-function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onApprove, onReturn, onOpenComment, onPhotoClick, onNoteClick, isSubUser = false, canApprove = true, subPercentage, poSelectionMode, poSelected, onPoSelect }: RowProps) {
+function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onApprove, onReturn, onOpenComment, onPhotoClick, onNoteClick, isSubUser = false, canApprove = true, subPercentage }: RowProps) {
   const [showConfirm, setShowConfirm] = useState(false)
   const [approvalComment, setApprovalComment] = useState('')
 
@@ -677,36 +669,21 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
           ? { backgroundColor: '#FEF9C3' }
           : undefined
 
-  const alreadyInPO = !!item.purchaseOrderId
-  const poRowStyle = poSelectionMode && alreadyInPO ? { opacity: 0.4 } : undefined
-
   return (
     <>
       <tr
-        className={`border-b border-slate-50 transition-colors ${isRemoved ? '' : 'hover:bg-slate-50/60'} ${selected ? 'bg-blue-50/50' : ''} ${poSelectionMode && poSelected ? '!bg-blue-50' : ''} ${poSelectionMode && !alreadyInPO && !isRemoved ? 'cursor-pointer' : ''}`}
-        style={poRowStyle ?? rowBg}
-        onClick={poSelectionMode && !alreadyInPO && !isRemoved ? onPoSelect : undefined}
+        className={`border-b border-slate-50 transition-colors ${isRemoved ? '' : 'hover:bg-slate-50/60'} ${selected ? 'bg-blue-50/50' : ''}`}
+        style={rowBg}
       >
-        {/* Select / PO checkbox */}
+        {/* Select checkbox */}
         <td className="px-3 py-3">
-          {poSelectionMode ? (
-            <input
-              type="checkbox"
-              checked={poSelected ?? false}
-              onChange={onPoSelect}
-              disabled={alreadyInPO || isRemoved}
-              onClick={e => e.stopPropagation()}
-              className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-            />
-          ) : (
-            <input
-              type="checkbox"
-              checked={selected}
-              onChange={onSelect}
-              disabled={isRemoved}
-              className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-            />
-          )}
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onSelect}
+            disabled={isRemoved}
+            className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          />
         </td>
 
         {/* # */}

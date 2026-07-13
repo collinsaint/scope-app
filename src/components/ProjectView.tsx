@@ -69,9 +69,8 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
   const [showWalkBar, setShowWalkBar] = useState(false)
   const [showTotals, setShowTotals] = useState(false)
   const [addRoomName, setAddRoomName] = useState<string | null>(null)
-  const [poSelectionMode, setPoSelectionMode] = useState(false)
-  const [selectedPoItemIds, setSelectedPoItemIds] = useState<Set<string>>(new Set())
   const [showCreatePO, setShowCreatePO] = useState(false)
+  const [pendingPoItemIds, setPendingPoItemIds] = useState<Set<string>>(new Set())
   const [existingPOs, setExistingPOs] = useState<PurchaseOrder[]>([])
   const [subOrgs, setSubOrgs] = useState<SubOrg[]>([])
   const [activeWalkId, setActiveWalkId] = useState<string | null>(() => {
@@ -285,15 +284,6 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                 Totals
               </button>
-              {!isSubUser && !activeWalkId && (
-                <button
-                  onClick={() => { setPoSelectionMode(v => !v); setSelectedPoItemIds(new Set()) }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-lg transition-colors font-medium ${poSelectionMode ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="13" x2="12" y2="17"/><line x1="10" y1="15" x2="14" y2="15"/></svg>
-                  {poSelectionMode ? 'Cancel PO' : 'Create PO'}
-                </button>
-              )}
               <button onClick={() => generateReport(project)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Export report
@@ -362,21 +352,6 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
               </button>
-              {/* Create PO (contractor only, not in walk mode) */}
-              {!isSubUser && !activeWalkId && (
-                <button
-                  onClick={() => { setPoSelectionMode(v => !v); setSelectedPoItemIds(new Set()) }}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
-                  style={{
-                    border: '1px solid rgba(255,255,255,0.22)',
-                    background: poSelectionMode ? 'rgba(255,255,255,0.2)' : 'transparent',
-                    color: poSelectionMode ? '#ffffff' : 'rgba(206,203,246,0.65)',
-                  }}
-                  title="Create PO"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="12" y1="14" x2="12" y2="17"/><line x1="10.5" y1="15.5" x2="13.5" y2="15.5"/></svg>
-                </button>
-              )}
               {/* Export */}
               <button
                 onClick={() => generateReport(project)}
@@ -600,14 +575,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
             canApprove={canApprove}
             subPercentage={isSubUser ? subPercentage : undefined}
             currentUserName={currentUserName}
-            poSelectionMode={poSelectionMode}
-            selectedPoItemIds={selectedPoItemIds}
-            onTogglePoItem={(id) => setSelectedPoItemIds(prev => {
-              const next = new Set(prev)
-              if (next.has(id)) next.delete(id); else next.add(id)
-              return next
-            })}
-            onReviewCreatePO={() => setShowCreatePO(true)}
+            onCreatePO={!isSubUser ? (ids) => { setPendingPoItemIds(ids); setShowCreatePO(true) } : undefined}
           />
         ) : activeView === 'comments' ? (
           <CommentsView
@@ -623,16 +591,15 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
       {showCreatePO && contractorOrgId && (
         <CreatePOModal
           project={project}
-          selectedItemIds={selectedPoItemIds}
+          selectedItemIds={pendingPoItemIds}
           existingPOs={existingPOs}
           contractorOrgId={contractorOrgId}
           subOrgs={subOrgs}
           onClose={() => setShowCreatePO(false)}
-          onCreated={(po, _itemIds) => {
+          onCreated={(po) => {
             setExistingPOs(prev => [po, ...prev])
             setShowCreatePO(false)
-            setPoSelectionMode(false)
-            setSelectedPoItemIds(new Set())
+            setPendingPoItemIds(new Set())
           }}
         />
       )}
