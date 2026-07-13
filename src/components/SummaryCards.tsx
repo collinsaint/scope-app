@@ -11,8 +11,9 @@ interface Props {
 
 export function SummaryCards({ items }: Props) {
   const { isMobile } = useViewMode()
-  // DRV coverage items are excluded — they are not billable scope
-  const billable = items.filter(i => i.coverage?.toUpperCase() !== 'DRV')
+  // Removed items (both the credited-out SOW line and its credit) are excluded —
+  // they net to zero and are out of scope. DRV coverage items are also excluded.
+  const billable = items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
   const completed = billable.filter(i => i.completed)
   const pending = billable.filter(i => i.pendingApproval && !i.completed)
   const totalRcv = billable.reduce((s, i) => s + i.rcv, 0)
