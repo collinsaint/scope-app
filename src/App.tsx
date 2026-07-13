@@ -304,6 +304,7 @@ export default function App() {
                 contractorOrgId={currentUser?.contractorOrg?.id ?? null}
                 subOrgId={currentUser?.subcontractorOrg?.id ?? null}
                 isSubUser={isSubUser}
+                subOrgName={subOrgName}
               />
             ) : null
           })() : view === 'financials' ? (

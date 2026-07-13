@@ -26,6 +26,7 @@ interface Props {
   contractorOrgId: string | null
   subOrgId: string | null
   isSubUser: boolean
+  subOrgName?: string
 }
 
 interface POFormState {
@@ -37,7 +38,7 @@ interface POFormState {
 
 const emptyForm: POFormState = { title: '', sub_org_id: '', amount: '', notes: '' }
 
-export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrgId, isSubUser }: Props) {
+export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrgId, isSubUser, subOrgName }: Props) {
   const { user } = useAuth()
   const [pos, setPos] = useState<PurchaseOrder[]>([])
   const [subOrgs, setSubOrgs] = useState<SubOrg[]>([])
@@ -64,10 +65,25 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
 
   // Financial summary — mirrors SummaryCards: exclude headers, removed items, and DRV coverage
   const billable = project.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
-  const totalRcv = project.scopeTotal ?? billable.reduce((s, i) => s + i.rcv, 0)
-  const completedRcv = billable.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0)
-  const total = billable.length
-  const completed = billable.filter(i => i.completed).length
+
+  // For sub users: filter to only their assigned items at their percentage
+  const mySubEntry = isSubUser && subOrgName
+    ? (project.subcontractors ?? []).find(s => s.name.toLowerCase() === subOrgName.toLowerCase()) ?? null
+    : null
+  const mySubId = mySubEntry?.id ?? null
+  const subPercentage = mySubEntry?.percentage ?? 100
+  const subBillable = isSubUser && mySubId
+    ? billable.filter(i => i.subcontractorId === mySubId)
+    : billable
+
+  const totalRcv = isSubUser
+    ? subBillable.reduce((s, i) => s + i.rcv * subPercentage / 100, 0)
+    : (project.scopeTotal ?? billable.reduce((s, i) => s + i.rcv, 0))
+  const completedRcv = isSubUser
+    ? subBillable.filter(i => i.completed).reduce((s, i) => s + i.rcv * subPercentage / 100, 0)
+    : billable.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0)
+  const total = subBillable.length
+  const completed = subBillable.filter(i => i.completed).length
   const pct = total ? Math.round(completed / total * 100) : 0
 
   // Scope history — one entry per uploaded Excel document, in stage order
@@ -88,7 +104,7 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
       const total = doc.parsedItems!.filter(i => !i.isHeader).reduce((s, i) => s + i.rcv, 0)
       return { designation, label, total }
     })
-    .filter((s): s is { designation: string; label: string; total: number } => s !== null)
+    .filter((s): s is NonNullable<typeof s> => s !== null)
 
   const stageHistoryWithDelta = stageHistory.map((stage, idx) => ({
     ...stage,
@@ -98,7 +114,7 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
   // By-subcontractor breakdown
   const subs: Subcontractor[] = project.subcontractors ?? []
   const subBreakdown = subs.map(sub => {
-    const subItems = nonHeaderItems.filter(i => i.subcontractorId === sub.id)
+    const subItems = billable.filter(i => i.subcontractorId === sub.id)
     return {
       sub,
       rcv: subItems.reduce((s, i) => s + i.rcv, 0),
@@ -252,8 +268,8 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
           </div>
         )}
 
-        {/* By-sub breakdown */}
-        {subBreakdown.length > 0 && (
+        {/* By-sub breakdown — contractor only */}
+        {!isSubUser && subBreakdown.length > 0 && (
           <div className="section-card overflow-hidden">
             <div className="section-card-header">
               <h2 className="text-sm font-semibold text-slate-800">By Subcontractor</h2>
