@@ -702,11 +702,11 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
           </div>
         ) : (
           <div>
-            {groupedByRoom.map(group => {
+            {groupedByRoom.map((group, groupIdx) => {
               const roomPhotoCount = (project?.roomPhotos?.[group.room]?.length ?? 0)
                 + group.roomItems.reduce((acc, i) => acc + i.photos.length, 0)
               return (
-                <div key={group.room}>
+                <div key={`${group.room}-${groupIdx}`}>
                   {/* Sticky room header */}
                   {(() => {
                     const allCompleted = group.roomItems.length > 0 && group.roomItems.every(i => i.completed)
@@ -814,8 +814,10 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                     {group.roomItems.map(item => {
                       const assignedSub = subcontractors.find(s => s.id === item.subcontractorId)
                       const displayRcv = subPercentage != null ? item.rcv * subPercentage / 100 : item.rcv
+                      const isRemoved = item.changeTag === 'removed'
+                      const isNew     = item.changeTag === 'new'
                       return (
-                        <div key={item.id} className={`${item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : item.returned ? 'bg-red-50/60' : 'bg-white'} ${selectedIds.has(item.id) ? 'ring-1 ring-inset ring-blue-400' : ''}`}>
+                        <div key={item.id} className={`${isRemoved ? 'bg-slate-100/80 opacity-75' : item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : item.returned ? 'bg-red-50/60' : 'bg-white'} ${selectedIds.has(item.id) ? 'ring-1 ring-inset ring-blue-400' : ''}`}>
                           {/* Card row */}
                           <div className="flex items-start gap-3 px-4 py-3">
                             {/* Bulk select checkbox */}
@@ -831,6 +833,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                             <div className="flex flex-col items-center gap-1 flex-shrink-0">
                               <button
                                 onClick={() => {
+                                  if (isRemoved) return
                                   if (isSubUser) {
                                     if (item.returned) setSubmitConfirmItem(item)
                                     else if (item.pendingApproval) rejectItem(projectId, item.id)
@@ -841,15 +844,17 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                     toggleItem(projectId, item.id)
                                   }
                                 }}
-                                disabled={item.completed && isSubUser && !item.returned}
+                                disabled={(item.completed && isSubUser && !item.returned) || isRemoved}
                                 className={`mt-0.5 w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
-                                  item.completed
-                                    ? 'bg-green-500 border-green-500 text-white'
-                                    : item.pendingApproval
-                                      ? 'bg-amber-400 border-amber-400 text-white'
-                                      : item.returned
-                                        ? 'bg-red-500 border-red-500 text-white'
-                                        : 'border-slate-300'
+                                  isRemoved
+                                    ? 'border-slate-300 bg-slate-200 cursor-not-allowed'
+                                    : item.completed
+                                      ? 'bg-green-500 border-green-500 text-white'
+                                      : item.pendingApproval
+                                        ? 'bg-amber-400 border-amber-400 text-white'
+                                        : item.returned
+                                          ? 'bg-red-500 border-red-500 text-white'
+                                          : 'border-slate-300'
                                 }`}
                               >
                                 {item.completed ? (
@@ -871,7 +876,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
 
                             {/* Description + pills */}
                             <div className="flex-1 min-w-0">
-                              <p className={`text-sm font-medium leading-snug ${item.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                              <p className={`text-sm font-medium leading-snug ${isRemoved ? 'line-through text-slate-400' : item.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
                                 {spanishMode ? (translationCache[item.description] ?? item.description) : item.description}
                               </p>
                               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1.5">
@@ -962,6 +967,21 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                               </button>
                             </div>
                           </div>
+                          {/* Change-order badge row */}
+                          {(isRemoved || isNew) && (
+                            <div className="px-4 pb-2 flex items-center gap-1.5">
+                              {isRemoved && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded border bg-red-50 text-red-600 border-red-200 tracking-wide">
+                                  REMOVED
+                                </span>
+                              )}
+                              {isNew && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded border bg-green-50 text-green-700 border-green-200 tracking-wide">
+                                  NEW
+                                </span>
+                              )}
+                            </div>
+                          )}
                           {/* Sub assignment row (contractor only, assign mode only) */}
                           {!isSubUser && assignMode && subcontractors.length > 0 && (
                             <div className="px-4 pb-2.5 flex items-center gap-2">

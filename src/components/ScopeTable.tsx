@@ -24,9 +24,10 @@ function withRoomHeaders(items: ScopeItem[], roomFilter: string): RenderRow[] {
     return result
   }
   let lastRoom: string | null = null
+  let sectionIdx = 0
   for (const item of items) {
     if (item.room !== lastRoom) {
-      result.push({ _roomHeader: true, room: item.room, id: `__room_${item.room}` })
+      result.push({ _roomHeader: true, room: item.room, id: `__room_${item.room}_${sectionIdx++}` })
       lastRoom = item.room
     }
     result.push(item)
@@ -641,24 +642,30 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
     setApprovalComment('')
   }
 
-  const rowBg = item.returned
-    ? { backgroundColor: '#FEE2E2' }
-    : item.completed
-      ? { backgroundColor: '#CCE7C9' }
-      : item.pendingApproval
-        ? { backgroundColor: '#FEF9C3' }
-        : undefined
+  const isRemoved = item.changeTag === 'removed'
+  const isNew     = item.changeTag === 'new'
+
+  const rowBg = isRemoved
+    ? { backgroundColor: '#F1F5F9', opacity: 0.75 }
+    : item.returned
+      ? { backgroundColor: '#FEE2E2' }
+      : item.completed
+        ? { backgroundColor: '#CCE7C9' }
+        : item.pendingApproval
+          ? { backgroundColor: '#FEF9C3' }
+          : undefined
 
   return (
     <>
-      <tr className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${selected ? 'bg-blue-50/50' : ''}`} style={rowBg}>
+      <tr className={`border-b border-slate-50 transition-colors ${isRemoved ? '' : 'hover:bg-slate-50/60'} ${selected ? 'bg-blue-50/50' : ''}`} style={rowBg}>
         {/* Select checkbox */}
         <td className="px-3 py-3">
           <input
             type="checkbox"
             checked={selected}
             onChange={onSelect}
-            className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 cursor-pointer"
+            disabled={isRemoved}
+            className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
           />
         </td>
 
@@ -667,9 +674,21 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
 
         {/* Description */}
         <td className="px-3 py-3">
-          <span className={`text-[13px] ${item.completed ? 'text-slate-800 font-semibold' : 'text-slate-800'}`}>
-            {item.description}
-          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-[13px] ${isRemoved ? 'line-through text-slate-400' : item.completed ? 'text-slate-800 font-semibold' : 'text-slate-800'}`}>
+              {item.description}
+            </span>
+            {isRemoved && (
+              <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded border bg-red-50 text-red-600 border-red-200 tracking-wide">
+                REMOVED
+              </span>
+            )}
+            {isNew && (
+              <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded border bg-green-50 text-green-700 border-green-200 tracking-wide">
+                NEW
+              </span>
+            )}
+          </div>
           {item.completed && item.completedAt && (
             <p className="text-[10.5px] text-green-600 mt-0.5">
               Completed {new Date(item.completedAt).toLocaleDateString()}
@@ -694,21 +713,21 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
         {/* Activity */}
         <td className="px-3 py-3">
           {item.activity ? (
-            <span className={`px-2 py-0.5 rounded text-[11px] font-medium whitespace-nowrap ${activityColorClass(item.activity)}`}>
+            <span className={`px-2 py-0.5 rounded text-[11px] font-medium whitespace-nowrap ${isRemoved ? 'bg-slate-100 text-slate-400' : activityColorClass(item.activity)}`}>
               {activityLabel(item.activity)}
             </span>
           ) : '—'}
         </td>
 
         {/* Qty / Unit */}
-        <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">
+        <td className={`px-3 py-3 text-xs whitespace-nowrap ${isRemoved ? 'text-slate-400' : 'text-slate-600'}`}>
           {item.qty ? `${Number(item.qty).toLocaleString('en-US', { maximumFractionDigits: 2 })} ${item.unit}` : '—'}
         </td>
 
         {/* Amount */}
         <td className="px-3 py-3 text-[13px] font-medium whitespace-nowrap">
-          <span className={item.completed ? 'text-green-600' : 'text-slate-800'}>
-            {item.rcv > 0 ? fmt(subPercentage != null ? item.rcv * subPercentage / 100 : item.rcv) : '—'}
+          <span className={isRemoved ? 'text-slate-400 line-through' : item.completed ? 'text-green-600' : 'text-slate-800'}>
+            {item.rcv !== 0 ? fmt(isRemoved ? item.rcv : (subPercentage != null ? item.rcv * subPercentage / 100 : item.rcv)) : '—'}
           </span>
         </td>
 

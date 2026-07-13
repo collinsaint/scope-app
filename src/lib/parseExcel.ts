@@ -220,3 +220,102 @@ export function mergeItems(existing: ScopeItem[], incoming: ScopeItem[]): ScopeI
     return item
   })
 }
+
+/**
+ * Compare a previous scope state against a new change-order delta and produce
+ * a merged list with REMOVED / NEW change tags.
+ *
+ * A REMOVED pair is detected when a credit item in coItems (negative RCV)
+ * matches a line in prevItems on room + description + qty with matching
+ * absolute RCV.  Both the original and the credit are kept in-place, tagged
+ * 'removed' and greyed out in the UI.
+ *
+ * A NEW item is any positive-RCV item in coItems that has no counterpart in
+ * prevItems by room + description + qty.
+ *
+ * Unchanged items carry no tag.  The result preserves prevItems ordering,
+ * inserting each credit immediately after its matched original.  New items
+ * are appended at the end, preceded by room headers for any rooms that are
+ * entirely new.
+ */
+export function diffAndMergeChangeOrder(
+  prevItems: ScopeItem[],
+  coItems: ScopeItem[]
+): ScopeItem[] {
+  const prevNonHeaders = prevItems.filter(i => !i.isHeader)
+  const coNonHeaders   = coItems.filter(i => !i.isHeader)
+  const coCredits      = coNonHeaders.filter(i => i.rcv < 0)
+  const coPositive     = coNonHeaders.filter(i => i.rcv >= 0)
+
+  // --- identify removed pairs ---
+  const removedPrevIds  = new Set<string>()
+  const creditByPrevId  = new Map<string, ScopeItem>()
+
+  for (const credit of coCredits) {
+    const match = prevNonHeaders.find(p =>
+      !removedPrevIds.has(p.id) &&
+      p.room        === credit.room &&
+      p.description === credit.description &&
+      Math.abs(p.qty - credit.qty) < 0.001 &&
+      Math.abs(Math.abs(p.rcv) - Math.abs(credit.rcv)) < 0.01
+    )
+    if (match) {
+      removedPrevIds.add(match.id)
+      creditByPrevId.set(match.id, credit)
+    }
+  }
+
+  // --- identify new items (positive in CO, no key match in prev) ---
+  const prevKeySet = new Set(prevNonHeaders.map(i => `${i.room}||${i.description}||${i.qty}`))
+  const newItems   = coPositive.filter(i => !prevKeySet.has(`${i.room}||${i.description}||${i.qty}`))
+
+  // --- bucket new items by room so we can insert them inline ---
+  const newByRoom = new Map<string, ScopeItem[]>()
+  for (const item of newItems) {
+    if (!newByRoom.has(item.room)) newByRoom.set(item.room, [])
+    newByRoom.get(item.room)!.push(item)
+  }
+
+  const prevRooms = new Set(prevItems.map(i => i.room))
+
+  // --- build result in prevItems order ---
+  const result: ScopeItem[] = []
+
+  for (let i = 0; i < prevItems.length; i++) {
+    const item = prevItems[i]
+
+    if (item.isHeader) {
+      result.push({ ...item, changeTag: undefined })
+      continue
+    }
+
+    if (removedPrevIds.has(item.id)) {
+      result.push({ ...item, changeTag: 'removed' as const })
+      result.push({ ...creditByPrevId.get(item.id)!, changeTag: 'removed' as const })
+    } else {
+      result.push({ ...item, changeTag: undefined })
+    }
+
+    // After the last non-header item in this room, inject any NEW items for this room.
+    const nextNonHeader = prevItems.slice(i + 1).find(j => !j.isHeader)
+    if ((!nextNonHeader || nextNonHeader.room !== item.room) && newByRoom.has(item.room)) {
+      for (const ni of newByRoom.get(item.room)!) {
+        result.push({ ...ni, changeTag: 'new' as const })
+      }
+      newByRoom.delete(item.room)
+    }
+  }
+
+  // --- append remaining NEW items for rooms not present in prevItems ---
+  for (const [room, roomItems] of newByRoom) {
+    if (!prevRooms.has(room)) {
+      const header = coItems.find(h => h.isHeader && h.room === room)
+      if (header) result.push({ ...header, changeTag: 'new' as const })
+      for (const ni of roomItems) {
+        result.push({ ...ni, changeTag: 'new' as const })
+      }
+    }
+  }
+
+  return result
+}

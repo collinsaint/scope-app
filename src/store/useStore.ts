@@ -1,25 +1,51 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Project, ScopeItem, Subcontractor, GlobalSubcontractor, JobGroup, Superintendent, ProjectSketch, SketchLabel, Walk, WalkItemOverride, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, CommentNote, ProjectDocument } from '../types'
-import { mergeItems, cancelCreditedItems } from '../lib/parseExcel'
+import { mergeItems, cancelCreditedItems, diffAndMergeChangeOrder } from '../lib/parseExcel'
+
+// Ordered from base → most-recent; site-visit is excluded (it drives Walk View only).
+const SCOPE_ORDER = ['approved-sow', 'change-order-1', 'change-order-2', 'change-order-3'] as const
 
 function recomputeFromDocuments(documents: ProjectDocument[], currentItems: ScopeItem[]): { items: ScopeItem[]; walkSourceItems: ScopeItem[] } {
   const siteVisitDoc = documents.find(d => d.designation === 'site-visit' && d.fileType === 'excel')
   const walkSourceItems = siteVisitDoc?.parsedItems ?? []
 
-  const sowDoc = documents.find(d => d.designation === 'approved-sow' && d.fileType === 'excel')
-  if (!sowDoc?.parsedItems) return { items: currentItems, walkSourceItems }
+  // Collect scope docs in hierarchy order that have parsed Excel data.
+  const scopeDocs = SCOPE_ORDER
+    .map(desig => documents.find(d => d.designation === desig && d.fileType === 'excel'))
+    .filter((d): d is ProjectDocument => !!(d?.parsedItems?.length))
 
-  let items = mergeItems(currentItems, sowDoc.parsedItems)
+  if (scopeDocs.length === 0) return { items: currentItems, walkSourceItems }
 
-  for (const co of ['change-order-1', 'change-order-2', 'change-order-3'] as const) {
-    const coDoc = documents.find(d => d.designation === co && d.fileType === 'excel')
-    if (!coDoc?.parsedItems?.length) continue
-    const nonHeaderItems = items.filter(i => !i.isHeader)
-    const nonHeaderCo = coDoc.parsedItems.filter(i => !i.isHeader)
-    const combined = cancelCreditedItems([...nonHeaderItems, ...nonHeaderCo])
-    items = combined.map((item, idx) => ({ ...item, rowNum: idx + 1 }))
+  if (scopeDocs.length === 1) {
+    // Single base document — no change-order comparison needed.
+    const items = mergeItems(currentItems, scopeDocs[0].parsedItems!)
+    return { items, walkSourceItems }
   }
+
+  // Build the "clean" previous state by collapsing all docs except the last
+  // using cancelCreditedItems (removes pairs, no tags — gives us a neutral
+  // baseline for diffing against the latest document).
+  let prevClean: ScopeItem[] = scopeDocs[0].parsedItems!
+  for (let i = 1; i < scopeDocs.length - 1; i++) {
+    const nonHeaderPrev = prevClean.filter(item => !item.isHeader)
+    const nonHeaderCo   = scopeDocs[i].parsedItems!.filter(item => !item.isHeader)
+    prevClean = cancelCreditedItems([...nonHeaderPrev, ...nonHeaderCo])
+  }
+
+  // Diff the clean previous state against the current (latest) document to
+  // produce REMOVED / NEW tags.
+  const currentDoc = scopeDocs[scopeDocs.length - 1]
+  const diffed = diffAndMergeChangeOrder(prevClean, currentDoc.parsedItems!)
+
+  // Restore completion state / photos from the live project items, then
+  // strip completion from anything tagged REMOVED (it's out of scope).
+  const merged = mergeItems(currentItems, diffed)
+  const items = merged.map(item =>
+    item.changeTag === 'removed'
+      ? { ...item, completed: false, completedAt: undefined, pendingApproval: undefined, pendingApprovalAt: undefined }
+      : item
+  )
 
   return { items, walkSourceItems }
 }
@@ -122,7 +148,13 @@ export const useStore = create<StoreState>()(
           return { walkPresets: presets }
         }),
 
-      replaceProjects: (projects) => set({ projects }),
+      replaceProjects: (incoming) => set(() => ({
+        projects: incoming.map((p) => {
+          if (!(p.documents ?? []).some(d => d.fileType === 'excel' && d.parsedItems?.length)) return p
+          const { items, walkSourceItems } = recomputeFromDocuments(p.documents ?? [], p.items)
+          return { ...p, items, walkSourceItems }
+        }),
+      })),
 
       addProject: (project) =>
         set((s) => ({ projects: [...s.projects, project] })),
@@ -805,6 +837,19 @@ export const useStore = create<StoreState>()(
           documents: (p.documents ?? []).map((d) => ({ ...d, pdfDataUrl: undefined, parsedItems: d.parsedItems })),
         })),
       }),
+      // Recompute items from documents during hydration so that any changes to
+      // diff logic (e.g. diffAndMergeChangeOrder) take effect immediately on
+      // the very first render, without requiring the user to re-upload files.
+      merge: (persistedState: unknown, currentState: StoreState): StoreState => {
+        const persisted = persistedState as Partial<StoreState> | undefined
+        if (!persisted) return currentState
+        const projects = ((persisted.projects ?? []) as StoreState['projects']).map((p) => {
+          if (!(p.documents ?? []).some(d => d.fileType === 'excel' && d.parsedItems?.length)) return p
+          const { items, walkSourceItems } = recomputeFromDocuments(p.documents ?? [], p.items)
+          return { ...p, items, walkSourceItems }
+        })
+        return { ...currentState, ...persisted, projects }
+      },
     }
   )
 )

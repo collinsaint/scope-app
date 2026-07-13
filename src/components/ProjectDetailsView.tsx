@@ -562,12 +562,12 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
         <div className="section-card p-5">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-4">Rooms / Areas ({rooms.length})</h2>
           <div className="flex flex-wrap gap-2">
-            {rooms.map(r => {
+            {rooms.map((r, rIdx) => {
               const roomItems = dataItems.filter(i => i.room === r)
               const roomDone = roomItems.filter(i => i.completed).length
               const roomPct = roomItems.length ? Math.round(roomDone / roomItems.length * 100) : 0
               return (
-                <div key={r} className="flex items-center gap-2 px-3 py-1.5 bg-blue-50/60 border border-blue-100 rounded-[9px]">
+                <div key={`${r}-${rIdx}`} className="flex items-center gap-2 px-3 py-1.5 bg-blue-50/60 border border-blue-100 rounded-[9px]">
                   <span className="text-xs font-medium text-slate-700">{r}</span>
                   <span className="text-[10px] text-slate-400">{roomItems.length} items</span>
                   {roomPct > 0 && (

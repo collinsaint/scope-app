@@ -477,8 +477,8 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                       }
                       return (
                         <div className="bg-slate-50/60">
-                          {roomOrder.map(room => (
-                            <div key={room}>
+                          {roomOrder.map((room, roomIdx) => (
+                            <div key={`${room}-${roomIdx}`}>
                               <div className="px-4 py-1.5 pl-10 bg-slate-100/70 border-y border-slate-100">
                                 <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{room}</span>
                               </div>

@@ -130,6 +130,7 @@ export interface ScopeItem {
   subcontractorId?: string
   comment?: string
   commentNotes?: CommentNote[]
+  changeTag?: 'removed' | 'new'
 }
 
 export interface WalkNote {

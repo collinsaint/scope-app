@@ -392,13 +392,13 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
       {/* Room tabs — hidden on details view */}
       {activeView !== 'details' && (
         <div className={`flex gap-2 bg-white border-b border-slate-100 flex-shrink-0 ${isMobile ? 'px-4 py-2.5 overflow-x-auto scrollbar-hide' : 'flex-wrap px-6 py-3'}`}>
-          {rooms.map(r => {
+          {rooms.map((r, rIdx) => {
             const { pct, pctCompleted, pctPending, count } = roomProgress(r)
             const isActive = roomFilter === r
             const isCustom = walkCustomRooms.includes(r)
             return (
               <button
-                key={r}
+                key={`${r}-${rIdx}`}
                 onClick={() => { setRoomFilter(r); setActiveView('scope') }}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-colors ${
                   isActive

@@ -52,8 +52,8 @@ export function CommentsView({ items, onEditComment }: Props) {
   return (
     <div className="flex-1 overflow-auto px-6 py-5">
       <div className="max-w-3xl space-y-8">
-        {Object.entries(byRoom).map(([room, roomItems]) => (
-          <div key={room}>
+        {Object.entries(byRoom).map(([room, roomItems], roomIdx) => (
+          <div key={`${room}-${roomIdx}`}>
             <h3 className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-3">
               {room}
             </h3>
