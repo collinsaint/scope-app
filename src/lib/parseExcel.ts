@@ -284,8 +284,13 @@ export function diffAndMergeChangeOrder(
   }
 
   // --- identify new items (positive in CO, no key match in prev) ---
-  const prevKeySet = new Set(prevNonHeaders.map(i => `${i.room}||${i.description}||${i.qty}`))
-  const newItems   = coPositive.filter(i => !prevKeySet.has(`${i.room}||${i.description}||${i.qty}`))
+  const coKey    = (i: ScopeItem) => `${i.room}||${i.description}||${i.qty}`
+  const prevKeySet = new Set(prevNonHeaders.map(coKey))
+  const newItems   = coPositive.filter(i => !prevKeySet.has(coKey(i)))
+
+  // CO may recalculate O&P/overhead for every line, so use CO RCV for unchanged
+  // items rather than the stale SOW value.
+  const coRcvByKey = new Map(coPositive.map(i => [coKey(i), i.rcv]))
 
   // --- bucket new items by room so we can insert them inline ---
   const newByRoom = new Map<string, ScopeItem[]>()
@@ -309,13 +314,14 @@ export function diffAndMergeChangeOrder(
 
     if (removedPrevIds.has(item.id)) {
       const credit = creditByPrevId.get(item.id)
-      // Use the credit's absolute RCV as the authoritative value — the CO may have
-      // updated O&P or rounding vs the original SOW estimate.
+      // Use credit's absolute RCV — CO is authoritative over SOW when O&P differs.
       const rcv = credit ? Math.abs(credit.rcv) : item.rcv
       result.push({ ...item, rcv, changeTag: 'removed' as const })
       if (credit) result.push({ ...credit, changeTag: 'removed' as const })
     } else {
-      result.push({ ...item, changeTag: undefined })
+      // Use CO RCV if available; fall back to SOW value for items not in CO.
+      const rcv = coRcvByKey.get(coKey(item)) ?? item.rcv
+      result.push({ ...item, rcv, changeTag: undefined })
     }
 
     // After the last non-header item in this room, inject any NEW items for this room.
