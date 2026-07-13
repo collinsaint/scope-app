@@ -251,6 +251,9 @@ export function diffAndMergeChangeOrder(
   const removedPrevIds  = new Set<string>()
   const creditByPrevId  = new Map<string, ScopeItem>()
 
+  console.log('[diffMerge] coCredits:', coCredits.map(c => ({ room: c.room, desc: c.description, qty: c.qty, rcv: c.rcv })))
+  console.log('[diffMerge] prevNonHeaders count:', prevNonHeaders.length)
+
   for (const credit of coCredits) {
     const match = prevNonHeaders.find(p =>
       !removedPrevIds.has(p.id) &&
@@ -259,6 +262,7 @@ export function diffAndMergeChangeOrder(
       Math.abs(Math.abs(p.qty) - Math.abs(credit.qty)) < 0.001 &&
       Math.abs(Math.abs(p.rcv) - Math.abs(credit.rcv)) < 0.10
     )
+    console.log('[diffMerge] credit:', credit.description, credit.qty, credit.rcv, '→ match:', match ? match.id : 'NONE')
     if (match) {
       removedPrevIds.add(match.id)
       creditByPrevId.set(match.id, credit)
