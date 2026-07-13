@@ -9,16 +9,12 @@ import {
   fetchMyContractorSubOrgs,
   type SubOrg,
 } from '../lib/supabaseSync'
+import { POCard } from './POCard'
 
 function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-const statusConfig: Record<POStatus, { label: string; pill: string }> = {
-  draft:    { label: 'Draft',    pill: 'bg-slate-100 text-slate-600 border border-slate-200' },
-  approved: { label: 'Approved', pill: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
-  paid:     { label: 'Paid',     pill: 'bg-blue-50 text-blue-700 border border-blue-200' },
-}
 
 interface Props {
   project: Project
@@ -45,7 +41,6 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState<POFormState>(emptyForm)
-  const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
@@ -128,25 +123,12 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
     : pos
 
   function startCreate() {
-    setEditingId(null)
     setForm(emptyForm)
-    setShowForm(true)
-  }
-
-  function startEdit(po: PurchaseOrder) {
-    setEditingId(po.id)
-    setForm({
-      title: po.title,
-      sub_org_id: po.sub_org_id ?? '',
-      amount: String(po.amount),
-      notes: po.notes ?? '',
-    })
     setShowForm(true)
   }
 
   function cancelForm() {
     setShowForm(false)
-    setEditingId(null)
     setForm(emptyForm)
   }
 
@@ -154,31 +136,18 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
     if (!form.title.trim() || !form.amount) return
     setSaving(true)
     const amount = parseFloat(form.amount) || 0
-    if (editingId) {
-      const ok = await updatePurchaseOrder(editingId, {
-        title: form.title.trim(),
-        sub_org_id: form.sub_org_id || null,
-        amount,
-        notes: form.notes.trim() || null,
-      })
-      if (ok) {
-        setPos(prev => prev.map(p => p.id === editingId
-          ? { ...p, title: form.title.trim(), sub_org_id: form.sub_org_id || null, amount, notes: form.notes.trim() || null }
-          : p
-        ))
-      }
-    } else {
-      if (!contractorOrgId || !user) { setSaving(false); return }
-      const created = await createPurchaseOrder({
-        project_id: project.id,
-        contractor_org_id: contractorOrgId,
-        sub_org_id: form.sub_org_id || null,
-        title: form.title.trim(),
-        amount,
-        notes: form.notes.trim() || null,
-      }, user.id)
-      if (created) setPos(prev => [created, ...prev])
-    }
+    if (!contractorOrgId || !user) { setSaving(false); return }
+    const created = await createPurchaseOrder({
+      project_id: project.id,
+      contractor_org_id: contractorOrgId,
+      sub_org_id: form.sub_org_id || null,
+      title: form.title.trim(),
+      amount,
+      notes: form.notes.trim() || null,
+      poNumber: form.title.trim(),
+      lineItemIds: [],
+    }, user.id)
+    if (created) setPos(prev => [created, ...prev])
     setSaving(false)
     cancelForm()
   }
@@ -335,63 +304,19 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
               )}
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
-              {visiblePos.map(po => {
-                const subName = subOrgs.find(s => s.id === po.sub_org_id)?.name
-                const cfg = statusConfig[po.status]
-                return (
-                  <div key={po.id} className="flex items-start gap-3 px-5 py-3.5">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-slate-800">{po.title}</p>
-                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${cfg.pill}`}>
-                          {cfg.label}
-                        </span>
-                      </div>
-                      {subName && (
-                        <p className="text-[11px] text-slate-400 mt-0.5">{subName}</p>
-                      )}
-                      {po.notes && (
-                        <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">{po.notes}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <p className="text-sm font-semibold text-slate-800">{fmt(po.amount)}</p>
-                      {!isSubUser && (
-                        <div className="flex items-center gap-1">
-                          {/* Status cycle */}
-                          <select
-                            value={po.status}
-                            onChange={e => handleStatusChange(po.id, e.target.value as POStatus)}
-                            className="text-xs border border-slate-200 rounded-[7px] px-2 py-1 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                          >
-                            <option value="draft">Draft</option>
-                            <option value="approved">Approved</option>
-                            <option value="paid">Paid</option>
-                          </select>
-                          <button
-                            onClick={() => startEdit(po)}
-                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                          >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => setConfirmDeleteId(po.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
+            <div className="flex flex-col gap-3 p-4">
+              {visiblePos.map(po => (
+                <POCard
+                  key={po.id}
+                  po={po}
+                  subName={subOrgs.find(s => s.id === po.sub_org_id)?.name}
+                  lineItems={project.items.filter(i => (po.lineItemIds ?? []).includes(i.id))}
+                  canChangeStatus={!isSubUser}
+                  canDelete={!isSubUser}
+                  onStatusChange={handleStatusChange}
+                  onDelete={(id) => setConfirmDeleteId(id)}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -403,9 +328,7 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
           <div className="absolute inset-0 bg-black/40" onClick={cancelForm} />
           <div className="relative bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <h3 className="text-sm font-semibold text-slate-900">
-                {editingId ? 'Edit Purchase Order' : 'New Purchase Order'}
-              </h3>
+              <h3 className="text-sm font-semibold text-slate-900">New Purchase Order</h3>
               <button onClick={cancelForm} className="p-1 text-slate-400 hover:text-slate-600">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -473,7 +396,7 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
                   disabled={saving || !form.title.trim() || !form.amount}
                   className="btn-primary flex-1 justify-center"
                 >
-                  {saving ? 'Saving…' : editingId ? 'Save changes' : 'Create PO'}
+                  {saving ? 'Saving…' : 'Create PO'}
                 </button>
               </div>
             </div>

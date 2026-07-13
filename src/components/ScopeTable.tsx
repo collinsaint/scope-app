@@ -103,9 +103,13 @@ interface Props {
   subOrgName?: string
   subPercentage?: number
   currentUserName?: string
+  poSelectionMode?: boolean
+  selectedPoItemIds?: Set<string>
+  onTogglePoItem?: (id: string) => void
+  onReviewCreatePO?: () => void
 }
 
-export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName }: Props) {
+export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName, poSelectionMode = false, selectedPoItemIds, onTogglePoItem, onReviewCreatePO }: Props) {
   const { isMobile } = useViewMode()
   const { toggleItem, assignSubcontractor, bulkComplete, bulkUncomplete, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending, bulkApproveItems } = useStore()
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
@@ -154,7 +158,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   }, [someSelected])
 
   if (isMobile) {
-    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} isSubUser={isSubUser} canApprove={canApprove} subOrgName={subOrgName} subPercentage={subPercentage} currentUserName={currentUserName} />
+    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} isSubUser={isSubUser} canApprove={canApprove} subOrgName={subOrgName} subPercentage={subPercentage} currentUserName={currentUserName} poSelectionMode={poSelectionMode} selectedPoItemIds={selectedPoItemIds} onTogglePoItem={onTogglePoItem} onReviewCreatePO={onReviewCreatePO} />
   }
 
   function handleItemToggle(item: ScopeItem) {
@@ -538,6 +542,9 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                     isSubUser={isSubUser}
                     canApprove={canApprove}
                     subPercentage={subPercentage}
+                    poSelectionMode={poSelectionMode}
+                    poSelected={selectedPoItemIds?.has(row.id)}
+                    onPoSelect={() => onTogglePoItem?.(row.id)}
                   />
                 )
               )
@@ -545,6 +552,18 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
           </tbody>
         </table>
       </div>
+
+      {/* PO selection floating bar */}
+      {poSelectionMode && (selectedPoItemIds?.size ?? 0) > 0 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-4 py-3 bg-slate-900 text-white rounded-2xl shadow-xl">
+          <span className="text-sm font-medium">
+            {selectedPoItemIds!.size} item{selectedPoItemIds!.size !== 1 ? 's' : ''} &nbsp;·&nbsp; {fmt(items.filter(i => selectedPoItemIds!.has(i.id)).reduce((s, i) => s + i.rcv, 0))}
+          </span>
+          <button onClick={onReviewCreatePO} className="px-3 py-1.5 bg-blue-500 hover:bg-blue-400 text-white text-xs font-semibold rounded-xl transition-colors">
+            Review &amp; Create PO
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -619,9 +638,12 @@ interface RowProps {
   isSubUser?: boolean
   canApprove?: boolean
   subPercentage?: number
+  poSelectionMode?: boolean
+  poSelected?: boolean
+  onPoSelect?: () => void
 }
 
-function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onApprove, onReturn, onOpenComment, onPhotoClick, onNoteClick, isSubUser = false, canApprove = true, subPercentage }: RowProps) {
+function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onApprove, onReturn, onOpenComment, onPhotoClick, onNoteClick, isSubUser = false, canApprove = true, subPercentage, poSelectionMode, poSelected, onPoSelect }: RowProps) {
   const [showConfirm, setShowConfirm] = useState(false)
   const [approvalComment, setApprovalComment] = useState('')
 
@@ -655,18 +677,36 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
           ? { backgroundColor: '#FEF9C3' }
           : undefined
 
+  const alreadyInPO = !!item.purchaseOrderId
+  const poRowStyle = poSelectionMode && alreadyInPO ? { opacity: 0.4 } : undefined
+
   return (
     <>
-      <tr className={`border-b border-slate-50 transition-colors ${isRemoved ? '' : 'hover:bg-slate-50/60'} ${selected ? 'bg-blue-50/50' : ''}`} style={rowBg}>
-        {/* Select checkbox */}
+      <tr
+        className={`border-b border-slate-50 transition-colors ${isRemoved ? '' : 'hover:bg-slate-50/60'} ${selected ? 'bg-blue-50/50' : ''} ${poSelectionMode && poSelected ? '!bg-blue-50' : ''} ${poSelectionMode && !alreadyInPO && !isRemoved ? 'cursor-pointer' : ''}`}
+        style={poRowStyle ?? rowBg}
+        onClick={poSelectionMode && !alreadyInPO && !isRemoved ? onPoSelect : undefined}
+      >
+        {/* Select / PO checkbox */}
         <td className="px-3 py-3">
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={onSelect}
-            disabled={isRemoved}
-            className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-          />
+          {poSelectionMode ? (
+            <input
+              type="checkbox"
+              checked={poSelected ?? false}
+              onChange={onPoSelect}
+              disabled={alreadyInPO || isRemoved}
+              onClick={e => e.stopPropagation()}
+              className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            />
+          ) : (
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={onSelect}
+              disabled={isRemoved}
+              className="w-3.5 h-3.5 rounded border-slate-300 accent-blue-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            />
+          )}
         </td>
 
         {/* # */}

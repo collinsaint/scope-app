@@ -14,6 +14,10 @@ interface Props {
   subOrgName?: string
   subPercentage?: number
   currentUserName?: string
+  poSelectionMode?: boolean
+  selectedPoItemIds?: Set<string>
+  onTogglePoItem?: (id: string) => void
+  onReviewCreatePO?: () => void
 }
 
 function fmt(n: number) {
@@ -154,7 +158,7 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   a.click()
 }
 
-export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName }: Props) {
+export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName, poSelectionMode, selectedPoItemIds, onTogglePoItem, onReviewCreatePO }: Props) {
   const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending, bulkClearPending, assignSubcontractor, bulkApproveItems } = useStore()
   const project = projects.find(p => p.id === projectId)
   const spanishMode = project?.spanishMode ?? false
@@ -817,7 +821,9 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                       const isRemoved = item.changeTag === 'removed'
                       const isNew     = item.changeTag === 'new'
                       return (
-                        <div key={item.id} className={`${isRemoved ? 'bg-slate-100/80 opacity-75' : item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : item.returned ? 'bg-red-50/60' : 'bg-white'} ${selectedIds.has(item.id) ? 'ring-1 ring-inset ring-blue-400' : ''}`}>
+                        <div key={item.id} className={`${isRemoved ? 'bg-slate-100/80 opacity-75' : item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : item.returned ? 'bg-red-50/60' : 'bg-white'} ${selectedIds.has(item.id) ? 'ring-1 ring-inset ring-blue-400' : ''} ${poSelectionMode && selectedPoItemIds?.has(item.id) ? 'ring-1 ring-inset ring-violet-400' : ''} ${poSelectionMode && item.purchaseOrderId && !selectedPoItemIds?.has(item.id) ? 'opacity-40' : ''}`}
+                          onClick={poSelectionMode && !item.isHeader ? () => onTogglePoItem?.(item.id) : undefined}
+                        >
                           {/* Card row */}
                           <div className="flex items-start gap-3 px-4 py-3">
                             {/* Bulk select checkbox */}
@@ -827,6 +833,16 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                 checked={selectedIds.has(item.id)}
                                 onChange={() => toggleSelectItem(item.id)}
                                 className="mt-1 w-4 h-4 rounded border-slate-300 text-blue-600 flex-shrink-0 cursor-pointer"
+                              />
+                            )}
+                            {/* PO select checkbox */}
+                            {poSelectionMode && !item.isHeader && (
+                              <input
+                                type="checkbox"
+                                checked={selectedPoItemIds?.has(item.id) ?? false}
+                                onChange={() => onTogglePoItem?.(item.id)}
+                                onClick={e => e.stopPropagation()}
+                                className="mt-1 w-4 h-4 rounded border-slate-300 text-violet-600 flex-shrink-0 cursor-pointer"
                               />
                             )}
                             {/* Completion circle + item # below */}
@@ -1210,6 +1226,23 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
             className="px-3 py-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg flex-shrink-0"
           >
             Cancel
+          </button>
+        </div>
+      )}
+
+      {/* PO selection bar */}
+      {poSelectionMode && (selectedPoItemIds?.size ?? 0) > 0 && (
+        <div
+          className="fixed bottom-0 left-0 right-0 z-40 flex items-center gap-2 px-4 py-3 bg-slate-900 text-white shadow-xl"
+          style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom) + 60px)' }}
+        >
+          <span className="text-xs font-semibold flex-shrink-0">{selectedPoItemIds!.size} item{selectedPoItemIds!.size !== 1 ? 's' : ''} selected</span>
+          <div className="flex-1" />
+          <button
+            onClick={onReviewCreatePO}
+            className="px-3 py-1.5 text-xs font-semibold bg-blue-500 hover:bg-blue-400 text-white rounded-lg flex-shrink-0"
+          >
+            Review &amp; Create PO
           </button>
         </div>
       )}

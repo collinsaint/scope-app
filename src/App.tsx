@@ -308,7 +308,11 @@ export default function App() {
               />
             ) : null
           })() : view === 'financials' ? (
-            <FinancialsView />
+            <FinancialsView
+              isSubUser={isSubUser}
+              subOrgId={currentUser?.subcontractorOrg?.id ?? null}
+              contractorOrgId={currentUser?.contractorOrg?.id ?? null}
+            />
           ) : view === 'contractor-settings' ? (
             <ContractorSettingsView />
           ) : view === 'subcontractor-settings' ? (

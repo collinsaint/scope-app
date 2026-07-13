@@ -128,6 +128,7 @@ export interface ScopeItem {
   photos: string[]
   isHeader?: boolean
   subcontractorId?: string
+  purchaseOrderId?: string
   comment?: string
   commentNotes?: CommentNote[]
   changeTag?: 'removed' | 'new'
@@ -232,6 +233,13 @@ export interface Project {
 
 export type POStatus = 'draft' | 'approved' | 'paid'
 
+export interface PODocument {
+  id: string
+  name: string
+  url: string
+  uploadedAt: string
+}
+
 export interface PurchaseOrder {
   id: string
   project_id: string
@@ -244,4 +252,8 @@ export interface PurchaseOrder {
   created_by: string
   created_at: string
   updated_at: string
+  // Extended fields stored in `data` JSONB column
+  poNumber?: string
+  lineItemIds?: string[]
+  documents?: PODocument[]
 }

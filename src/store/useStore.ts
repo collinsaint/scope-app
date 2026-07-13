@@ -133,6 +133,7 @@ interface StoreState {
   deleteWalkGeneralNote: (projectId: string, walkId: string, noteId: string) => void
   uploadProjectDocument: (projectId: string, doc: ProjectDocument) => void
   removeProjectDocument: (projectId: string, docId: string) => void
+  assignItemsToPO: (projectId: string, itemIds: string[], poId: string | null) => void
 }
 
 export const useStore = create<StoreState>()(
@@ -826,6 +827,22 @@ export const useStore = create<StoreState>()(
             const { items, walkSourceItems, scopeTotal } = recomputeFromDocuments(docs, p.items)
             return { ...p, documents: docs, items, walkSourceItems, scopeTotal }
           }),
+        })),
+
+      assignItemsToPO: (projectId, itemIds, poId) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId
+              ? p
+              : {
+                  ...p,
+                  items: p.items.map((item) =>
+                    itemIds.includes(item.id)
+                      ? { ...item, purchaseOrderId: poId ?? undefined }
+                      : item
+                  ),
+                }
+          ),
         })),
     }),
     {

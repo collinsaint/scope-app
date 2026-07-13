@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { Project, GlobalSubcontractor, JobGroup, Superintendent, PurchaseOrder, POStatus } from '../types'
+import type { Project, GlobalSubcontractor, JobGroup, Superintendent, PurchaseOrder, PODocument, POStatus } from '../types'
 
 // User-level settings (personal, per-user)
 export interface UserSettings {
@@ -245,24 +245,65 @@ export async function fetchPurchaseOrders(projectId: string): Promise<PurchaseOr
       .eq('project_id', projectId)
       .order('created_at', { ascending: false })
     if (error) throw error
-    return (data ?? []) as PurchaseOrder[]
+    return (data ?? []).map(row => ({
+      ...row,
+      poNumber: row.data?.poNumber ?? row.title,
+      lineItemIds: row.data?.lineItemIds ?? [],
+      documents: row.data?.documents ?? [],
+    })) as PurchaseOrder[]
+  } catch {
+    return []
+  }
+}
+
+// Fetch all POs visible to the current sub org user (across all projects)
+export async function fetchPurchaseOrdersForSubOrg(subOrgId: string): Promise<PurchaseOrder[]> {
+  try {
+    const { data, error } = await supabase
+      .from('purchase_orders')
+      .select('*')
+      .eq('sub_org_id', subOrgId)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data ?? []).map(row => ({
+      ...row,
+      poNumber: row.data?.poNumber ?? row.title,
+      lineItemIds: row.data?.lineItemIds ?? [],
+      documents: row.data?.documents ?? [],
+    })) as PurchaseOrder[]
   } catch {
     return []
   }
 }
 
 export async function createPurchaseOrder(
-  po: Pick<PurchaseOrder, 'project_id' | 'contractor_org_id' | 'sub_org_id' | 'title' | 'amount' | 'notes'>,
+  po: Pick<PurchaseOrder, 'project_id' | 'contractor_org_id' | 'sub_org_id' | 'title' | 'amount' | 'notes'> & {
+    poNumber: string
+    lineItemIds: string[]
+    documents?: PODocument[]
+  },
   userId: string
 ): Promise<PurchaseOrder | null> {
   try {
+    const { poNumber, lineItemIds, documents, ...rest } = po
     const { data, error } = await supabase
       .from('purchase_orders')
-      .insert({ ...po, created_by: userId })
+      .insert({
+        ...rest,
+        title: poNumber,
+        created_by: userId,
+        data: { poNumber, lineItemIds, documents: documents ?? [] },
+      })
       .select()
       .single()
     if (error) throw error
-    return data as PurchaseOrder
+    const row = data as Record<string, unknown>
+    return {
+      ...row,
+      poNumber,
+      lineItemIds,
+      documents: documents ?? [],
+    } as PurchaseOrder
   } catch {
     return null
   }
@@ -270,12 +311,23 @@ export async function createPurchaseOrder(
 
 export async function updatePurchaseOrder(
   id: string,
-  fields: Partial<Pick<PurchaseOrder, 'title' | 'amount' | 'status' | 'notes' | 'sub_org_id'>>
+  fields: Partial<Pick<PurchaseOrder, 'title' | 'amount' | 'status' | 'notes' | 'sub_org_id' | 'documents'>>
 ): Promise<boolean> {
   try {
+    const { documents, ...rest } = fields
+    const updatePayload: Record<string, unknown> = { ...rest }
+    if (documents !== undefined) {
+      // Merge documents into existing data column
+      const { data: existing } = await supabase
+        .from('purchase_orders')
+        .select('data')
+        .eq('id', id)
+        .single()
+      updatePayload.data = { ...(existing?.data ?? {}), documents }
+    }
     const { error } = await supabase
       .from('purchase_orders')
-      .update(fields)
+      .update(updatePayload)
       .eq('id', id)
     return !error
   } catch {
@@ -295,5 +347,18 @@ export async function deletePurchaseOrder(id: string): Promise<boolean> {
   }
 }
 
+export async function uploadPODocument(file: File, poId: string): Promise<string | null> {
+  try {
+    const ext = file.name.split('.').pop() ?? 'bin'
+    const path = `${poId}/${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('po-documents').upload(path, file)
+    if (error) throw error
+    const { data } = supabase.storage.from('po-documents').getPublicUrl(path)
+    return data.publicUrl
+  } catch {
+    return null
+  }
+}
+
 // Unused import guard
-export type { POStatus }
+export type { POStatus, PODocument }
