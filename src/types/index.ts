@@ -225,6 +225,7 @@ export interface Project {
   translationCache?: Record<string, string>
   documents?: ProjectDocument[]
   walkSourceItems?: ScopeItem[]
+  scopeTotal?: number
 }
 
 // ─── Purchase Orders ─────────────────────────────────────────────────────────

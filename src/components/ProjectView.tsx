@@ -385,6 +385,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                     .map(i => ({ ...i, rcv: i.rcv * subPercentage / 100 }))
                 : project.items
             }
+            scopeTotal={isSubUser ? undefined : project.scopeTotal}
           />
         </div>
       )}
