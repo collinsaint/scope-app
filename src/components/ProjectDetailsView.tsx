@@ -4,7 +4,7 @@ import { SKETCH_LABELS } from '../types'
 import { parseExcelFile } from '../lib/parseExcel'
 import { useStore } from '../store/useStore'
 import { resetDemoProject } from '../lib/seedDemoProject'
-import { grantProjectAccessToSubOrg, revokeProjectAccessForSubOrg, fetchMyContractorSubOrgs, assignProjectSuperintendent, findSubOrgByName, type SubOrg } from '../lib/supabaseSync'
+import { grantProjectAccessToSubOrg, revokeProjectAccessForSubOrg, assignProjectSuperintendent } from '../lib/supabaseSync'
 import { supabase } from '../lib/supabase'
 
 
@@ -47,12 +47,7 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
   const [resetConfirm, setResetConfirm] = useState(false)
   const [pctDraft, setPctDraft] = useState<Record<string, string>>({})
   const [selectedGlobalId, setSelectedGlobalId] = useState('')
-  const [linkedSubOrgs, setLinkedSubOrgs] = useState<SubOrg[]>([])
   const [confirmRemoveSubId, setConfirmRemoveSubId] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetchMyContractorSubOrgs().then(setLinkedSubOrgs)
-  }, [])
 
   // Load actual superintendent org members so we have their user_id for project_access
   useEffect(() => {
@@ -79,17 +74,14 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
   }, [contractorOrgId])
 
   // Auto-grant project access to all currently assigned subs when a contractor opens this page.
-  // This is idempotent (upsert) so it's safe to run every time and fixes existing projects.
+  // Idempotent upsert — fixes existing projects that were assigned before this logic existed.
   useEffect(() => {
     if (!canManage) return
     async function grantAll() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const subs = project.subcontractors ?? []
-      for (const sub of subs) {
-        const global = globalSubcontractors.find(g => g.id === sub.id)
-        const subOrgId = await resolveSubOrgIdAsync(sub.name, global?.subOrgId)
-        if (subOrgId) grantProjectAccessToSubOrg(project.id, subOrgId, user.id)
+      for (const sub of project.subcontractors ?? []) {
+        grantProjectAccessToSubOrg(project.id, sub.name, user.id)
       }
     }
     grantAll()
@@ -99,15 +91,6 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
   const dataItems = project.items.filter(i => !i.isHeader)
   const subcontractors = project.subcontractors ?? []
   const unassignedGlobals = globalSubcontractors.filter(g => !subcontractors.some(s => s.id === g.id))
-
-  async function resolveSubOrgIdAsync(globalName: string, explicitSubOrgId?: string): Promise<string | null> {
-    if (explicitSubOrgId) return explicitSubOrgId
-    const fromLinked = linkedSubOrgs.find(o => o.name.toLowerCase() === globalName.toLowerCase())?.id
-    if (fromLinked) return fromLinked
-    // Fall back to direct org lookup by name
-    const found = await findSubOrgByName(globalName)
-    return found?.id ?? null
-  }
 
   async function handleAddSubcontractor() {
     const global = globalSubcontractors.find(g => g.id === selectedGlobalId)
@@ -121,17 +104,13 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
     setSelectedGlobalId('')
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const subOrgId = await resolveSubOrgIdAsync(global.name, global.subOrgId)
-    if (subOrgId) grantProjectAccessToSubOrg(project.id, subOrgId, user.id)
+    grantProjectAccessToSubOrg(project.id, global.name, user.id)
   }
 
   async function handleRemoveSubcontractor(subId: string) {
-    deleteSubcontractor(project.id, subId)
     const global = globalSubcontractors.find(g => g.id === subId)
-    if (global) {
-      const subOrgId = await resolveSubOrgIdAsync(global.name, global.subOrgId)
-      if (subOrgId) revokeProjectAccessForSubOrg(project.id, subOrgId)
-    }
+    deleteSubcontractor(project.id, subId)
+    if (global) revokeProjectAccessForSubOrg(project.id, global.name)
     setConfirmRemoveSubId(null)
   }
 

@@ -205,50 +205,19 @@ export async function fetchMyContractorSubOrgs(): Promise<SubOrg[]> {
   }
 }
 
-// Look up a subcontractor org by name directly from organizations table
-export async function findSubOrgByName(name: string): Promise<SubOrg | null> {
-  try {
-    const { data } = await supabase
-      .from('organizations')
-      .select('id, name')
-      .eq('type', 'subcontractor')
-      .ilike('name', name)
-      .maybeSingle()
-    if (!data) return null
-    return { id: data.id, name: data.name }
-  } catch {
-    return null
-  }
+export async function grantProjectAccessToSubOrg(projectId: string, subName: string, grantedBy: string): Promise<void> {
+  await supabase.rpc('grant_project_access_by_sub_name', {
+    p_project_id: projectId,
+    p_sub_name:   subName,
+    p_granted_by: grantedBy,
+  })
 }
 
-export async function grantProjectAccessToSubOrg(projectId: string, subOrgId: string, grantedBy: string): Promise<void> {
-  try {
-    const { data } = await supabase
-      .from('subcontractor_members')
-      .select('user_id')
-      .eq('org_id', subOrgId)
-
-    await Promise.all(
-      (data ?? []).map(row => grantProjectAccess(projectId, row.user_id, grantedBy))
-    )
-  } catch {
-    // silent
-  }
-}
-
-export async function revokeProjectAccessForSubOrg(projectId: string, subOrgId: string): Promise<void> {
-  try {
-    const { data } = await supabase
-      .from('subcontractor_members')
-      .select('user_id')
-      .eq('org_id', subOrgId)
-
-    await Promise.all(
-      (data ?? []).map(row => revokeProjectAccess(projectId, row.user_id))
-    )
-  } catch {
-    // silent
-  }
+export async function revokeProjectAccessForSubOrg(projectId: string, subName: string): Promise<void> {
+  await supabase.rpc('revoke_project_access_by_sub_name', {
+    p_project_id: projectId,
+    p_sub_name:   subName,
+  })
 }
 
 // ─── Purchase Orders ─────────────────────────────────────────────────────────
