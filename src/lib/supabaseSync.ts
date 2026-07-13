@@ -205,6 +205,22 @@ export async function fetchMyContractorSubOrgs(): Promise<SubOrg[]> {
   }
 }
 
+// Look up a subcontractor org by name directly from organizations table
+export async function findSubOrgByName(name: string): Promise<SubOrg | null> {
+  try {
+    const { data } = await supabase
+      .from('organizations')
+      .select('id, name')
+      .eq('type', 'subcontractor')
+      .ilike('name', name)
+      .maybeSingle()
+    if (!data) return null
+    return { id: data.id, name: data.name }
+  } catch {
+    return null
+  }
+}
+
 export async function grantProjectAccessToSubOrg(projectId: string, subOrgId: string, grantedBy: string): Promise<void> {
   try {
     const { data } = await supabase

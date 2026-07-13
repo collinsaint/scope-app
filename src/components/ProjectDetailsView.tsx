@@ -4,7 +4,7 @@ import { SKETCH_LABELS } from '../types'
 import { parseExcelFile } from '../lib/parseExcel'
 import { useStore } from '../store/useStore'
 import { resetDemoProject } from '../lib/seedDemoProject'
-import { grantProjectAccessToSubOrg, revokeProjectAccessForSubOrg, fetchMyContractorSubOrgs, assignProjectSuperintendent, type SubOrg } from '../lib/supabaseSync'
+import { grantProjectAccessToSubOrg, revokeProjectAccessForSubOrg, fetchMyContractorSubOrgs, assignProjectSuperintendent, findSubOrgByName, type SubOrg } from '../lib/supabaseSync'
 import { supabase } from '../lib/supabase'
 
 
@@ -49,6 +49,8 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
   const [selectedGlobalId, setSelectedGlobalId] = useState('')
   const [linkedSubOrgs, setLinkedSubOrgs] = useState<SubOrg[]>([])
   const [confirmRemoveSubId, setConfirmRemoveSubId] = useState<string | null>(null)
+  const [grantingAccessId, setGrantingAccessId] = useState<string | null>(null)
+  const [grantedAccessId, setGrantedAccessId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchMyContractorSubOrgs().then(setLinkedSubOrgs)
@@ -82,9 +84,13 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
   const subcontractors = project.subcontractors ?? []
   const unassignedGlobals = globalSubcontractors.filter(g => !subcontractors.some(s => s.id === g.id))
 
-  function resolveSubOrgId(globalName: string, explicitSubOrgId?: string): string | undefined {
+  async function resolveSubOrgIdAsync(globalName: string, explicitSubOrgId?: string): Promise<string | null> {
     if (explicitSubOrgId) return explicitSubOrgId
-    return linkedSubOrgs.find(o => o.name.toLowerCase() === globalName.toLowerCase())?.id
+    const fromLinked = linkedSubOrgs.find(o => o.name.toLowerCase() === globalName.toLowerCase())?.id
+    if (fromLinked) return fromLinked
+    // Fall back to direct org lookup by name
+    const found = await findSubOrgByName(globalName)
+    return found?.id ?? null
   }
 
   async function handleAddSubcontractor() {
@@ -97,10 +103,26 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
       percentage: global.defaultPercentage > 0 ? global.defaultPercentage : undefined,
     })
     setSelectedGlobalId('')
-    const subOrgId = resolveSubOrgId(global.name, global.subOrgId)
-    if (subOrgId) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const subOrgId = await resolveSubOrgIdAsync(global.name, global.subOrgId)
+    if (subOrgId) grantProjectAccessToSubOrg(project.id, subOrgId, user.id)
+  }
+
+  async function handleGrantAccess(sub: { id: string; name: string }) {
+    setGrantingAccessId(sub.id)
+    try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) grantProjectAccessToSubOrg(project.id, subOrgId, user.id)
+      if (!user) return
+      const global = globalSubcontractors.find(g => g.id === sub.id)
+      const subOrgId = await resolveSubOrgIdAsync(sub.name, global?.subOrgId)
+      if (subOrgId) {
+        await grantProjectAccessToSubOrg(project.id, subOrgId, user.id)
+        setGrantedAccessId(sub.id)
+        setTimeout(() => setGrantedAccessId(null), 2000)
+      }
+    } finally {
+      setGrantingAccessId(null)
     }
   }
 
@@ -108,7 +130,7 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
     deleteSubcontractor(project.id, subId)
     const global = globalSubcontractors.find(g => g.id === subId)
     if (global) {
-      const subOrgId = resolveSubOrgId(global.name, global.subOrgId)
+      const subOrgId = await resolveSubOrgIdAsync(global.name, global.subOrgId)
       if (subOrgId) revokeProjectAccessForSubOrg(project.id, subOrgId)
     }
     setConfirmRemoveSubId(null)
@@ -486,6 +508,18 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
                         />
                         <span className="text-xs text-slate-400">%</span>
                       </div>
+                      <button
+                        onClick={() => handleGrantAccess(sub)}
+                        disabled={grantingAccessId === sub.id}
+                        title="Grant project access to this subcontractor"
+                        className="text-xs font-medium px-2 py-1 rounded-md border transition-colors flex-shrink-0 disabled:opacity-40"
+                        style={grantedAccessId === sub.id
+                          ? { color: '#15803d', borderColor: '#86efac', background: '#f0fdf4' }
+                          : { color: '#6366f1', borderColor: '#c7d2fe', background: '#eef2ff' }
+                        }
+                      >
+                        {grantedAccessId === sub.id ? '✓ Access granted' : grantingAccessId === sub.id ? 'Granting…' : 'Grant access'}
+                      </button>
                       <button onClick={() => setConfirmRemoveSubId(sub.id)} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
