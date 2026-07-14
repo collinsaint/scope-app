@@ -24,12 +24,21 @@ import type { Project } from './types'
 type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'subcontractor-settings' | 'user-settings' | 'admin-portal' | 'financials' | 'project-financials'
 
 const VALID_VIEWS: AppView[] = ['dashboard', 'project', 'contractor-settings', 'subcontractor-settings', 'user-settings', 'admin-portal', 'financials', 'project-financials']
+const VALID_SUB_VIEWS = ['scope', 'details', 'comments'] as const
+type ProjectSubView = typeof VALID_SUB_VIEWS[number]
 
 function readSavedView(): AppView {
   try {
     const v = sessionStorage.getItem('ps-view') as AppView | null
     return v && VALID_VIEWS.includes(v) ? v : 'dashboard'
   } catch { return 'dashboard' }
+}
+
+function readSavedSubView(): ProjectSubView {
+  try {
+    const v = sessionStorage.getItem('ps-project-sub-view') as ProjectSubView | null
+    return v && (VALID_SUB_VIEWS as readonly string[]).includes(v) ? v : 'scope'
+  } catch { return 'scope' }
 }
 
 export default function App() {
@@ -47,8 +56,8 @@ export default function App() {
   }, [darkMode])
 
   const [view, setView] = useState<AppView>(readSavedView)
-  const [projectInitialView, setProjectInitialView] = useState<'scope' | 'details'>('scope')
-  const [projectSubView, setProjectSubView] = useState<'scope' | 'details' | 'comments'>('scope')
+  const [projectInitialView, setProjectInitialView] = useState<ProjectSubView>(readSavedSubView)
+  const [projectSubView, setProjectSubView] = useState<ProjectSubView>(readSavedSubView)
   const [syncing, setSyncing] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [recentlyViewedProjectId, setRecentlyViewedProjectId] = useState<string | null>(null)
@@ -196,10 +205,17 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
-  function openProject(id: string, initialView: 'scope' | 'details' = 'scope') {
+  function openProject(id: string, initialView: ProjectSubView = 'scope') {
     setActiveProject(id)
     setProjectInitialView(initialView)
+    setProjectSubView(initialView)
+    try { sessionStorage.setItem('ps-project-sub-view', initialView) } catch { /**/ }
     setView('project')
+  }
+
+  function handleSubViewChange(v: ProjectSubView) {
+    setProjectSubView(v)
+    try { sessionStorage.setItem('ps-project-sub-view', v) } catch { /**/ }
   }
 
   function openProjectFinancials(id: string) {
@@ -275,6 +291,7 @@ export default function App() {
               projectId={activeProjectId ?? ''}
               onBack={() => {
                 setRecentlyViewedProjectId(activeProjectId)
+                try { sessionStorage.removeItem('ps-project-sub-view') } catch { /**/ }
                 setNavigating(true)
                 setTimeout(() => {
                   setView('dashboard')
@@ -283,7 +300,7 @@ export default function App() {
                 }, 500)
               }}
               initialView={projectInitialView}
-              onSubViewChange={setProjectSubView}
+              onSubViewChange={handleSubViewChange}
               canManageProjectSubs={canManageProjectSubs}
               isContractorAdmin={isContractorAdmin}
               isSubUser={isSubUser}

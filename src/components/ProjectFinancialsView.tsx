@@ -191,7 +191,7 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
         )}
       </div>
 
-      <div className="flex-1 overflow-auto px-6 py-6 flex flex-col gap-6">
+      <div className="flex-1 overflow-auto px-6 py-6 space-y-6">
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="section-card p-4">
@@ -215,7 +215,7 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
 
         {/* Scope history by stage — contractor only */}
         {!isSubUser && stageHistoryWithDelta.length > 0 && (
-          <div className="section-card overflow-hidden">
+          <div className="section-card">
             <div className="section-card-header">
               <h2 className="text-sm font-semibold text-slate-800">Scope History</h2>
             </div>
@@ -239,7 +239,7 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
 
         {/* By-sub breakdown — contractor only */}
         {!isSubUser && subBreakdown.length > 0 && (
-          <div className="section-card overflow-hidden">
+          <div className="section-card">
             <div className="section-card-header">
               <h2 className="text-sm font-semibold text-slate-800">By Subcontractor</h2>
             </div>
@@ -265,7 +265,7 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
         )}
 
         {/* Purchase Orders */}
-        <div className="section-card overflow-hidden">
+        <div className="section-card">
           <div className="section-card-header flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">Purchase Orders</h2>
