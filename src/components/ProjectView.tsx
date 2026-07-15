@@ -167,9 +167,15 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
     : null
   const mySubId = mySubEntry?.id ?? null
   const subPercentage = mySubEntry?.percentage ?? 100
-  const dataItems = project.items.filter(i => !i.isHeader)
+
+  // Sub users only see items assigned to them; contractors see everything
+  const scopeItems = isSubUser && mySubId !== null
+    ? project.items.filter(i => i.isHeader || i.subcontractorId === mySubId)
+    : project.items
+
+  const dataItems = scopeItems.filter(i => !i.isHeader)
   const activeWalk = (project.walks ?? []).find(w => w.id === activeWalkId)
-  const baseRooms = Array.from(new Set(project.items.map(i => i.room)))
+  const baseRooms = Array.from(new Set(scopeItems.map(i => i.room)))
   const walkCustomRooms = activeWalkId ? (activeWalk?.customRooms ?? []) : []
   const rooms = ['all', ...baseRooms, ...walkCustomRooms.filter(r => !baseRooms.includes(r))]
 
@@ -179,7 +185,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
   }
 
   function roomProgress(r: string) {
-    const its = (r === 'all' ? project!.items : project!.items.filter(i => i.room === r))
+    const its = (r === 'all' ? scopeItems : scopeItems.filter(i => i.room === r))
       .filter(i => !i.isHeader)
     if (!its.length) return { pct: 0, pctCompleted: 0, pctPending: 0, count: 0 }
     const done = its.filter(i => i.completed).length
@@ -395,9 +401,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
           <SummaryCards
             items={
               isSubUser && mySubId
-                ? project.items
-                    .filter(i => !i.isHeader && i.subcontractorId === mySubId)
-                    .map(i => ({ ...i, rcv: i.rcv * subPercentage / 100 }))
+                ? dataItems.map(i => ({ ...i, rcv: i.rcv * subPercentage / 100 }))
                 : project.items
             }
             scopeTotal={isSubUser ? undefined : project.scopeTotal}
@@ -566,7 +570,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
         ) : activeView === 'scope' ? (
           <ScopeTable
             projectId={projectId}
-            items={project.items}
+            items={scopeItems}
             subOrgName={subOrgName}
             subcontractors={subcontractors}
             roomFilter={roomFilter}

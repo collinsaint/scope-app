@@ -120,11 +120,17 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   const [coverageFilter, setCoverageFilter] = useState('all')
   const masterRef = useRef<HTMLInputElement>(null)
 
+  // Resolve sub user's assigned ID for item filtering
+  const mySubId = isSubUser && subOrgName
+    ? (subcontractors.find(s => s.name.toLowerCase() === subOrgName.toLowerCase())?.id ?? null)
+    : null
+
   // Compute filtering unconditionally — must appear before any early return to keep hook order stable
   // DRV coverage items are excluded from display and totals everywhere
   const roomFiltered = items.filter(item => {
     if (roomFilter !== 'all' && item.room !== roomFilter) return false
     if (!item.isHeader && item.coverage?.toUpperCase() === 'DRV') return false
+    if (mySubId !== null && !item.isHeader && item.subcontractorId !== mySubId) return false
     return true
   })
   const dataItems = roomFiltered.filter(i => !i.isHeader)
