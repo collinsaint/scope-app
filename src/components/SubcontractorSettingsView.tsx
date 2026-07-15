@@ -42,6 +42,15 @@ export function SubcontractorSettingsView({ subOrgId, subOrgName }: { subOrgId: 
 
   useEffect(() => { loadCrew() }, [subOrgId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [inviteToken, setInviteToken] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  function copyToken(token: string) {
+    navigator.clipboard.writeText(token)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   async function handleInvite() {
     const email = inviteEmail.trim().toLowerCase()
     if (!email) { setInviteError('Email is required.'); return }
@@ -49,17 +58,18 @@ export function SubcontractorSettingsView({ subOrgId, subOrgName }: { subOrgId: 
     setInviting(true)
     setInviteError('')
     setInviteSuccess('')
+    setInviteToken(null)
     try {
-      const { error } = await supabase.auth.admin.inviteUserByEmail(email, {
-        data: { invited_to_sub_org: subOrgId, invited_role: 'crew' },
-      })
-      if (error) {
-        setInviteError(error.message)
-      } else {
-        setInviteSuccess(`Invite sent to ${email}`)
-        setInviteEmail('')
-        setTimeout(() => setInviteSuccess(''), 4000)
-      }
+      const { data: inv, error } = await supabase
+        .from('invitations')
+        .insert({ email, org_id: subOrgId, role: 'crew' })
+        .select('token')
+        .single()
+      if (error || !inv) throw new Error(error?.message ?? 'Failed to create invitation')
+      setInviteToken(inv.token)
+      setInviteEmail('')
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setInviting(false)
     }
@@ -152,17 +162,34 @@ export function SubcontractorSettingsView({ subOrgId, subOrgName }: { subOrgId: 
             {/* Invite crew */}
             <div className="px-5 py-4 border-t border-slate-100 bg-[#F9F8FF] rounded-b-[14px] space-y-3">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Invite Crew Member</p>
+              {inviteToken && (
+                <div className="p-3 rounded-lg border border-emerald-200 bg-emerald-50 space-y-2">
+                  <p className="text-xs font-semibold text-emerald-800">Invitation created! Share this code:</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      readOnly
+                      value={inviteToken}
+                      onClick={e => (e.target as HTMLInputElement).select()}
+                      className="flex-1 px-2 py-1.5 bg-white border border-emerald-200 rounded-[6px] text-[11px] font-mono text-slate-700 focus:outline-none cursor-text"
+                    />
+                    <button onClick={() => copyToken(inviteToken)} className="btn-primary btn-sm flex-shrink-0">
+                      {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-emerald-700">They enter this code on the "Join with Invite" screen after signing up.</p>
+                </div>
+              )}
               <div className="flex gap-2">
                 <input
                   type="email"
                   placeholder="crew@example.com"
                   value={inviteEmail}
-                  onChange={e => { setInviteEmail(e.target.value); setInviteError('') }}
+                  onChange={e => { setInviteEmail(e.target.value); setInviteError(''); setInviteToken(null) }}
                   onKeyDown={e => e.key === 'Enter' && handleInvite()}
                   className="input-base flex-1"
                 />
                 <button onClick={handleInvite} disabled={inviting} className="btn-primary whitespace-nowrap">
-                  {inviting ? 'Sending…' : 'Send Invite'}
+                  {inviting ? 'Creating…' : 'Invite'}
                 </button>
               </div>
               {inviteError && <p className="text-xs text-red-500">{inviteError}</p>}

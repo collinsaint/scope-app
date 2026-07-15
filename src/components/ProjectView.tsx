@@ -173,7 +173,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
     ? project.items.filter(i => i.isHeader || i.subcontractorId === mySubId)
     : project.items
 
-  const dataItems = scopeItems.filter(i => !i.isHeader)
+  const dataItems = scopeItems.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
   const activeWalk = (project.walks ?? []).find(w => w.id === activeWalkId)
   const baseRooms = Array.from(new Set(scopeItems.map(i => i.room)))
   const walkCustomRooms = activeWalkId ? (activeWalk?.customRooms ?? []) : []

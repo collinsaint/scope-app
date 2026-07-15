@@ -8,12 +8,19 @@ interface Props {
 }
 
 function dataUrlToBlobUrl(dataUrl: string): string {
-  const [header, b64] = dataUrl.split(',')
+  const comma = dataUrl.indexOf(',')
+  if (!dataUrl || comma === -1) throw new Error('Invalid data URL')
+  const header = dataUrl.slice(0, comma)
+  const b64 = dataUrl.slice(comma + 1)
   const mime = header.match(/:(.*?);/)?.[1] ?? 'application/pdf'
   const raw = atob(b64)
   const arr = new Uint8Array(raw.length)
   for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i)
   return URL.createObjectURL(new Blob([arr], { type: mime }))
+}
+
+function isValidDataUrl(s: string): boolean {
+  return typeof s === 'string' && s.indexOf(',') !== -1 && s.startsWith('data:')
 }
 
 export function SketchViewer({ sketches, onClose }: Props) {
@@ -39,7 +46,8 @@ export function SketchViewer({ sketches, onClose }: Props) {
   function prev() { setIndex((i) => (i - 1 + sketches.length) % sketches.length) }
   function next() { setIndex((i) => (i + 1) % sketches.length) }
 
-  const blobUrl = getBlobUrl(index)
+  const dataReady = isValidDataUrl(current.data)
+  const blobUrl = dataReady && !current.data.startsWith('data:image/') ? getBlobUrl(index) : null
   const isImage = current.data.startsWith('data:image/')
 
   return (
@@ -66,10 +74,10 @@ export function SketchViewer({ sketches, onClose }: Props) {
             )}
             {/* Open in new tab — especially useful on mobile */}
             <a
-              href={blobUrl}
+              href={dataReady ? (isImage ? current.data : (blobUrl ?? '')) : undefined}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors"
+              className={`flex items-center gap-1 px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg transition-colors ${dataReady ? 'text-slate-500 hover:bg-slate-50' : 'text-slate-300 pointer-events-none'}`}
               title="Open in new tab"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -89,7 +97,16 @@ export function SketchViewer({ sketches, onClose }: Props) {
 
         {/* Viewer */}
         <div className="flex-1 relative overflow-hidden bg-slate-100">
-          {isImage ? (
+          {!dataReady ? (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-slate-400">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+              <p className="text-sm font-medium">File not available</p>
+              <p className="text-xs text-center max-w-[200px]">Re-upload this sketch to restore it.</p>
+            </div>
+          ) : isImage ? (
             <img
               key={current.data}
               src={current.data}
@@ -99,16 +116,16 @@ export function SketchViewer({ sketches, onClose }: Props) {
           ) : (
             <iframe
               key={blobUrl}
-              src={blobUrl}
+              src={blobUrl ?? ''}
               className="w-full h-full border-0 bg-white"
               title={current.label}
             />
           )}
 
           {/* Mobile tap-to-open hint overlay */}
-          {isMobile && (
+          {isMobile && dataReady && (
             <a
-              href={blobUrl}
+              href={isImage ? current.data : (blobUrl ?? '')}
               target="_blank"
               rel="noopener noreferrer"
               className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-slate-900/80 text-white text-xs rounded-full shadow-lg backdrop-blur-sm whitespace-nowrap"

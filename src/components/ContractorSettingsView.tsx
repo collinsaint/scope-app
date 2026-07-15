@@ -43,6 +43,44 @@ export function ContractorSettingsView() {
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null)
   const [pendingToggles, setPendingToggles] = useState<Set<string>>(new Set()) // "userId:projectId"
 
+  // Invite state
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<'admin' | 'manager' | 'superintendent'>('superintendent')
+  const [inviting, setInviting] = useState(false)
+  const [inviteToken, setInviteToken] = useState<string | null>(null)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  function copyToken(token: string) {
+    navigator.clipboard.writeText(token)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function handleInvite() {
+    const email = inviteEmail.trim().toLowerCase()
+    if (!email) { setInviteError('Email is required.'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setInviteError('Enter a valid email address.'); return }
+    if (!orgId) return
+    setInviting(true)
+    setInviteError(null)
+    setInviteToken(null)
+    try {
+      const { data: inv, error } = await supabase
+        .from('invitations')
+        .insert({ email, org_id: orgId, role: inviteRole })
+        .select('token')
+        .single()
+      if (error || !inv) throw new Error(error?.message ?? 'Failed to create invitation')
+      setInviteToken(inv.token)
+      setInviteEmail('')
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setInviting(false)
+    }
+  }
+
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -277,6 +315,7 @@ export function ContractorSettingsView() {
               ) : (
                 <div className="divide-y divide-slate-100">
                   {orgUsers.map(u => {
+
                     const roleCfg = ROLE_COLORS[u.role] ?? 'bg-slate-50 border-slate-200 text-slate-600'
                     const roleLabel = ROLE_LABELS[u.role] ?? u.role
                     const isSuper = u.role === 'superintendent'
@@ -352,6 +391,51 @@ export function ContractorSettingsView() {
                   })}
                 </div>
               )}
+
+              {/* Invite user footer */}
+              <div className="px-5 py-4 border-t border-slate-100 bg-[#F9F8FF] rounded-b-[14px] space-y-3">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Invite User</p>
+                {inviteToken && (
+                  <div className="p-3 rounded-lg border border-emerald-200 bg-emerald-50 space-y-2">
+                    <p className="text-xs font-semibold text-emerald-800">Invitation created! Share this code:</p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        readOnly
+                        value={inviteToken}
+                        onClick={e => (e.target as HTMLInputElement).select()}
+                        className="flex-1 px-2 py-1.5 bg-white border border-emerald-200 rounded-[6px] text-[11px] font-mono text-slate-700 focus:outline-none cursor-text"
+                      />
+                      <button onClick={() => copyToken(inviteToken)} className="btn-primary btn-sm flex-shrink-0">
+                        {copied ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-emerald-700">They enter this code on the "Join with Invite" screen after signing up.</p>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    placeholder="user@company.com"
+                    value={inviteEmail}
+                    onChange={e => { setInviteEmail(e.target.value); setInviteError(null); setInviteToken(null) }}
+                    onKeyDown={e => e.key === 'Enter' && handleInvite()}
+                    className="input-base flex-1"
+                  />
+                  <select
+                    value={inviteRole}
+                    onChange={e => setInviteRole(e.target.value as 'admin' | 'manager' | 'superintendent')}
+                    className="input-base w-40"
+                  >
+                    <option value="superintendent">Superintendent</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <button onClick={handleInvite} disabled={inviting || !orgId} className="btn-primary whitespace-nowrap">
+                    {inviting ? 'Creating…' : 'Invite'}
+                  </button>
+                </div>
+                {inviteError && <p className="text-xs text-red-500">{inviteError}</p>}
+              </div>
             </div>
           )}
 

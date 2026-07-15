@@ -242,9 +242,11 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
     return true
   })
   const dataItems = roomFiltered.filter(i => !i.isHeader)
-  const coverageOptions = [...new Set(dataItems.map(i => i.coverage).filter(Boolean))] as string[]
+  const billableItems = dataItems.filter(i => i.changeTag !== 'removed')
+  const coverageOptions = [...new Set(billableItems.map(i => i.coverage).filter(Boolean))] as string[]
 
   const filtered = dataItems.filter(item => {
+    if (item.changeTag === 'removed') return true // always show removed items (strikethrough)
     if (statusFilter === 'pending' && item.completed) return false
     if (statusFilter === 'complete' && !item.completed) return false
     if (coverageFilter !== 'all' && item.coverage !== coverageFilter) return false
@@ -253,8 +255,8 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   })
 
   const progressItems = coverageFilter !== 'all'
-    ? dataItems.filter(i => i.coverage === coverageFilter)
-    : dataItems
+    ? billableItems.filter(i => i.coverage === coverageFilter)
+    : billableItems
   const completedCount = progressItems.filter(i => i.completed).length
   const pendingCount = progressItems.filter(i => i.pendingApproval && !i.completed).length
   const pctCompleted = progressItems.length ? completedCount / progressItems.length * 100 : 0

@@ -152,7 +152,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
     if (mySubId !== null && !item.isHeader && item.subcontractorId !== mySubId) return false
     return true
   })
-  const dataItems = roomFiltered.filter(i => !i.isHeader)
+  const dataItems = roomFiltered.filter(i => !i.isHeader && i.changeTag !== 'removed')
   const coverageOptions = [...new Set(dataItems.map(i => i.coverage).filter(Boolean))] as string[]
   const completedCount = dataItems.filter(i => i.completed).length
   const pendingCount = dataItems.length - completedCount

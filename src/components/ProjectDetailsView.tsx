@@ -88,7 +88,7 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id])
 
-  const dataItems = project.items.filter(i => !i.isHeader)
+  const dataItems = project.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
   const subcontractors = project.subcontractors ?? []
   const unassignedGlobals = globalSubcontractors.filter(g => !subcontractors.some(s => s.id === g.id))
 
