@@ -186,7 +186,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
 
   function roomProgress(r: string) {
     const its = (r === 'all' ? scopeItems : scopeItems.filter(i => i.room === r))
-      .filter(i => !i.isHeader)
+      .filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
     if (!its.length) return { pct: 0, pctCompleted: 0, pctPending: 0, count: 0 }
     const done = its.filter(i => i.completed).length
     const pending = its.filter(i => i.pendingApproval && !i.completed).length
