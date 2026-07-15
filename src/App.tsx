@@ -284,6 +284,7 @@ export default function App() {
               isSuperintendent={isSuperintendent}
               isSuperintendentRole={isSuperintendentRole}
               isSubUser={isSubUser}
+              subOrgName={subOrgName}
               superintendentUserId={superintendentUserId}
               superintendentName={superintendentName}
               currentUserName={currentUserName}

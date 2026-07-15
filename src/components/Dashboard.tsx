@@ -21,6 +21,7 @@ interface Props {
   isSuperintendent?: boolean
   isSuperintendentRole?: boolean
   isSubUser?: boolean
+  subOrgName?: string
   superintendentUserId?: string | null
   superintendentName?: string | null
   currentUserName?: string
@@ -41,7 +42,7 @@ interface PendingItemDetail {
   project: Project
 }
 
-export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendentRole = false, superintendentUserId, superintendentName, currentUserName, isContractorAdmin = false, recentlyViewedProjectId }: Props) {
+export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFinancials, isAppAdmin, onNavigateAdmin, isSuperintendentRole = false, isSubUser = false, subOrgName, superintendentUserId, superintendentName, currentUserName, isContractorAdmin = false, recentlyViewedProjectId }: Props) {
   const { projects: allProjects, deleteProject, approveItem, returnItem, bulkApproveItems } = useStore()
   const { isMobile } = useViewMode()
   const [showModal, setShowModal] = useState(false)
@@ -346,9 +347,15 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {displayed.map(p => {
-                    const totalRcv = p.scopeTotal ?? p.items.filter(i => !i.isHeader && i.changeTag !== 'removed').reduce((s, i) => s + i.rcv, 0)
-                    const completedRcv = p.items.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0)
-                    const billable = p.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+                    const subEntry = isSubUser && subOrgName ? (p.subcontractors ?? []).find(s => s.name.toLowerCase() === subOrgName.toLowerCase()) ?? null : null
+                    const subId = subEntry?.id ?? null
+                    const subPct = subEntry?.percentage ?? 100
+                    const billableAll = p.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+                    const billable = isSubUser && subId ? billableAll.filter(i => i.subcontractorId === subId) : billableAll
+                    const totalRcv = isSubUser
+                      ? billable.reduce((s, i) => s + i.rcv, 0) * subPct / 100
+                      : (p.scopeTotal ?? billableAll.reduce((s, i) => s + i.rcv, 0))
+                    const completedRcv = billable.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0) * (isSubUser ? subPct / 100 : 1)
                     const total = billable.length
                     const completed = billable.filter(i => i.completed).length
                     const pending = billable.filter(i => i.pendingApproval && !i.completed).length
@@ -401,7 +408,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
             <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
               {displayed.map((p) => (
                 <div key={p.id} className={`flex-shrink-0 snap-center ${isMobile ? 'w-[calc(100vw-48px)]' : 'w-72'}`}>
-                  <ProjectCard project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} canDelete={isContractorAdmin || isAppAdmin} isRecentlyViewed={p.id === recentlyViewedProjectId} />
+                  <ProjectCard project={p} onOpen={onOpenProject} onOpenDetails={onOpenProjectDetails} onOpenFinancials={onOpenProjectFinancials} onDelete={deleteProject} canDelete={isContractorAdmin || isAppAdmin} isRecentlyViewed={p.id === recentlyViewedProjectId} isSubUser={isSubUser} subOrgName={subOrgName} />
                 </div>
               ))}
               {(isContractorAdmin || isAppAdmin) && (
@@ -702,16 +709,22 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
   )
 }
 
-function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelete, canDelete = false, isRecentlyViewed = false }: { project: Project; onOpen: (id: string) => void; onOpenDetails: (id: string) => void; onOpenFinancials?: (id: string) => void; onDelete: (id: string) => void; canDelete?: boolean; isRecentlyViewed?: boolean }) {
-  const billable = project.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelete, canDelete = false, isRecentlyViewed = false, isSubUser = false, subOrgName }: { project: Project; onOpen: (id: string) => void; onOpenDetails: (id: string) => void; onOpenFinancials?: (id: string) => void; onDelete: (id: string) => void; canDelete?: boolean; isRecentlyViewed?: boolean; isSubUser?: boolean; subOrgName?: string }) {
+  const subEntry = isSubUser && subOrgName ? (project.subcontractors ?? []).find(s => s.name.toLowerCase() === subOrgName.toLowerCase()) ?? null : null
+  const subId = subEntry?.id ?? null
+  const subPct = subEntry?.percentage ?? 100
+  const billableAll = project.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+  const billable = isSubUser && subId ? billableAll.filter(i => i.subcontractorId === subId) : billableAll
   const completed = billable.filter(i => i.completed).length
   const total = billable.length
   const pending = billable.filter(i => i.pendingApproval && !i.completed).length
   const pctCompleted = total ? completed / total * 100 : 0
   const pctPending = total ? pending / total * 100 : 0
   const pct = Math.round(pctCompleted + pctPending)
-  const totalRcv = project.scopeTotal ?? project.items.filter(i => !i.isHeader && i.changeTag !== 'removed').reduce((s, i) => s + i.rcv, 0)
-  const completedRcv = project.items.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0)
+  const totalRcv = isSubUser
+    ? billable.reduce((s, i) => s + i.rcv, 0) * subPct / 100
+    : (project.scopeTotal ?? billableAll.reduce((s, i) => s + i.rcv, 0))
+  const completedRcv = billable.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0) * (isSubUser ? subPct / 100 : 1)
 
   const statusCfg = project.projectStatus
     ? (statusConfig[project.projectStatus] ?? { dot: 'bg-slate-300', pill: 'bg-slate-50 border-slate-200 text-slate-600' })
@@ -721,18 +734,18 @@ function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelet
     <div className="card card-hover p-5 flex flex-col gap-4 h-full">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
             <h3 className="font-semibold text-slate-900 truncate tracking-tight">{project.name}</h3>
             {project.isDemo && (
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 tracking-wide uppercase">Demo</span>
-            )}
-            {statusCfg && (
-              <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${statusCfg.pill}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
-                {project.projectStatus}
-              </span>
+              <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 tracking-wide uppercase">Demo</span>
             )}
           </div>
+          {statusCfg && (
+            <span className={`mt-1 inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${statusCfg.pill}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+              {project.projectStatus}
+            </span>
+          )}
           {project.address && <p className="text-xs text-slate-400 mt-0.5 truncate">{project.address}</p>}
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
