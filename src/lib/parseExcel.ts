@@ -215,7 +215,25 @@ export function mergeItems(existing: ScopeItem[], incoming: ScopeItem[]): ScopeI
     if (item.isHeader) return item
     const prev = existingByKey.get(key(item))
     if (prev) {
-      return { ...item, completed: prev.completed, completedAt: prev.completedAt, photos: prev.photos }
+      // Spread fresh parsed data first, then restore all user-generated state
+      return {
+        ...item,
+        completed: prev.completed,
+        completedAt: prev.completedAt,
+        pendingApproval: prev.pendingApproval,
+        pendingApprovalAt: prev.pendingApprovalAt,
+        returned: prev.returned,
+        returnedAt: prev.returnedAt,
+        returnComment: prev.returnComment,
+        returnCommentBy: prev.returnCommentBy,
+        approvalComment: prev.approvalComment,
+        approvalCommentBy: prev.approvalCommentBy,
+        photos: prev.photos,
+        subcontractorId: prev.subcontractorId,
+        purchaseOrderId: prev.purchaseOrderId,
+        comment: prev.comment,
+        commentNotes: prev.commentNotes,
+      }
     }
     return item
   })
