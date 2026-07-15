@@ -25,12 +25,6 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
   const { updateProjectDetails, jobGroups, addSketch, removeSketch, setSpanishMode,
     globalSubcontractors, addSubcontractor, deleteSubcontractor, updateProjectSubcontractor,
     uploadProjectDocument, removeProjectDocument } = useStore()
-  const sketches = project.sketches ?? []
-  const usedLabels = new Set(sketches.map(s => s.label))
-  const availableLabels = SKETCH_LABELS.filter(l => !usedLabels.has(l))
-  const [sketchLabel, setSketchLabel] = useState<SketchLabel>(availableLabels[0] ?? SKETCH_LABELS[0])
-  const [sketchUploading, setSketchUploading] = useState(false)
-  const sketchInputRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState(project.name)
   const [address, setAddress] = useState(project.address)
   const [projectCode, setProjectCode] = useState(project.projectCode ?? '')
@@ -378,87 +372,15 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
           </div>
         </div>
 
-        {/* Documents */}
+        {/* Documents & Sketches */}
         <DocumentsSection
           project={project}
           canManage={canManageDocs}
           onUpload={uploadProjectDocument}
           onRemove={removeProjectDocument}
+          onAddSketch={addSketch}
+          onRemoveSketch={removeSketch}
         />
-
-        {/* Project Sketches */}
-        <div className="section-card p-5">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-1">Project Sketches</h2>
-          <p className="text-xs text-slate-400 mb-4">Upload up to 3 PDF or image files. Each must have a unique level name.</p>
-
-          {sketches.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {SKETCH_LABELS.filter(l => usedLabels.has(l)).map(label => {
-                const sk = sketches.find(s => s.label === label)!
-                return (
-                  <div key={label} className="flex items-center gap-3 px-4 py-3 bg-blue-50/60 border border-blue-100 rounded-[9px]">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                      <polyline points="14 2 14 8 20 8"/>
-                    </svg>
-                    <span className="text-xs font-semibold text-slate-700 w-24 flex-shrink-0">{label}</span>
-                    <span className="text-xs text-slate-400 flex-1 truncate">{sk.fileName}</span>
-                    <button onClick={() => removeSketch(project.id, label)} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                      </svg>
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {availableLabels.length > 0 ? (
-            <div className="flex items-center gap-2">
-              <select
-                value={sketchLabel}
-                onChange={e => setSketchLabel(e.target.value as SketchLabel)}
-                className="input-base w-auto"
-              >
-                {availableLabels.map(l => <option key={l} value={l}>{l}</option>)}
-              </select>
-              <button
-                onClick={() => sketchInputRef.current?.click()}
-                disabled={sketchUploading}
-                className="btn-primary"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-                </svg>
-                {sketchUploading ? 'Uploading…' : 'Upload File'}
-              </button>
-              <input
-                ref={sketchInputRef}
-                type="file"
-                accept=".pdf,image/*"
-                className="hidden"
-                onChange={async e => {
-                  const file = e.target.files?.[0]
-                  if (!file) return
-                  setSketchUploading(true)
-                  const reader = new FileReader()
-                  reader.onload = ev => {
-                    const data = ev.target?.result as string
-                    addSketch(project.id, { label: sketchLabel, data, fileName: file.name })
-                    setSketchUploading(false)
-                    const remaining = availableLabels.filter(l => l !== sketchLabel)
-                    if (remaining.length > 0) setSketchLabel(remaining[0])
-                  }
-                  reader.readAsDataURL(file)
-                  e.target.value = ''
-                }}
-              />
-            </div>
-          ) : (
-            <p className="text-xs text-slate-400">All three sketch slots are filled.</p>
-          )}
-        </div>
 
         {/* Project Subcontractors */}
         <div className="section-card overflow-hidden">
@@ -520,27 +442,6 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
               )}
             </div>
           )}
-        </div>
-
-        {/* Rooms */}
-        <div className="section-card p-5">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-[0.12em] mb-4">Rooms / Areas ({rooms.length})</h2>
-          <div className="flex flex-wrap gap-2">
-            {rooms.map((r, rIdx) => {
-              const roomItems = dataItems.filter(i => i.room === r)
-              const roomDone = roomItems.filter(i => i.completed).length
-              const roomPct = roomItems.length ? Math.round(roomDone / roomItems.length * 100) : 0
-              return (
-                <div key={`${r}-${rIdx}`} className="flex items-center gap-2 px-3 py-1.5 bg-blue-50/60 border border-blue-100 rounded-[9px]">
-                  <span className="text-xs font-medium text-slate-700">{r}</span>
-                  <span className="text-[10px] text-slate-400">{roomItems.length} items</span>
-                  {roomPct > 0 && (
-                    <span className={`text-[10px] font-semibold ${roomPct === 100 ? 'text-emerald-500' : 'text-blue-500'}`}>{roomPct}%</span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
         </div>
 
         {/* Database storage */}
@@ -655,16 +556,24 @@ interface DocSectionProps {
   canManage: boolean
   onUpload: (projectId: string, doc: ProjectDocument) => void
   onRemove: (projectId: string, docId: string) => void
+  onAddSketch: (projectId: string, sketch: { label: SketchLabel; data: string; fileName: string }) => void
+  onRemoveSketch: (projectId: string, label: SketchLabel) => void
 }
 
-function DocumentsSection({ project, canManage, onUpload, onRemove }: DocSectionProps) {
+function DocumentsSection({ project, canManage, onUpload, onRemove, onAddSketch, onRemoveSketch }: DocSectionProps) {
   const excelInputRef = useRef<HTMLInputElement>(null)
   const pdfInputRef = useRef<HTMLInputElement>(null)
+  const sketchInputRef = useRef<HTMLInputElement>(null)
   const [activeDesignation, setActiveDesignation] = useState<DocumentDesignation | null>(null)
   const [_activeFileType, setActiveFileType] = useState<'excel' | 'pdf'>('excel')
   const [uploading, setUploading] = useState(false)
   const [noActivityWarning, setNoActivityWarning] = useState(false)
   const [pdfViewing, setPdfViewing] = useState<string | null>(null)
+  const sketches = project.sketches ?? []
+  const usedSketchLabels = new Set(sketches.map(s => s.label))
+  const availableSketchLabels = SKETCH_LABELS.filter(l => !usedSketchLabels.has(l))
+  const [sketchLabel, setSketchLabel] = useState<SketchLabel>(availableSketchLabels[0] ?? SKETCH_LABELS[0])
+  const [sketchUploading, setSketchUploading] = useState(false)
   // Confirmation state: 'delete' or 'replace' with the doc id / designation+type
   const [confirm, setConfirm] = useState<
     | { kind: 'delete'; docId: string; label: string }
@@ -859,6 +768,84 @@ function DocumentsSection({ project, canManage, onUpload, onRemove }: DocSection
             </div>
           )
         })}
+      </div>
+
+      {/* Sketches sub-section */}
+      <div className="border-t border-slate-100 px-5 py-4">
+        <div className="mb-3">
+          <p className="text-sm font-semibold text-slate-700">Project Sketches</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Up to 3 PDF or image files (floor plans, elevations, etc.)</p>
+        </div>
+        {sketches.length > 0 && (
+          <div className="space-y-2 mb-3">
+            {SKETCH_LABELS.filter(l => usedSketchLabels.has(l)).map(label => {
+              const sk = sketches.find(s => s.label === label)!
+              return (
+                <div key={label} className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-[9px]">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                  <span className="text-xs font-semibold text-slate-700 w-24 flex-shrink-0">{label}</span>
+                  <span className="text-xs text-slate-400 flex-1 truncate">{sk.fileName}</span>
+                  {canManage && (
+                    <button onClick={() => onRemoveSketch(project.id, label)} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+        {canManage && (
+          availableSketchLabels.length > 0 ? (
+            <div className="flex items-center gap-2">
+              <select
+                value={sketchLabel}
+                onChange={e => setSketchLabel(e.target.value as SketchLabel)}
+                className="input-base w-auto"
+              >
+                {availableSketchLabels.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+              <button
+                onClick={() => sketchInputRef.current?.click()}
+                disabled={sketchUploading}
+                className="btn-secondary btn-sm"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                {sketchUploading ? 'Uploading…' : 'Upload'}
+              </button>
+              <input
+                ref={sketchInputRef}
+                type="file"
+                accept=".pdf,image/*"
+                className="hidden"
+                onChange={async e => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  setSketchUploading(true)
+                  const reader = new FileReader()
+                  reader.onload = ev => {
+                    const data = ev.target?.result as string
+                    onAddSketch(project.id, { label: sketchLabel, data, fileName: file.name })
+                    setSketchUploading(false)
+                    const remaining = availableSketchLabels.filter(l => l !== sketchLabel)
+                    if (remaining.length > 0) setSketchLabel(remaining[0])
+                  }
+                  reader.readAsDataURL(file)
+                  e.target.value = ''
+                }}
+              />
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400">All three sketch slots are filled.</p>
+          )
+        )}
       </div>
 
       {/* Hidden file inputs */}
