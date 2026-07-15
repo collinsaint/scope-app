@@ -84,9 +84,13 @@ export default function App() {
 
   useEffect(() => {
     if (!user) {
+      // Only clear the saved view when a real logout happens (prevUserIdRef was set).
+      // On initial page load user is null before auth resolves — don't wipe sessionStorage then.
+      if (prevUserIdRef.current !== null) {
+        try { sessionStorage.removeItem('ps-view') } catch { /**/ }
+        try { sessionStorage.removeItem('ps-project-sub-view') } catch { /**/ }
+      }
       prevUserIdRef.current = null
-      // Clear saved view on logout so the next fresh login starts at dashboard
-      try { sessionStorage.removeItem('ps-view') } catch { /**/ }
       return
     }
     if (prevUserIdRef.current === user.id) return

@@ -19,39 +19,99 @@ function groupByRoom(items: ScopeItem[]): Record<string, ScopeItem[]> {
   }, {})
 }
 
-export function generateReport(project: Project): void {
-  const completed = project.items.filter(i => i.completed)
-  const totalRcv = project.items.reduce((s, i) => s + i.rcv, 0)
-  const completedRcv = completed.reduce((s, i) => s + i.rcv, 0)
-  const groups = groupByRoom(completed)
+export function generateReport(
+  project: Project,
+  options: {
+    visibleItems: ScopeItem[]
+    subPercentage?: number
+    spanishMode?: boolean
+    translationCache?: Record<string, string>
+    scopeTotal?: number
+  } = { visibleItems: [] }
+): void {
+  const { subPercentage, spanishMode = false, translationCache = {}, scopeTotal } = options
 
+  // Items the user can see: non-header, non-removed, non-DRV (pre-filtered by caller)
+  const allItems = options.visibleItems.length > 0
+    ? options.visibleItems
+    : project.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+
+  function displayRcv(rcv: number) {
+    return subPercentage != null ? rcv * subPercentage / 100 : rcv
+  }
+
+  function tr(key: string) {
+    const translations: Record<string, string> = {
+      reportTitle: spanishMode ? 'Reporte de Alcance' : 'Scope Report',
+      printBtn:    spanishMode ? 'Imprimir / Guardar como PDF' : 'Print / Save as PDF',
+      totalAmt:    spanishMode ? 'Monto Total' : 'Total Amount',
+      completedAmt:spanishMode ? 'Monto Completado' : 'Completed Amount',
+      itemsComplete:spanishMode ? 'Ítems completados' : 'Items complete',
+      pctComplete: spanishMode ? '% Completado' : '% Complete',
+      colNum:      spanishMode ? '#' : '#',
+      colDesc:     spanishMode ? 'Descripción' : 'Description',
+      colQty:      spanishMode ? 'Cant.' : 'Qty',
+      colActivity: spanishMode ? 'Actividad' : 'Activity',
+      colAmount:   spanishMode ? 'Monto' : 'Amount',
+      colNote:     spanishMode ? 'Nota' : 'Note',
+      colStatus:   spanishMode ? 'Estado' : 'Status',
+      statusComplete: spanishMode ? '✓ Completado' : '✓ Complete',
+      statusPending:  spanishMode ? '⏳ Pendiente' : '⏳ Pending',
+      statusOpen:     spanishMode ? 'Abierto' : 'Open',
+    }
+    return translations[key] ?? key
+  }
+
+  function desc(text: string) {
+    return spanishMode ? (translationCache[text] ?? text) : text
+  }
+
+  const completedItems = allItems.filter(i => i.completed)
+  // Use scopeTotal (from raw CO parsedItems) when available — matches what SummaryCards shows
+  const totalRcv = scopeTotal != null ? displayRcv(scopeTotal) : allItems.reduce((s, i) => s + displayRcv(i.rcv), 0)
+  const completedRcv = completedItems.reduce((s, i) => s + displayRcv(i.rcv), 0)
+  const pct = allItems.length ? Math.round(completedItems.length / allItems.length * 100) : 0
+
+  const groups = groupByRoom(allItems)
   const roomSections = Object.entries(groups).map(([room, items]) => {
-    const rows = items.map(item => `
-      <tr>
-        <td>${item.rowNum}</td>
-        <td>${item.description}</td>
-        <td>${item.qty} ${item.unit}</td>
-        <td>${item.activity}</td>
-        <td>${fmt(item.rcv)}</td>
-        <td>${item.note || '—'}</td>
-        <td>${item.completedAt ? new Date(item.completedAt).toLocaleDateString() : '—'}</td>
-      </tr>
-      ${item.photos.length > 0 ? `<tr><td colspan="7" style="padding:8px 16px"><div style="display:flex;gap:8px;flex-wrap:wrap">${item.photos.map(p => `<img src="${p}" style="height:80px;border-radius:4px;object-fit:cover">`).join('')}</div></td></tr>` : ''}
-    `).join('')
+    const roomLabel = spanishMode
+      ? (translationCache[room.replace(/_/g, ' ')] ?? room.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))
+      : room.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+
+    const rows = items.map(item => {
+      const statusText = item.completed ? tr('statusComplete') : item.pendingApproval ? tr('statusPending') : tr('statusOpen')
+      const statusColor = item.completed ? '#16a34a' : item.pendingApproval ? '#d97706' : '#64748b'
+      return `
+        <tr>
+          <td>${item.rowNum}</td>
+          <td>${desc(item.description)}</td>
+          <td>${item.qty ? `${fmtQty(item.qty)} ${item.unit}` : '—'}</td>
+          <td>${item.activity || '—'}</td>
+          <td>${fmt(displayRcv(item.rcv))}</td>
+          <td>${item.note ? desc(item.note) : '—'}</td>
+          <td style="color:${statusColor};font-weight:500">${statusText}</td>
+        </tr>
+        ${item.photos.length > 0 ? `<tr><td colspan="7" style="padding:8px 16px"><div style="display:flex;gap:8px;flex-wrap:wrap">${item.photos.map(p => `<img src="${p}" style="height:80px;border-radius:4px;object-fit:cover">`).join('')}</div></td></tr>` : ''}
+      `
+    }).join('')
+
     return `
-      <h3 style="margin:24px 0 8px;color:#1e293b">${room}</h3>
+      <h3 style="margin:24px 0 8px;color:#1e293b">${roomLabel}</h3>
       <table>
-        <thead><tr><th>#</th><th>Description</th><th>Qty</th><th>Activity</th><th>Amount</th><th>Note</th><th>Completed</th></tr></thead>
+        <thead><tr>
+          <th>${tr('colNum')}</th><th>${tr('colDesc')}</th><th>${tr('colQty')}</th>
+          <th>${tr('colActivity')}</th><th>${tr('colAmount')}</th><th>${tr('colNote')}</th><th>${tr('colStatus')}</th>
+        </tr></thead>
         <tbody>${rows}</tbody>
       </table>
     `
   }).join('')
 
   const html = `<!DOCTYPE html>
-<html lang="en">
+<html lang="${spanishMode ? 'es' : 'en'}">
 <head>
 <meta charset="UTF-8">
-<title>Verascope Report — ${project.name}</title>
+<title>Verascope — ${project.name}</title>
 <style>
   body { font-family: system-ui, sans-serif; color: #0f172a; padding: 40px; max-width: 960px; margin: 0 auto }
   h1 { font-size: 22px; margin: 0 0 4px }
@@ -68,15 +128,15 @@ export function generateReport(project: Project): void {
 </head>
 <body>
   <div class="no-print" style="margin-bottom:24px">
-    <button onclick="window.print()" style="padding:8px 20px;background:#1d4ed8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px">Print / Save as PDF</button>
+    <button onclick="window.print()" style="padding:8px 20px;background:#1d4ed8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px">${tr('printBtn')}</button>
   </div>
-  <h1>Verascope Completion Report</h1>
-  <p>${project.name} &nbsp;·&nbsp; ${project.address} &nbsp;·&nbsp; Generated ${new Date().toLocaleDateString()}</p>
+  <h1>${tr('reportTitle')}</h1>
+  <p>${project.name} &nbsp;·&nbsp; ${project.address} &nbsp;·&nbsp; ${new Date().toLocaleDateString()}</p>
   <div class="cards">
-    <div class="card"><div class="card-label">Total Amount</div><div class="card-value">${fmt(totalRcv)}</div></div>
-    <div class="card"><div class="card-label">Completed Amount</div><div class="card-value" style="color:#16a34a">${fmt(completedRcv)}</div></div>
-    <div class="card"><div class="card-label">Items complete</div><div class="card-value">${completed.length} / ${project.items.length}</div></div>
-    <div class="card"><div class="card-label">% Complete</div><div class="card-value">${project.items.length ? Math.round(completed.length / project.items.length * 100) : 0}%</div></div>
+    <div class="card"><div class="card-label">${tr('totalAmt')}</div><div class="card-value">${fmt(totalRcv)}</div></div>
+    <div class="card"><div class="card-label">${tr('completedAmt')}</div><div class="card-value" style="color:#16a34a">${fmt(completedRcv)}</div></div>
+    <div class="card"><div class="card-label">${tr('itemsComplete')}</div><div class="card-value">${completedItems.length} / ${allItems.length}</div></div>
+    <div class="card"><div class="card-label">${tr('pctComplete')}</div><div class="card-value">${pct}%</div></div>
   </div>
   ${roomSections}
 </body>

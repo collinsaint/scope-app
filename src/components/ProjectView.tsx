@@ -290,7 +290,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                 Totals
               </button>
-              <button onClick={() => generateReport(project)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              <button onClick={() => generateReport(project, { visibleItems: scopeItems.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV'), subPercentage: isSubUser ? subPercentage : undefined, spanishMode: project.spanishMode, translationCache: project.translationCache ?? {}, scopeTotal: isSubUser ? undefined : project.scopeTotal })} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Export report
               </button>
@@ -360,7 +360,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
               </button>
               {/* Export */}
               <button
-                onClick={() => generateReport(project)}
+                onClick={() => generateReport(project, { visibleItems: scopeItems.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV'), subPercentage: isSubUser ? subPercentage : undefined, spanishMode: project.spanishMode, translationCache: project.translationCache ?? {}, scopeTotal: isSubUser ? undefined : project.scopeTotal })}
                 className="w-8 h-8 flex items-center justify-center rounded-lg text-white transition-colors"
                 style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.22)' }}
                 title="Export"

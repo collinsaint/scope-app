@@ -4,6 +4,7 @@ import { useStore } from '../store/useStore'
 import { PhotoUploader } from './PhotoUploader'
 import { MobileScopeList } from './MobileScopeList'
 import { useViewMode } from '../hooks/useViewMode'
+import { translateTexts } from '../lib/translate'
 
 const COL_COUNT = 12
 
@@ -108,7 +109,11 @@ interface Props {
 
 export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName, onCreatePO }: Props) {
   const { isMobile } = useViewMode()
-  const { toggleItem, assignSubcontractor, bulkComplete, bulkUncomplete, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending, bulkApproveItems } = useStore()
+  const { toggleItem, assignSubcontractor, bulkComplete, bulkUncomplete, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending, bulkApproveItems, projects, setTranslationCache } = useStore()
+  const project = projects.find(p => p.id === projectId)
+  const spanishMode = project?.spanishMode ?? false
+  const translationCache = project?.translationCache ?? {}
+  const [translating, setTranslating] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'complete'>('all')
   const [search, setSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -119,6 +124,20 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   const [noteModalItem, setNoteModalItem] = useState<ScopeItem | null>(null)
   const [coverageFilter, setCoverageFilter] = useState('all')
   const masterRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!spanishMode) return
+    const allTexts = items.filter(i => !i.isHeader).flatMap(i => [i.description, i.note].filter(Boolean)) as string[]
+    const missing = [...new Set(allTexts)].filter(t => !(t in translationCache))
+    if (missing.length === 0) return
+    setTranslating(true)
+    translateTexts(missing).then(translated => {
+      const patch: Record<string, string> = {}
+      missing.forEach((t, i) => { patch[t] = translated[i] })
+      setTranslationCache(projectId, patch)
+    }).finally(() => setTranslating(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spanishMode, projectId])
 
   // Resolve sub user's assigned ID for item filtering
   const mySubId = isSubUser && subOrgName
@@ -268,6 +287,9 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
             <option value="all">All Coverage</option>
             {coverageOptions.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+        )}
+        {spanishMode && translating && (
+          <span className="text-xs text-blue-500 font-medium whitespace-nowrap">Traduciendo…</span>
         )}
       </div>
 
@@ -557,6 +579,8 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                     isSubUser={isSubUser}
                     canApprove={canApprove}
                     subPercentage={subPercentage}
+                    spanishMode={spanishMode}
+                    translationCache={translationCache}
                   />
                 )
               )
@@ -639,9 +663,11 @@ interface RowProps {
   isSubUser?: boolean
   canApprove?: boolean
   subPercentage?: number
+  spanishMode?: boolean
+  translationCache?: Record<string, string>
 }
 
-function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onApprove, onReturn, onOpenComment, onPhotoClick, onNoteClick, isSubUser = false, canApprove = true, subPercentage }: RowProps) {
+function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onApprove, onReturn, onOpenComment, onPhotoClick, onNoteClick, isSubUser = false, canApprove = true, subPercentage, spanishMode = false, translationCache = {} }: RowProps) {
   const [showConfirm, setShowConfirm] = useState(false)
   const [approvalComment, setApprovalComment] = useState('')
 
@@ -699,7 +725,7 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
         <td className="px-3 py-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`text-[13px] ${isRemoved ? 'line-through text-slate-400' : item.completed ? 'text-slate-800 font-semibold' : 'text-slate-800'}`}>
-              {item.description}
+              {spanishMode ? (translationCache[item.description] ?? item.description) : item.description}
             </span>
             {isRemoved && (
               <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded border bg-red-50 text-red-600 border-red-200 tracking-wide">
