@@ -169,10 +169,11 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
 
   const visible = pruneOrphanedHeaders(afterFilter)
   const visibleData = visible.filter(i => !i.isHeader)
-  const visibleDataIds = new Set(visibleData.map(i => i.id))
-  const effectiveSelected = new Set([...selectedIds].filter(id => visibleDataIds.has(id)))
-  const allSelected = visibleData.length > 0 && visibleData.every(i => effectiveSelected.has(i.id))
-  const someSelected = !allSelected && visibleData.some(i => effectiveSelected.has(i.id))
+  const selectableData = visibleData.filter(i => i.changeTag !== 'removed')
+  const selectableIds = new Set(selectableData.map(i => i.id))
+  const effectiveSelected = new Set([...selectedIds].filter(id => selectableIds.has(id)))
+  const allSelected = selectableData.length > 0 && selectableData.every(i => effectiveSelected.has(i.id))
+  const someSelected = !allSelected && selectableData.some(i => effectiveSelected.has(i.id))
 
   useEffect(() => { setSelectedIds(new Set()); setCoverageFilter('all') }, [roomFilter])
   useEffect(() => {
@@ -209,13 +210,13 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
     if (allSelected) {
       setSelectedIds(prev => {
         const next = new Set(prev)
-        visibleData.forEach(i => next.delete(i.id))
+        selectableData.forEach(i => next.delete(i.id))
         return next
       })
     } else {
       setSelectedIds(prev => {
         const next = new Set(prev)
-        visibleData.forEach(i => next.add(i.id))
+        selectableData.forEach(i => next.add(i.id))
         return next
       })
     }
@@ -541,14 +542,14 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                     key={row.id}
                     room={row.room}
                     onCompleteAll={(() => {
-                      const incompleteIds = visibleData.filter(i => i.room === row.room && !i.completed && !i.pendingApproval).map(i => i.id)
+                      const incompleteIds = visibleData.filter(i => i.room === row.room && !i.completed && !i.pendingApproval && i.changeTag !== 'removed').map(i => i.id)
                       return incompleteIds.length > 0
                         ? () => isSubUser ? bulkSetPending(projectId, incompleteIds) : bulkComplete(projectId, incompleteIds)
                         : undefined
                     })()}
                     isSubUser={isSubUser}
                     onSelectAll={!isSubUser ? (() => {
-                      const roomIds = visibleData.filter(i => i.room === row.room).map(i => i.id)
+                      const roomIds = visibleData.filter(i => i.room === row.room && i.changeTag !== 'removed').map(i => i.id)
                       const allSel = roomIds.every(id => effectiveSelected.has(id))
                       setSelectedIds(prev => {
                         const next = new Set(prev)
@@ -557,8 +558,8 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                         return next
                       })
                     }) : undefined}
-                    roomAllSelected={!isSubUser && visibleData.filter(i => i.room === row.room).length > 0 && visibleData.filter(i => i.room === row.room).every(i => effectiveSelected.has(i.id))}
-                    roomSomeSelected={!isSubUser && !visibleData.filter(i => i.room === row.room).every(i => effectiveSelected.has(i.id)) && visibleData.filter(i => i.room === row.room).some(i => effectiveSelected.has(i.id))}
+                    roomAllSelected={!isSubUser && visibleData.filter(i => i.room === row.room && i.changeTag !== 'removed').length > 0 && visibleData.filter(i => i.room === row.room && i.changeTag !== 'removed').every(i => effectiveSelected.has(i.id))}
+                    roomSomeSelected={!isSubUser && !visibleData.filter(i => i.room === row.room && i.changeTag !== 'removed').every(i => effectiveSelected.has(i.id)) && visibleData.filter(i => i.room === row.room && i.changeTag !== 'removed').some(i => effectiveSelected.has(i.id))}
                   />
                 ) : row.isHeader ? (
                   <HeaderRow key={row.id} label={row.description} />
@@ -832,24 +833,28 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
 
         {/* Status */}
         <td className="px-3 py-3">
-          <button
-            onClick={() => {
-              if (item.completed && !canApprove) return
-              setShowConfirm(true)
-            }}
-            disabled={item.completed && isSubUser && !item.returned}
-            className={`px-2.5 py-1 text-[11px] font-semibold rounded-md whitespace-nowrap transition-colors ${
-              item.completed
-                ? 'bg-green-500 hover:bg-green-600 text-black'
-                : item.pendingApproval
-                  ? 'bg-amber-400 hover:bg-amber-500 text-amber-900'
-                  : item.returned
-                    ? 'bg-red-100 border border-red-400 text-red-700 hover:bg-red-200'
-                    : 'bg-slate-200 hover:bg-slate-300 text-slate-600'
-            }`}
-          >
-            {item.completed ? 'Completed' : item.pendingApproval ? 'Pending Approval' : item.returned ? 'Returned' : 'Incomplete'}
-          </button>
+          {isRemoved ? (
+            <span className="text-slate-300 text-sm">—</span>
+          ) : (
+            <button
+              onClick={() => {
+                if (item.completed && !canApprove) return
+                setShowConfirm(true)
+              }}
+              disabled={item.completed && isSubUser && !item.returned}
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-md whitespace-nowrap transition-colors ${
+                item.completed
+                  ? 'bg-green-500 hover:bg-green-600 text-black'
+                  : item.pendingApproval
+                    ? 'bg-amber-400 hover:bg-amber-500 text-amber-900'
+                    : item.returned
+                      ? 'bg-red-100 border border-red-400 text-red-700 hover:bg-red-200'
+                      : 'bg-slate-200 hover:bg-slate-300 text-slate-600'
+              }`}
+            >
+              {item.completed ? 'Completed' : item.pendingApproval ? 'Pending Approval' : item.returned ? 'Returned' : 'Incomplete'}
+            </button>
+          )}
         </td>
 
         {/* Comment */}

@@ -822,46 +822,49 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                             )}
                             {/* Completion circle + item # below */}
                             <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                              <button
-                                onClick={() => {
-                                  if (isRemoved) return
-                                  if (isSubUser) {
-                                    if (item.returned) setSubmitConfirmItem(item)
-                                    else if (item.pendingApproval) rejectItem(projectId, item.id)
-                                    else if (!item.completed) setSubmitConfirmItem(item)
-                                  } else if (item.pendingApproval && canApprove) {
-                                    setApprovalModal(item)
-                                  } else {
-                                    toggleItem(projectId, item.id)
-                                  }
-                                }}
-                                disabled={(item.completed && isSubUser && !item.returned) || isRemoved}
-                                className={`mt-0.5 w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
-                                  isRemoved
-                                    ? 'border-slate-300 bg-slate-200 cursor-not-allowed'
-                                    : item.completed
+                              {isRemoved ? (
+                                <div className="mt-0.5 w-6 h-6 flex items-center justify-center">
+                                  <span className="text-slate-300 text-sm leading-none">—</span>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    if (isSubUser) {
+                                      if (item.returned) setSubmitConfirmItem(item)
+                                      else if (item.pendingApproval) rejectItem(projectId, item.id)
+                                      else if (!item.completed) setSubmitConfirmItem(item)
+                                    } else if (item.pendingApproval && canApprove) {
+                                      setApprovalModal(item)
+                                    } else {
+                                      toggleItem(projectId, item.id)
+                                    }
+                                  }}
+                                  disabled={item.completed && isSubUser && !item.returned}
+                                  className={`mt-0.5 w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+                                    item.completed
                                       ? 'bg-green-500 border-green-500 text-white'
                                       : item.pendingApproval
                                         ? 'bg-amber-400 border-amber-400 text-white'
                                         : item.returned
                                           ? 'bg-red-500 border-red-500 text-white'
                                           : 'border-slate-300'
-                                }`}
-                              >
-                                {item.completed ? (
-                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                    <polyline points="20 6 9 17 4 12"/>
-                                  </svg>
-                                ) : item.pendingApproval ? (
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                                  </svg>
-                                ) : item.returned ? (
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                                  </svg>
-                                ) : null}
-                              </button>
+                                  }`}
+                                >
+                                  {item.completed ? (
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                      <polyline points="20 6 9 17 4 12"/>
+                                    </svg>
+                                  ) : item.pendingApproval ? (
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                    </svg>
+                                  ) : item.returned ? (
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
+                                  ) : null}
+                                </button>
+                              )}
                               <span className="text-[10px] text-slate-400 leading-none">#{item.rowNum}</span>
                             </div>
 
