@@ -304,7 +304,24 @@ export function diffAndMergeChangeOrder(
   // --- identify new items (positive in CO, no key match in prev) ---
   const coKey    = (i: ScopeItem) => `${i.room}||${i.description}||${i.qty}`
   const prevKeySet = new Set(prevNonHeaders.map(coKey))
-  const newItems   = coPositive.filter(i => !prevKeySet.has(coKey(i)))
+
+  // For each removed prevItem, record its key → RCV so we can detect replacements.
+  // A "replacement" is a coPositive item whose key matches a removed prevItem but
+  // whose RCV differs — i.e., the CO credits out the old item and swaps in a new one
+  // at a different price under the same description/qty (common in Full-SOW CO formats).
+  const removedPrevRcvByKey = new Map<string, number>()
+  for (const id of removedPrevIds) {
+    const p = prevNonHeaders.find(i => i.id === id)!
+    removedPrevRcvByKey.set(coKey(p), p.rcv)
+  }
+
+  const newItems = coPositive.filter(i => {
+    const k = coKey(i)
+    if (!prevKeySet.has(k)) return true   // genuinely new key
+    // Key exists in prev — only treat as new if it replaces a removed item at a different RCV.
+    const removedRcv = removedPrevRcvByKey.get(k)
+    return removedRcv !== undefined && Math.abs(i.rcv - removedRcv) > 0.01
+  })
 
   // CO may recalculate O&P/overhead for every line, so use CO RCV for unchanged
   // items rather than the stale SOW value.
