@@ -281,9 +281,11 @@ export function diffAndMergeChangeOrder(
   const coCredits      = coNonHeaders.filter(i => i.rcv < 0)
   const coPositive     = coNonHeaders.filter(i => i.rcv >= 0)
 
-  // --- identify removed pairs ---
-  const removedPrevIds = new Set<string>()
-  const creditByPrevId = new Map<string, ScopeItem>()
+  // --- Step 1: cross-document removals ---
+  // Credits in the CO that match a positive item in prevClean → both 'removed'.
+  const removedPrevIds  = new Set<string>()
+  const creditByPrevId  = new Map<string, ScopeItem>()
+  const matchedCreditIds = new Set<string>()
 
   for (const credit of coCredits) {
     const k = itemKey(credit)
@@ -293,23 +295,55 @@ export function diffAndMergeChangeOrder(
     if (match) {
       removedPrevIds.add(match.id)
       creditByPrevId.set(match.id, credit)
+      matchedCreditIds.add(credit.id)
     }
   }
 
-  // --- identify new items: positive in CO whose key doesn't exist in prev ---
+  // --- Step 2: within-CO historical pairs ---
+  // Credits that found no prevClean match are paired credit/debit rows that
+  // already resolved in an earlier CO (e.g. ECR item credited by GC SCOPE
+  // ALIGNMENT). cancelCreditedItems removed them from prevClean, so they
+  // appear fresh in the latest Full-SOW CO. Pair them with their coPositive
+  // counterpart so neither gets tagged 'new'.
+  const withinCoPairedIds = new Set<string>()
+  const withinCoPositives: ScopeItem[] = []
+
+  for (const credit of coCredits) {
+    if (matchedCreditIds.has(credit.id)) continue
+    const k = itemKey(credit)
+    const match = coPositive.find(p => !withinCoPairedIds.has(p.id) && itemKey(p) === k)
+    if (match) {
+      withinCoPairedIds.add(credit.id)
+      withinCoPairedIds.add(match.id)
+      withinCoPositives.push(match)
+    }
+  }
+
+  // --- Step 3: new items ---
   const prevKeySet = new Set(prevNonHeaders.map(itemKey))
 
-  const newItems = coPositive.filter(i => !prevKeySet.has(itemKey(i)))
+  const newItems = coPositive.filter(i =>
+    !prevKeySet.has(itemKey(i)) && !withinCoPairedIds.has(i.id)
+  )
 
   // CO may recalculate O&P/overhead for every line, so use CO RCV for unchanged
   // items rather than the stale SOW value.
   const coRcvByKey = new Map(coPositive.map(i => [itemKey(i), i.rcv]))
 
-  // --- bucket new items by room so we can insert them inline ---
+  // --- bucket new items and within-CO pairs by room for inline insertion ---
   const newByRoom = new Map<string, ScopeItem[]>()
   for (const item of newItems) {
     if (!newByRoom.has(item.room)) newByRoom.set(item.room, [])
     newByRoom.get(item.room)!.push(item)
+  }
+
+  // Within-CO pairs: positive → its credit (for insertion as 'removed' pairs)
+  const withinCoByRoom = new Map<string, Array<{ pos: ScopeItem; credit: ScopeItem }>>()
+  for (const pos of withinCoPositives) {
+    const k = itemKey(pos)
+    const credit = coCredits.find(c => withinCoPairedIds.has(c.id) && itemKey(c) === k)!
+    if (!withinCoByRoom.has(pos.room)) withinCoByRoom.set(pos.room, [])
+    withinCoByRoom.get(pos.room)!.push({ pos, credit })
   }
 
   const prevRooms = new Set(prevItems.map(i => i.room))
@@ -337,23 +371,45 @@ export function diffAndMergeChangeOrder(
       result.push({ ...item, rcv, changeTag: undefined })
     }
 
-    // After the last non-header item in this room, inject any NEW items for this room.
+    // After the last non-header item in this room, inject within-CO pairs
+    // (as 'removed') then new items.
     const nextNonHeader = prevItems.slice(i + 1).find(j => !j.isHeader)
-    if ((!nextNonHeader || nextNonHeader.room !== item.room) && newByRoom.has(item.room)) {
-      for (const ni of newByRoom.get(item.room)!) {
-        result.push({ ...ni, changeTag: 'new' as const })
+    const isLastInRoom  = !nextNonHeader || nextNonHeader.room !== item.room
+
+    if (isLastInRoom) {
+      if (withinCoByRoom.has(item.room)) {
+        for (const { pos, credit } of withinCoByRoom.get(item.room)!) {
+          result.push({ ...pos,    changeTag: 'removed' as const })
+          result.push({ ...credit, changeTag: 'removed' as const })
+        }
+        withinCoByRoom.delete(item.room)
       }
-      newByRoom.delete(item.room)
+      if (newByRoom.has(item.room)) {
+        for (const ni of newByRoom.get(item.room)!) {
+          result.push({ ...ni, changeTag: 'new' as const })
+        }
+        newByRoom.delete(item.room)
+      }
     }
   }
 
-  // --- append remaining NEW items for rooms not present in prevItems ---
+  // --- append items for rooms not present in prevItems ---
   for (const [room, roomItems] of newByRoom) {
     if (!prevRooms.has(room)) {
       const header = coItems.find(h => h.isHeader && h.room === room)
       if (header) result.push({ ...header, changeTag: 'new' as const })
       for (const ni of roomItems) {
         result.push({ ...ni, changeTag: 'new' as const })
+      }
+    }
+  }
+  for (const [room, pairs] of withinCoByRoom) {
+    if (!prevRooms.has(room)) {
+      const header = coItems.find(h => h.isHeader && h.room === room)
+      if (header) result.push({ ...header, changeTag: undefined })
+      for (const { pos, credit } of pairs) {
+        result.push({ ...pos,    changeTag: 'removed' as const })
+        result.push({ ...credit, changeTag: 'removed' as const })
       }
     }
   }

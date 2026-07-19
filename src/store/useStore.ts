@@ -23,17 +23,10 @@ function recomputeFromDocuments(documents: ProjectDocument[], currentItems: Scop
     return { items, walkSourceItems }
   }
 
-  // Build the "clean" previous state by collapsing all docs except the last.
-  // cancelCreditedItems is applied to the SOW (and any intermediate COs) to
-  // produce a neutral baseline.  The FINAL CO is passed raw so that its credit
-  // items survive into diffAndMergeChangeOrder, which needs them to tag the
-  // matching SOW lines as 'removed'.
-  let prevClean: ScopeItem[] = cancelCreditedItems(scopeDocs[0].parsedItems!)
-  for (let i = 1; i < scopeDocs.length - 1; i++) {
-    const nonHeaderPrev = prevClean.filter(item => !item.isHeader)
-    const nonHeaderCo   = scopeDocs[i].parsedItems!.filter(item => !item.isHeader)
-    prevClean = cancelCreditedItems([...nonHeaderPrev, ...nonHeaderCo])
-  }
+  // For Full-SOW COs every document already contains all previous items, so
+  // concatenating earlier docs would duplicate them and corrupt cancellation.
+  // Use the penultimate document directly as the clean baseline instead.
+  const prevClean = cancelCreditedItems(scopeDocs[scopeDocs.length - 2].parsedItems!)
 
   // Diff the clean previous state against the current (latest) document to
   // produce REMOVED / NEW tags.
