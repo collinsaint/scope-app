@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useStore } from '../store/useStore'
 import type { Project, Subcontractor, PurchaseOrder, POStatus } from '../types'
 import {
   fetchPurchaseOrders,
+  fetchPurchaseOrdersForSubOrg,
   createPurchaseOrder,
   updatePurchaseOrder,
   deletePurchaseOrder,
   fetchMyContractorSubOrgs,
+  syncProjectToSupabase,
   type SubOrg,
 } from '../lib/supabaseSync'
 import { POCard } from './POCard'
@@ -22,6 +25,7 @@ interface Props {
   contractorOrgId: string | null
   subOrgId: string | null
   isSubUser: boolean
+  isContractorAdmin: boolean
   subOrgName?: string
 }
 
@@ -34,8 +38,9 @@ interface POFormState {
 
 const emptyForm: POFormState = { title: '', sub_org_id: '', amount: '', notes: '' }
 
-export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrgId, isSubUser, subOrgName }: Props) {
+export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrgId, isSubUser, isContractorAdmin, subOrgName }: Props) {
   const { user } = useAuth()
+  const { setOpPercentage, assignItemsToPO } = useStore()
   const [pos, setPos] = useState<PurchaseOrder[]>([])
   const [subOrgs, setSubOrgs] = useState<SubOrg[]>([])
   const [loading, setLoading] = useState(true)
@@ -43,12 +48,22 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
   const [form, setForm] = useState<POFormState>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [opInput, setOpInput] = useState<string>(
+    project.opPercentage != null ? String(project.opPercentage) : ''
+  )
+  const [opSaving, setOpSaving] = useState(false)
+
+  useEffect(() => {
+    setOpInput(project.opPercentage != null ? String(project.opPercentage) : '')
+  }, [project.opPercentage])
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       const [fetchedPos, fetchedSubs] = await Promise.all([
-        fetchPurchaseOrders(project.id),
+        isSubUser && subOrgId
+          ? fetchPurchaseOrdersForSubOrg(subOrgId).then(all => all.filter(po => po.project_id === project.id))
+          : fetchPurchaseOrders(project.id),
         !isSubUser ? fetchMyContractorSubOrgs() : Promise.resolve([]),
       ])
       setPos(fetchedPos)
@@ -57,6 +72,15 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
     }
     load()
   }, [project.id, isSubUser])
+
+  async function handleSaveOp() {
+    const raw = opInput.trim()
+    const pct = raw === '' ? undefined : parseFloat(raw)
+    if (raw !== '' && (isNaN(pct!) || pct! < 0 || pct! > 100)) return
+    setOpSaving(true)
+    setOpPercentage(project.id, pct)
+    setOpSaving(false)
+  }
 
   // Financial summary — mirrors SummaryCards: exclude headers, removed items, and DRV coverage
   const billable = project.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
@@ -71,12 +95,20 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
     ? billable.filter(i => i.subcontractorId === mySubId)
     : billable
 
-  const totalRcv = isSubUser
+  const opMultiplier = (!isSubUser && project.opPercentage != null && project.opPercentage > 0)
+    ? 1 + project.opPercentage / 100
+    : 1
+
+  const baseRcv = isSubUser
     ? subBillable.reduce((s, i) => s + i.rcv * subPercentage / 100, 0)
     : (project.scopeTotal ?? billable.reduce((s, i) => s + i.rcv, 0))
-  const completedRcv = isSubUser
+  const opAmount = baseRcv * (opMultiplier - 1)
+  const totalRcv = baseRcv * opMultiplier
+
+  const baseCompletedRcv = isSubUser
     ? subBillable.filter(i => i.completed).reduce((s, i) => s + i.rcv * subPercentage / 100, 0)
     : billable.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0)
+  const completedRcv = baseCompletedRcv * opMultiplier
   const total = subBillable.length
   const completed = subBillable.filter(i => i.completed).length
   const pct = total ? Math.round(completed / total * 100) : 0
@@ -96,7 +128,7 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
         d => d.designation === designation && d.fileType === 'excel' && d.parsedItems?.length
       )
       if (!doc) return null
-      const total = doc.parsedItems!.filter(i => !i.isHeader).reduce((s, i) => s + i.rcv, 0)
+      const total = doc.parsedItems!.filter(i => !i.isHeader).reduce((s, i) => s + i.rcv, 0) * opMultiplier
       return { designation, label, total }
     })
     .filter((s): s is NonNullable<typeof s> => s !== null)
@@ -110,10 +142,13 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
   const subs: Subcontractor[] = project.subcontractors ?? []
   const subBreakdown = subs.map(sub => {
     const subItems = billable.filter(i => i.subcontractorId === sub.id)
+    const rawRcv = subItems.reduce((s, i) => s + i.rcv, 0)
+    const rawCompleted = subItems.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0)
     return {
       sub,
-      rcv: subItems.reduce((s, i) => s + i.rcv, 0),
-      completed: subItems.filter(i => i.completed).reduce((s, i) => s + i.rcv, 0),
+      rcv: rawRcv * opMultiplier,
+      completed: rawCompleted * opMultiplier,
+      subRcv: rawRcv * (sub.percentage ?? 100) / 100,
       count: subItems.length,
     }
   }).filter(b => b.count > 0)
@@ -158,8 +193,18 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
   }
 
   async function handleDelete(id: string) {
+    const po = pos.find(p => p.id === id)
     const ok = await deletePurchaseOrder(id)
-    if (ok) setPos(prev => prev.filter(p => p.id !== id))
+    if (ok) {
+      if (po?.lineItemIds?.length) {
+        assignItemsToPO(project.id, po.lineItemIds, null)
+        const updatedProject = useStore.getState().projects.find(p => p.id === project.id)
+        if (updatedProject && user) {
+          await syncProjectToSupabase(updatedProject, user.id, contractorOrgId ?? undefined)
+        }
+      }
+      setPos(prev => prev.filter(p => p.id !== id))
+    }
     setConfirmDeleteId(null)
   }
 
@@ -213,6 +258,70 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
           </div>
         </div>
 
+        {/* O&P percentage — contractor admins/managers only */}
+        {isContractorAdmin && !isSubUser && (
+          <div className="section-card">
+            <div className="section-card-header flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-800">Overhead &amp; Profit (O&amp;P)</h2>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {project.opPercentage != null && project.opPercentage > 0
+                    ? `${project.opPercentage}% applied — adds ${fmt(opAmount)} to scope total`
+                    : 'Optional — leave blank if already built into the estimate'}
+                </p>
+              </div>
+            </div>
+            <div className="px-5 py-4 flex items-center gap-3">
+              <div className="relative w-36">
+                <input
+                  className="input-base pr-8 text-right"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  placeholder="0"
+                  value={opInput}
+                  onChange={e => setOpInput(e.target.value)}
+                  onBlur={handleSaveOp}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.currentTarget.blur() } }}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">%</span>
+              </div>
+              <button
+                onClick={handleSaveOp}
+                disabled={opSaving}
+                className="btn-primary btn-sm"
+              >
+                {opSaving ? 'Saving…' : 'Apply'}
+              </button>
+              {project.opPercentage != null && project.opPercentage > 0 && (
+                <button
+                  onClick={() => { setOpInput(''); setOpPercentage(project.id, undefined) }}
+                  className="btn-ghost btn-sm text-slate-400"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            {opAmount > 0 && (
+              <div className="px-5 pb-4 flex flex-col gap-1.5">
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span>Base scope</span>
+                  <span className="tabular-nums">{fmt(baseRcv)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span>O&amp;P ({project.opPercentage}%)</span>
+                  <span className="tabular-nums text-emerald-600">+{fmt(opAmount)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-semibold text-slate-800 pt-1 border-t border-slate-100">
+                  <span>Adjusted total</span>
+                  <span className="tabular-nums">{fmt(totalRcv)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Scope history by stage — contractor only */}
         {!isSubUser && stageHistoryWithDelta.length > 0 && (
           <div className="section-card">
@@ -244,7 +353,7 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
               <h2 className="text-sm font-semibold text-slate-800">By Subcontractor</h2>
             </div>
             <div className="divide-y divide-slate-100">
-              {subBreakdown.map(({ sub, rcv, completed: compRcv, count }) => {
+              {subBreakdown.map(({ sub, rcv, completed: compRcv, subRcv, count }) => {
                 const subPct = rcv > 0 ? Math.round(compRcv / rcv * 100) : 0
                 return (
                   <div key={sub.id} className="flex items-center gap-4 px-5 py-3">
@@ -254,8 +363,11 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
                       <p className="text-[11px] text-slate-400">{count} item{count !== 1 ? 's' : ''}</p>
                     </div>
                     <div className="text-right">
+                      <p className="text-[11px] text-slate-400 mb-0.5">Contractor</p>
                       <p className="text-sm font-semibold text-slate-800">{fmt(rcv)}</p>
-                      <p className="text-[11px] text-emerald-600">{subPct}% done</p>
+                      <p className="text-[11px] text-slate-400 mt-1.5 mb-0.5">Sub ({sub.percentage ?? 100}%)</p>
+                      <p className="text-sm font-semibold text-slate-600">{fmt(subRcv)}</p>
+                      <p className="text-[11px] text-emerald-600 mt-0.5">{subPct}% done</p>
                     </div>
                   </div>
                 )

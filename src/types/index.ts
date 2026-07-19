@@ -222,6 +222,7 @@ export interface Project {
   sketches?: ProjectSketch[]
   walks?: Walk[]
   roomPhotos?: Record<string, string[]>
+  opPercentage?: number
   isDemo?: boolean
   spanishMode?: boolean
   translationCache?: Record<string, string>

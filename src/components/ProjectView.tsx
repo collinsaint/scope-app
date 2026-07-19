@@ -167,6 +167,9 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
     : null
   const mySubId = mySubEntry?.id ?? null
   const subPercentage = mySubEntry?.percentage ?? 100
+  const opMultiplier = !isSubUser && project.opPercentage != null && project.opPercentage > 0
+    ? 1 + project.opPercentage / 100
+    : 1
 
   // Sub users only see items assigned to them; contractors see everything
   const scopeItems = isSubUser && mySubId !== null
@@ -405,6 +408,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                 : project.items
             }
             scopeTotal={isSubUser ? undefined : project.scopeTotal}
+            opMultiplier={opMultiplier}
           />
         </div>
       )}
@@ -578,6 +582,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
             isSubUser={isSubUser}
             canApprove={canApprove}
             subPercentage={isSubUser ? subPercentage : undefined}
+            opMultiplier={opMultiplier}
             currentUserName={currentUserName}
             onCreatePO={!isSubUser ? (ids) => { setPendingPoItemIds(ids); setShowCreatePO(true) } : undefined}
           />

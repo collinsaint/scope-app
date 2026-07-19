@@ -13,6 +13,7 @@ interface Props {
   canApprove?: boolean
   subOrgName?: string
   subPercentage?: number
+  opMultiplier?: number
   currentUserName?: string
   onCreatePO?: (ids: Set<string>) => void
 }
@@ -155,7 +156,7 @@ function downloadDataUrl(dataUrl: string, filename: string) {
   a.click()
 }
 
-export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName, onCreatePO }: Props) {
+export function MobileScopeList({ projectId, items, subcontractors, roomFilter, isSubUser = false, canApprove = true, subOrgName, subPercentage, opMultiplier = 1, currentUserName, onCreatePO }: Props) {
   const { toggleItem, addPhoto, removePhoto, addRoomPhoto, removeRoomPhoto, bulkComplete, bulkUncomplete, addCommentNote, deleteCommentNote, projects, setTranslationCache, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending, bulkClearPending, assignSubcontractor, bulkApproveItems } = useStore()
   const project = projects.find(p => p.id === projectId)
   const spanishMode = project?.spanishMode ?? false
@@ -804,7 +805,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                   <div className="divide-y divide-slate-100">
                     {group.roomItems.map(item => {
                       const assignedSub = subcontractors.find(s => s.id === item.subcontractorId)
-                      const displayRcv = subPercentage != null ? item.rcv * subPercentage / 100 : item.rcv
+                      const displayRcv = subPercentage != null ? item.rcv * subPercentage / 100 : item.rcv * opMultiplier
                       const isRemoved = item.changeTag === 'removed'
                       const isNew     = item.changeTag === 'new'
                       return (
@@ -881,7 +882,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                 )}
                                 {item.qty > 0 && <span className="text-[11px] text-slate-400">{fmtQty(item.qty)} {item.unit}</span>}
                                 {item.rcv > 0 && <span className="text-[11px] font-semibold text-slate-600">{fmt(displayRcv)}</span>}
-                                {item.rcv < 0 && isRemoved && <span className="text-[11px] font-semibold text-red-500">{fmt(item.rcv)}</span>}
+                                {item.rcv < 0 && isRemoved && <span className="text-[11px] font-semibold text-red-500">{fmt(item.rcv * opMultiplier)}</span>}
                                 {item.coverage && (
                                   <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${coverageColorClass(item.coverage)}`}>
                                     {item.coverage}
@@ -1129,7 +1130,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                   onChange={e => setBulkSubId(e.target.value)}
                   className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none"
                 >
-                  <option value="">— Select subcontractor —</option>
+                  <option value="">— Select —</option>
                   {subcontractors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
                 <button
@@ -1138,6 +1139,12 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                   className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg disabled:opacity-40 flex-shrink-0"
                 >
                   Assign
+                </button>
+                <button
+                  onClick={() => { assignSubcontractor(projectId, [...selectedIds], null); setShowSubPicker(false); dismiss() }}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200 bg-white rounded-lg flex-shrink-0"
+                >
+                  Unassign
                 </button>
               </div>
             )}

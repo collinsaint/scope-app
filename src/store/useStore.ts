@@ -127,6 +127,7 @@ interface StoreState {
   uploadProjectDocument: (projectId: string, doc: ProjectDocument) => void
   removeProjectDocument: (projectId: string, docId: string) => void
   assignItemsToPO: (projectId: string, itemIds: string[], poId: string | null) => void
+  setOpPercentage: (projectId: string, pct: number | undefined) => void
 }
 
 export const useStore = create<StoreState>()(
@@ -835,6 +836,13 @@ export const useStore = create<StoreState>()(
                       : item
                   ),
                 }
+          ),
+        })),
+
+      setOpPercentage: (projectId, pct) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id !== projectId ? p : { ...p, opPercentage: pct }
           ),
         })),
     }),

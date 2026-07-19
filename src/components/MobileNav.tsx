@@ -156,7 +156,7 @@ export function MobileNav({ view, onNavigate, onOpenProjectDetails, onOpenProjec
         </button>
 
         {/* Project Scope shortcut */}
-        {view === 'project' && onOpenProjectScope && (
+        {(view === 'project' || view === 'project-financials') && onOpenProjectScope && (
           <button
             onClick={() => { onOpenProjectScope(); setShowSettingsPicker(false) }}
             className="flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors"

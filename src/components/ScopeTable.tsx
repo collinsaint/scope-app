@@ -103,11 +103,12 @@ interface Props {
   canApprove?: boolean
   subOrgName?: string
   subPercentage?: number
+  opMultiplier?: number
   currentUserName?: string
   onCreatePO?: (ids: Set<string>) => void
 }
 
-export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true, subOrgName, subPercentage, currentUserName, onCreatePO }: Props) {
+export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpenComment, isSubUser = false, canApprove = true, subOrgName, subPercentage, opMultiplier = 1, currentUserName, onCreatePO }: Props) {
   const { isMobile } = useViewMode()
   const { toggleItem, assignSubcontractor, bulkComplete, bulkUncomplete, setPendingApproval, approveItem, rejectItem, returnItem, bulkSetPending, bulkApproveItems, projects, setTranslationCache } = useStore()
   const project = projects.find(p => p.id === projectId)
@@ -181,7 +182,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   }, [someSelected])
 
   if (isMobile) {
-    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} isSubUser={isSubUser} canApprove={canApprove} subOrgName={subOrgName} subPercentage={subPercentage} currentUserName={currentUserName} onCreatePO={onCreatePO} />
+    return <MobileScopeList projectId={projectId} items={items} subcontractors={subcontractors} roomFilter={roomFilter} isSubUser={isSubUser} canApprove={canApprove} subOrgName={subOrgName} subPercentage={subPercentage} opMultiplier={opMultiplier} currentUserName={currentUserName} onCreatePO={onCreatePO} />
   }
 
   function handleItemToggle(item: ScopeItem) {
@@ -353,16 +354,23 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
             onChange={e => setBulkSubId(e.target.value)}
             className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
-            <option value="">— None —</option>
+            <option value="">— Select —</option>
             {subcontractors.map(s => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
           <button
             onClick={handleBulkAssign}
-            className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            disabled={!bulkSubId}
+            className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Assign
+          </button>
+          <button
+            onClick={() => { assignSubcontractor(projectId, [...effectiveSelected], null); setSelectedIds(new Set()) }}
+            className="px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 bg-white rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            Unassign
           </button>
           {!isSubUser && onCreatePO && (
             <>
@@ -580,6 +588,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                     isSubUser={isSubUser}
                     canApprove={canApprove}
                     subPercentage={subPercentage}
+                    opMultiplier={opMultiplier}
                     spanishMode={spanishMode}
                     translationCache={translationCache}
                   />
@@ -664,11 +673,12 @@ interface RowProps {
   isSubUser?: boolean
   canApprove?: boolean
   subPercentage?: number
+  opMultiplier?: number
   spanishMode?: boolean
   translationCache?: Record<string, string>
 }
 
-function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onApprove, onReturn, onOpenComment, onPhotoClick, onNoteClick, isSubUser = false, canApprove = true, subPercentage, spanishMode = false, translationCache = {} }: RowProps) {
+function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggle, onApprove, onReturn, onOpenComment, onPhotoClick, onNoteClick, isSubUser = false, canApprove = true, subPercentage, opMultiplier = 1, spanishMode = false, translationCache = {} }: RowProps) {
   const [showConfirm, setShowConfirm] = useState(false)
   const [approvalComment, setApprovalComment] = useState('')
 
@@ -780,7 +790,7 @@ function ScopeRow({ item, projectId, subcontractors, selected, onSelect, onToggl
             isRemoved ? 'text-slate-400 line-through' :
             item.completed ? 'text-green-600' : 'text-slate-800'
           }>
-            {item.rcv !== 0 ? fmt(isRemoved ? item.rcv : (subPercentage != null ? item.rcv * subPercentage / 100 : item.rcv)) : '—'}
+            {item.rcv !== 0 ? fmt(subPercentage != null ? item.rcv * subPercentage / 100 : item.rcv * opMultiplier) : '—'}
           </span>
         </td>
 

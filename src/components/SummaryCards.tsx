@@ -8,9 +8,10 @@ function fmt(n: number) {
 interface Props {
   items: ScopeItem[]
   scopeTotal?: number
+  opMultiplier?: number
 }
 
-export function SummaryCards({ items, scopeTotal }: Props) {
+export function SummaryCards({ items, scopeTotal, opMultiplier = 1 }: Props) {
   const { isMobile } = useViewMode()
   // Removed items (both the credited-out SOW line and its credit) are excluded —
   // they net to zero and are out of scope. DRV coverage items are also excluded.
@@ -19,8 +20,8 @@ export function SummaryCards({ items, scopeTotal }: Props) {
   const pending = billable.filter(i => i.pendingApproval && !i.completed)
   // Use scopeTotal from the CO's raw parsedItems when available — it matches the
   // CO Excel exactly without any key-matching ambiguity from the merge step.
-  const totalRcv = scopeTotal ?? billable.reduce((s, i) => s + i.rcv, 0)
-  const completedRcv = completed.reduce((s, i) => s + i.rcv, 0)
+  const totalRcv = (scopeTotal ?? billable.reduce((s, i) => s + i.rcv, 0)) * opMultiplier
+  const completedRcv = completed.reduce((s, i) => s + i.rcv, 0) * opMultiplier
   const remainingRcv = totalRcv - completedRcv
   // Progress counts completed + pending; bar split green/yellow
   const pctCompleted = billable.length ? completed.length / billable.length * 100 : 0

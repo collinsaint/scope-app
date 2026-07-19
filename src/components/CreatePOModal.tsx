@@ -32,15 +32,17 @@ export function CreatePOModal({ project, selectedItemIds, existingPOs, contracto
   const { assignSubcontractor, assignItemsToPO } = useStore()
 
   // --- Conflict detection ---
-  const allItems = project.items.filter(i => !i.isHeader && !i.changeTag)
+  const allItems = project.items.filter(i => !i.isHeader && i.changeTag !== 'removed')
   const selectedItems = allItems.filter(i => selectedItemIds.has(i.id))
 
   const conflicts: Conflict[] = []
-  // Already in another PO
+  // Already in another PO (only flag if the referenced PO still exists)
   for (const item of selectedItems) {
     if (item.purchaseOrderId) {
       const existingPO = existingPOs.find(p => p.id === item.purchaseOrderId)
-      conflicts.push({ itemId: item.id, description: item.description, reason: `Already in PO ${existingPO?.poNumber ?? existingPO?.title ?? 'another PO'}` })
+      if (existingPO) {
+        conflicts.push({ itemId: item.id, description: item.description, reason: `Already in PO ${existingPO.poNumber ?? existingPO.title ?? 'another PO'}` })
+      }
     }
   }
 
