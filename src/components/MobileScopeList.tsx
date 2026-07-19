@@ -246,10 +246,10 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   const coverageOptions = [...new Set(billableItems.map(i => i.coverage).filter(Boolean))] as string[]
 
   const filtered = dataItems.filter(item => {
-    if (item.changeTag === 'removed') return true // always show removed items (strikethrough)
+    if (coverageFilter !== 'all' && item.coverage !== coverageFilter) return false
+    if (item.changeTag === 'removed') return true // always show removed items (strikethrough), but still respect coverage filter
     if (statusFilter === 'pending' && item.completed) return false
     if (statusFilter === 'complete' && !item.completed) return false
-    if (coverageFilter !== 'all' && item.coverage !== coverageFilter) return false
     if (search && !item.description.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
