@@ -715,7 +715,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                         }
                       >
                         {bulkSelectMode && (() => {
-                          const roomIds = group.roomItems.map(i => i.id)
+                          const roomIds = group.roomItems.filter(i => i.changeTag !== 'removed').map(i => i.id)
                           const allSel = roomIds.length > 0 && roomIds.every(id => selectedIds.has(id))
                           const someSel = !allSel && roomIds.some(id => selectedIds.has(id))
                           return (
@@ -811,8 +811,8 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                         <div key={item.id} className={`${isRemoved ? 'bg-slate-100/80 opacity-75' : item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : item.returned ? 'bg-red-50/60' : 'bg-white'} ${selectedIds.has(item.id) ? 'ring-1 ring-inset ring-blue-400' : ''}`}>
                           {/* Card row */}
                           <div className="flex items-start gap-3 px-4 py-3">
-                            {/* Bulk select checkbox */}
-                            {bulkSelectMode && (
+                            {/* Bulk select checkbox — hidden for removed items */}
+                            {bulkSelectMode && !isRemoved && (
                               <input
                                 type="checkbox"
                                 checked={selectedIds.has(item.id)}
