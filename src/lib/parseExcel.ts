@@ -20,33 +20,46 @@ function toNumber(val: unknown): number {
   return parseFloat(String(val).replace(/[$,\s]/g, '')) || 0
 }
 
+// XLSX serial dates (days since 1899-12-30) or ISO strings → YYYY-MM-DD.
+function parseExcelDate(val: unknown): string {
+  if (!val) return ''
+  if (typeof val === 'number') {
+    // Excel serial date
+    const ms = (val - 25569) * 86400 * 1000
+    const d = new Date(ms)
+    return d.toISOString().slice(0, 10)
+  }
+  const s = String(val).trim()
+  if (!s) return ''
+  // Already ISO or "YYYY-MM-DD HH:mm:ss"
+  return s.slice(0, 10)
+}
+
+// Stable 5-field identity key used for credit detection and cross-document matching.
+// RCV is intentionally excluded — it changes between COs due to O&P recalculation.
+// Date disambiguates items with the same description added at different points in time.
+function itemKey(i: ScopeItem): string {
+  return `${i.room}||${i.description}||${i.qty}||${i.activity}||${i.date}`
+}
+
 // Remove paired line items where one credits out the other.
 export function cancelCreditedItems(items: ScopeItem[]): ScopeItem[] {
   const remove = new Set<string>()
   const nonHeaders = items.filter(i => !i.isHeader)
+  const positives = nonHeaders.filter(i => i.rcv >= 0)
 
-  for (let i = 0; i < nonHeaders.length; i++) {
-    if (remove.has(nonHeaders[i].id)) continue
-    const a = nonHeaders[i]
-
-    for (let j = i + 1; j < nonHeaders.length; j++) {
-      if (remove.has(nonHeaders[j].id)) continue
-      const b = nonHeaders[j]
-
-      const sameGroup =
-        a.room === b.room &&
-        a.description === b.description &&
-        Math.abs(a.qty - b.qty) < 0.001
-
-      const oppositeRcv =
-        Math.abs(Math.abs(a.rcv) - Math.abs(b.rcv)) < 0.01 &&
-        ((a.rcv >= 0 && b.rcv < 0) || (a.rcv < 0 && b.rcv >= 0))
-
-      if (sameGroup && oppositeRcv) {
-        remove.add(a.id)
-        remove.add(b.id)
-        break
-      }
+  for (const neg of nonHeaders) {
+    if (neg.rcv >= 0) continue
+    if (remove.has(neg.id)) continue
+    const k = itemKey(neg)
+    const match = positives.find(p =>
+      !remove.has(p.id) &&
+      itemKey(p) === k &&
+      Math.abs(Math.abs(p.rcv) - Math.abs(neg.rcv)) < 0.01
+    )
+    if (match) {
+      remove.add(neg.id)
+      remove.add(match.id)
     }
   }
 
@@ -86,6 +99,7 @@ interface ColMap {
   coverage: number
   activity: number | null  // null = not present in this file format
   rcv: number
+  date: number
   note: number
 }
 
@@ -118,6 +132,7 @@ function tryBuildColMap(row: unknown[]): ColMap | null {
     coverage:    find('sel.', 'coverage', 'selection'),
     activity:    activity >= 0 ? activity : null,
     rcv,
+    date:        find('date'),
     note:        find('note 1', 'notes'),
   }
 }
@@ -148,7 +163,7 @@ export function parseExcelFile(buffer: ArrayBuffer): ParseResult {
 
   // Fall back to the known Xactimate Desktop column positions if header detection fails
   if (!cols || headerRowIdx < 0) {
-    cols = { room: 2, description: 3, qty: 6, unit: 10, coverage: 11, activity: 12, rcv: 21, note: 35 }
+    cols = { room: 2, description: 3, qty: 6, unit: 10, coverage: 11, activity: 12, rcv: 21, date: 33, note: 35 }
     headerRowIdx = 0
   }
 
@@ -177,6 +192,7 @@ export function parseExcelFile(buffer: ArrayBuffer): ParseResult {
         coverage: '',
         activity: '',
         rcv: 0,
+        date: '',
         note: '',
         completed: false,
         photos: [],
@@ -195,6 +211,7 @@ export function parseExcelFile(buffer: ArrayBuffer): ParseResult {
       coverage: cols.coverage >= 0 ? String(row[cols.coverage] ?? '').trim()  : '',
       activity: cols.activity !== null ? String(row[cols.activity] ?? '').trim() : '',
       rcv:      toNumber(row[cols.rcv]),
+      date:     cols.date >= 0     ? parseExcelDate(row[cols.date])           : '',
       note:     cols.note >= 0     ? String(row[cols.note]     ?? '').trim()  : '',
       completed: false,
       photos: [],
@@ -208,12 +225,11 @@ export function parseExcelFile(buffer: ArrayBuffer): ParseResult {
 }
 
 export function mergeItems(existing: ScopeItem[], incoming: ScopeItem[]): ScopeItem[] {
-  const key = (i: ScopeItem) => `${i.room}||${i.description}||${i.qty}`
-  const existingByKey = new Map(existing.filter(i => !i.isHeader).map(item => [key(item), item]))
+  const existingByKey = new Map(existing.filter(i => !i.isHeader).map(item => [itemKey(item), item]))
 
   return incoming.map(item => {
     if (item.isHeader) return item
-    const prev = existingByKey.get(key(item))
+    const prev = existingByKey.get(itemKey(item))
     if (prev) {
       // Spread fresh parsed data first, then restore all user-generated state
       return {
@@ -266,34 +282,13 @@ export function diffAndMergeChangeOrder(
   const coPositive     = coNonHeaders.filter(i => i.rcv >= 0)
 
   // --- identify removed pairs ---
-  const removedPrevIds  = new Set<string>()
-  const creditByPrevId  = new Map<string, ScopeItem>()
+  const removedPrevIds = new Set<string>()
+  const creditByPrevId = new Map<string, ScopeItem>()
 
-  const matchedCredits = new Set<ScopeItem>()
-
-  // Pass 1: room + description + qty (RCV excluded — O&P can differ between SOW and CO).
   for (const credit of coCredits) {
+    const k = itemKey(credit)
     const match = prevNonHeaders.find(p =>
-      !removedPrevIds.has(p.id) &&
-      p.room.trim()        === credit.room.trim() &&
-      p.description.trim() === credit.description.trim() &&
-      Math.abs(Math.abs(p.qty) - Math.abs(credit.qty)) < 0.001
-    )
-    if (match) {
-      removedPrevIds.add(match.id)
-      creditByPrevId.set(match.id, credit)
-      matchedCredits.add(credit)
-    }
-  }
-
-  // Pass 2: description + qty only — handles credits where room name differs
-  // between SOW and CO (e.g. "Front Elevation" in CO vs "Front" in SOW).
-  for (const credit of coCredits) {
-    if (matchedCredits.has(credit)) continue
-    const match = prevNonHeaders.find(p =>
-      !removedPrevIds.has(p.id) &&
-      p.description.trim() === credit.description.trim() &&
-      Math.abs(Math.abs(p.qty) - Math.abs(credit.qty)) < 0.001
+      !removedPrevIds.has(p.id) && itemKey(p) === k
     )
     if (match) {
       removedPrevIds.add(match.id)
@@ -301,31 +296,14 @@ export function diffAndMergeChangeOrder(
     }
   }
 
-  // --- identify new items (positive in CO, no key match in prev) ---
-  const coKey    = (i: ScopeItem) => `${i.room}||${i.description}||${i.qty}`
-  const prevKeySet = new Set(prevNonHeaders.map(coKey))
+  // --- identify new items: positive in CO whose key doesn't exist in prev ---
+  const prevKeySet = new Set(prevNonHeaders.map(itemKey))
 
-  // For each removed prevItem, record its key → RCV so we can detect replacements.
-  // A "replacement" is a coPositive item whose key matches a removed prevItem but
-  // whose RCV differs — i.e., the CO credits out the old item and swaps in a new one
-  // at a different price under the same description/qty (common in Full-SOW CO formats).
-  const removedPrevRcvByKey = new Map<string, number>()
-  for (const id of removedPrevIds) {
-    const p = prevNonHeaders.find(i => i.id === id)!
-    removedPrevRcvByKey.set(coKey(p), p.rcv)
-  }
-
-  const newItems = coPositive.filter(i => {
-    const k = coKey(i)
-    if (!prevKeySet.has(k)) return true   // genuinely new key
-    // Key exists in prev — only treat as new if it replaces a removed item at a different RCV.
-    const removedRcv = removedPrevRcvByKey.get(k)
-    return removedRcv !== undefined && Math.abs(i.rcv - removedRcv) > 0.01
-  })
+  const newItems = coPositive.filter(i => !prevKeySet.has(itemKey(i)))
 
   // CO may recalculate O&P/overhead for every line, so use CO RCV for unchanged
   // items rather than the stale SOW value.
-  const coRcvByKey = new Map(coPositive.map(i => [coKey(i), i.rcv]))
+  const coRcvByKey = new Map(coPositive.map(i => [itemKey(i), i.rcv]))
 
   // --- bucket new items by room so we can insert them inline ---
   const newByRoom = new Map<string, ScopeItem[]>()
@@ -355,7 +333,7 @@ export function diffAndMergeChangeOrder(
       if (credit) result.push({ ...credit, changeTag: 'removed' as const })
     } else {
       // Use CO RCV if available; fall back to SOW value for items not in CO.
-      const rcv = coRcvByKey.get(coKey(item)) ?? item.rcv
+      const rcv = coRcvByKey.get(itemKey(item)) ?? item.rcv
       result.push({ ...item, rcv, changeTag: undefined })
     }
 

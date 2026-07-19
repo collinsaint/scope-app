@@ -114,6 +114,7 @@ export interface ScopeItem {
   coverage: string
   activity: string
   rcv: number
+  date: string
   note: string
   completed: boolean
   completedAt?: string
