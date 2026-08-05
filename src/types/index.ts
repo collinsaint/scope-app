@@ -233,7 +233,7 @@ export interface Project {
 
 // ─── Purchase Orders ─────────────────────────────────────────────────────────
 
-export type POStatus = 'draft' | 'approved' | 'paid'
+export type POStatus = 'draft' | 'submitted' | 'approved' | 'paid'
 
 export interface PODocument {
   id: string

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useStore } from '../store/useStore'
 import type { Project, Subcontractor, PurchaseOrder, POStatus } from '../types'
@@ -57,6 +58,9 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
     setOpInput(project.opPercentage != null ? String(project.opPercentage) : '')
   }, [project.opPercentage])
 
+  const subOrgIdRef = useRef(subOrgId)
+  subOrgIdRef.current = subOrgId
+
   useEffect(() => {
     async function load() {
       setLoading(true)
@@ -71,6 +75,49 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
       setLoading(false)
     }
     load()
+
+    // Realtime: keep PO list in sync so subs see submitted POs immediately
+    function parsePORow(row: Record<string, unknown>): PurchaseOrder {
+      return {
+        ...row,
+        poNumber: (row.data as Record<string, unknown>)?.poNumber ?? row.title,
+        lineItemIds: (row.data as Record<string, unknown>)?.lineItemIds ?? [],
+        documents: (row.data as Record<string, unknown>)?.documents ?? [],
+      } as PurchaseOrder
+    }
+
+    const channel = supabase
+      .channel('po-project-' + project.id)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'purchase_orders', filter: `project_id=eq.${project.id}` },
+        (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            const updated = parsePORow(payload.new as Record<string, unknown>)
+            setPos(prev => {
+              const exists = prev.some(p => p.id === updated.id)
+              // Sub users: add PO if it just became visible (submitted/approved/paid and matches sub org)
+              if (!exists && isSubUser && subOrgIdRef.current && updated.sub_org_id === subOrgIdRef.current && updated.status !== 'draft') {
+                return [...prev, updated]
+              }
+              return prev.map(p => p.id === updated.id ? updated : p)
+            })
+          } else if (payload.eventType === 'INSERT') {
+            const inserted = parsePORow(payload.new as Record<string, unknown>)
+            setPos(prev => {
+              if (prev.some(p => p.id === inserted.id)) return prev
+              if (isSubUser && (inserted.status === 'draft' || inserted.sub_org_id !== subOrgIdRef.current)) return prev
+              return [inserted, ...prev]
+            })
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as Record<string, unknown>).id as string
+            setPos(prev => prev.filter(p => p.id !== deletedId))
+          }
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [project.id, isSubUser])
 
   async function handleSaveOp() {
@@ -154,7 +201,7 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
   }).filter(b => b.count > 0)
 
   const visiblePos = isSubUser
-    ? pos.filter(po => po.sub_org_id === subOrgId)
+    ? pos.filter(po => po.sub_org_id === subOrgId && po.status !== 'draft')
     : pos
 
   function startCreate() {
@@ -188,8 +235,27 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
   }
 
   async function handleStatusChange(id: string, status: POStatus) {
-    const ok = await updatePurchaseOrder(id, { status })
-    if (ok) setPos(prev => prev.map(p => p.id === id ? { ...p, status } : p))
+    const po = pos.find(p => p.id === id)
+    const updateFields: Parameters<typeof updatePurchaseOrder>[1] = { status }
+
+    // When submitting, ensure sub_org_id is set so the sub can fetch the PO
+    if (status === 'submitted' && po && !po.sub_org_id) {
+      const poItemIds = new Set(po.lineItemIds ?? [])
+      const subIdCounts = new Map<string, number>()
+      project.items.forEach(i => {
+        if (poItemIds.has(i.id) && i.subcontractorId)
+          subIdCounts.set(i.subcontractorId, (subIdCounts.get(i.subcontractorId) ?? 0) + 1)
+      })
+      if (subIdCounts.size > 0) {
+        const topSubId = [...subIdCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
+        const sub = (project.subcontractors ?? []).find(s => s.id === topSubId)
+        const matchedOrg = sub ? subOrgs.find(o => o.name.toLowerCase() === sub.name.toLowerCase()) : null
+        if (matchedOrg) updateFields.sub_org_id = matchedOrg.id
+      }
+    }
+
+    const ok = await updatePurchaseOrder(id, updateFields)
+    if (ok) setPos(prev => prev.map(p => p.id === id ? { ...p, ...updateFields } : p))
   }
 
   async function handleDelete(id: string) {
@@ -422,6 +488,7 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
                   key={po.id}
                   po={po}
                   subName={subOrgs.find(s => s.id === po.sub_org_id)?.name}
+                  isSubUser={isSubUser}
                   lineItems={project.items.filter(i => (po.lineItemIds ?? []).includes(i.id))}
                   canChangeStatus={!isSubUser}
                   canDelete={!isSubUser}

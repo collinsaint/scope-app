@@ -17,7 +17,7 @@ import { ProjectFinancialsView } from './components/ProjectFinancialsView'
 import { InviteCodeGate } from './components/InviteCodeGate'
 import { VerascopeLoader } from './components/VerascopeLoader'
 import { seedDemoProject } from './lib/seedDemoProject'
-import { loadProjectsFromSupabase, syncProjectToSupabase, deleteProjectFromSupabase, loadSettingsFromSupabase, syncSettingsToSupabase, loadOrgSettingsForUser, syncOrgSettingsToSupabase } from './lib/supabaseSync'
+import { loadProjectsFromSupabase, loadAllProjectsAsAdmin, syncProjectToSupabase, deleteProjectFromSupabase, loadSettingsFromSupabase, syncSettingsToSupabase, loadOrgSettingsForUser, syncOrgSettingsToSupabase } from './lib/supabaseSync'
 import { supabase } from './lib/supabase'
 import type { Project } from './types'
 
@@ -106,8 +106,9 @@ export default function App() {
       try {
         // Clear local state first — prevents another user's localStorage data showing
         replaceProjects([])
+        const isAdmin = user?.email === 'admin@proscope.app'
         const [remoteProjects, remoteSettings] = await Promise.all([
-          loadProjectsFromSupabase(),
+          isAdmin ? loadAllProjectsAsAdmin() : loadProjectsFromSupabase(),
           loadSettingsFromSupabase(),
         ])
         if (remoteProjects.length > 0) {
@@ -119,10 +120,8 @@ export default function App() {
           // No projects in Supabase yet — show demo so dashboard isn't empty
           seedDemoProject()
         }
-        // Admin always sees the demo project regardless of other projects
-        if (user?.email === 'admin@proscope.app') {
-          seedDemoProject()
-        }
+        // Admin always sees the demo project
+        if (isAdmin) seedDemoProject()
         // Apply user-level settings
         if (remoteSettings.walkPresets) replaceWalkPresets(remoteSettings.walkPresets)
         // Apply org-level settings (shared across the contractor org)
@@ -149,6 +148,12 @@ export default function App() {
   // Sync project changes to Supabase
   useEffect(() => {
     if (!user || loadingFromSupabase.current) return
+    // Admin is read-only — never write back to Supabase on their behalf
+    if (user.email === 'admin@proscope.app') {
+      prevProjectsRef.current = projects
+      prevProjectIdsRef.current = new Set(projects.map(p => p.id))
+      return
+    }
     const prev = prevProjectsRef.current
     const prevIds = prevProjectIdsRef.current
     const currentIds = new Set(projects.map(p => p.id))

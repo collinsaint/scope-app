@@ -90,6 +90,19 @@ export async function loadProjectsFromSupabase(): Promise<Project[]> {
   }
 }
 
+export async function loadAllProjectsAsAdmin(): Promise<Project[]> {
+  try {
+    const { data, error } = await supabase.rpc('admin_get_all_projects')
+    if (error) {
+      console.error('admin_get_all_projects RPC failed:', error.message)
+      return []
+    }
+    return ((data as { data: Project }[]) ?? []).map(row => row.data)
+  } catch {
+    return []
+  }
+}
+
 export async function syncProjectToSupabase(project: Project, ownerId: string, orgId?: string): Promise<void> {
   // UPDATE first — preserves the original owner_id/org_id so sub users
   // can't overwrite contractor ownership when they save approval changes.

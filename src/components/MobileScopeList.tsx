@@ -188,6 +188,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   const [showSubPicker, setShowSubPicker] = useState(false)
   const [subPickerItemId, setSubPickerItemId] = useState<string | null>(null)
   const [bulkSubId, setBulkSubId] = useState('')
+  const [confirmUnassignIds, setConfirmUnassignIds] = useState<string[] | null>(null)
   const [approvalModal, setApprovalModal] = useState<ScopeItem | null>(null)
   const [approvalComment, setApprovalComment] = useState('')
   const [submitConfirmItem, setSubmitConfirmItem] = useState<ScopeItem | null>(null)
@@ -989,6 +990,37 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
         )}
       </div>
 
+      {/* Warn before unassigning items that are part of a PO */}
+      {confirmUnassignIds && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmUnassignIds(null)} />
+          <div className="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <h3 className="text-sm font-semibold text-slate-900">Items are part of a Purchase Order</h3>
+            </div>
+            <p className="text-sm text-slate-500 mb-5 pl-12">
+              One or more selected items are assigned to a Purchase Order. Unassigning will not remove them from the PO. Continue?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmUnassignIds(null)} className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={() => { assignSubcontractor(projectId, confirmUnassignIds, null); setSelectedIds(new Set()); setConfirmUnassignIds(null) }}
+                className="px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
+              >
+                Unassign anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Approval modal — contractor reviewing a pending item */}
       {approvalModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
@@ -1086,7 +1118,11 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
             </div>
             <div className="px-4 py-2">
               <button
-                onClick={() => { assignSubcontractor(projectId, [subPickerItemId], null); setSubPickerItemId(null) }}
+                onClick={() => {
+                  const item = items.find(i => i.id === subPickerItemId)
+                  if (item?.purchaseOrderId) { setConfirmUnassignIds([subPickerItemId]); setSubPickerItemId(null) }
+                  else { assignSubcontractor(projectId, [subPickerItemId], null); setSubPickerItemId(null) }
+                }}
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm text-slate-500 hover:bg-slate-50 transition-colors"
               >
                 <span className="w-4 h-4 rounded-full border-2 border-slate-300 flex-shrink-0" />
@@ -1141,7 +1177,11 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                   Assign
                 </button>
                 <button
-                  onClick={() => { assignSubcontractor(projectId, [...selectedIds], null); setShowSubPicker(false); dismiss() }}
+                  onClick={() => {
+                    const hasPO = [...selectedIds].some(id => items.find(i => i.id === id)?.purchaseOrderId)
+                    if (hasPO) { setConfirmUnassignIds([...selectedIds]); setShowSubPicker(false); dismiss() }
+                    else { assignSubcontractor(projectId, [...selectedIds], null); setShowSubPicker(false); dismiss() }
+                  }}
                   className="px-3 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200 bg-white rounded-lg flex-shrink-0"
                 >
                   Unassign

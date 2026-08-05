@@ -5,16 +5,18 @@ function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-const statusConfig: Record<POStatus, { label: string; pill: string }> = {
-  draft:    { label: 'Draft',    pill: 'bg-slate-100 text-slate-600 border border-slate-200' },
-  approved: { label: 'Approved', pill: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
-  paid:     { label: 'Paid',     pill: 'bg-blue-50 text-blue-700 border border-blue-200' },
+const statusConfig: Record<POStatus, { label: string; pill: string; confirm: string }> = {
+  draft:     { label: 'Draft',     pill: 'bg-slate-100 text-slate-600 border border-slate-200',    confirm: 'Move this PO back to draft? The subcontractor will no longer be able to view the assigned scope items.' },
+  submitted: { label: 'Submitted', pill: 'bg-blue-50 text-blue-700 border border-blue-200',        confirm: 'Submit this PO to the subcontractor? They will be notified and can view the assigned scope items.' },
+  approved:  { label: 'Approved',  pill: 'bg-emerald-50 text-emerald-700 border border-emerald-200', confirm: 'Approve this PO? This signals the work is complete and the PO is ready for payment.' },
+  paid:      { label: 'Paid',      pill: 'bg-violet-50 text-violet-700 border border-violet-200',  confirm: 'Mark this PO as paid? This confirms the subcontractor has been paid and the PO is closed.' },
 }
 
 interface Props {
   po: PurchaseOrder
   projectName?: string
   subName?: string
+  isSubUser?: boolean
   canDelete?: boolean
   canChangeStatus?: boolean
   lineItems?: ScopeItem[]
@@ -22,15 +24,18 @@ interface Props {
   onStatusChange?: (id: string, status: POStatus) => void
 }
 
-export function POCard({ po, projectName, subName, canDelete, canChangeStatus, lineItems, onDelete, onStatusChange }: Props) {
+export function POCard({ po, projectName, subName, isSubUser, canDelete, canChangeStatus, lineItems, onDelete, onStatusChange }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [showSheet, setShowSheet] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const cfg = statusConfig[po.status]
+  const [pendingStatus, setPendingStatus] = useState<POStatus | null>(null)
+  const cfg = statusConfig[po.status] ?? statusConfig.draft
   const poNumber = po.poNumber ?? po.title
   const docs = po.documents ?? []
   const itemCount = po.lineItemIds?.length ?? 0
-  const canExpand = (lineItems?.length ?? 0) > 0
+  // Subs cannot see line items while the PO is still in draft
+  const itemsVisible = !isSubUser || po.status !== 'draft'
+  const canExpand = itemsVisible && (lineItems?.length ?? 0) > 0
 
   function handleViewItems() {
     if (window.innerWidth < 640) {
@@ -61,7 +66,8 @@ export function POCard({ po, projectName, subName, canDelete, canChangeStatus, l
 
         {/* Meta row */}
         <div className="flex items-center gap-3 text-xs text-slate-400">
-          {itemCount > 0 && <span>{itemCount} item{itemCount !== 1 ? 's' : ''}</span>}
+          {itemCount > 0 && itemsVisible && <span>{itemCount} item{itemCount !== 1 ? 's' : ''}</span>}
+          {itemCount > 0 && !itemsVisible && <span className="text-slate-300 italic">Items pending submission</span>}
           {docs.length > 0 && <span>{docs.length} attachment{docs.length !== 1 ? 's' : ''}</span>}
           <span>{new Date(po.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
           {canExpand && (
@@ -112,18 +118,52 @@ export function POCard({ po, projectName, subName, canDelete, canChangeStatus, l
           </div>
         )}
 
-        {/* Status controls */}
+        {/* Status controls — contractor only */}
         {canChangeStatus && (
-          <div className="flex gap-2">
-            {(['draft', 'approved', 'paid'] as POStatus[]).map(s => (
-              <button
-                key={s}
-                onClick={() => onStatusChange?.(po.id, s)}
-                className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${po.status === s ? statusConfig[s].pill : 'border-slate-200 text-slate-400 hover:border-slate-300'}`}
-              >
-                {statusConfig[s].label}
+          <div className="flex gap-1.5 flex-wrap">
+            {([
+              { status: 'draft' as POStatus, label: 'Draft' },
+              { status: 'submitted' as POStatus, label: 'Submit to Sub' },
+              { status: 'approved' as POStatus, label: 'Approved' },
+              { status: 'paid' as POStatus, label: 'Paid' },
+            ]).map(({ status, label }) => {
+              const isActive = po.status === status
+              const isPending = pendingStatus === status
+              return (
+                <button
+                  key={status}
+                  onClick={() => { if (!isActive) setPendingStatus(status) }}
+                  className={[
+                    'flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors',
+                    isActive
+                      ? statusConfig[status].pill + ' cursor-default'
+                      : isPending
+                        ? statusConfig[status].pill + ' opacity-70'
+                        : 'border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600',
+                  ].join(' ')}
+                >
+                  {isActive ? statusConfig[status].label : label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Status change confirmation */}
+        {pendingStatus && (
+          <div className="flex flex-col gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+            <p className="text-xs text-slate-700">{statusConfig[pendingStatus].confirm}</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPendingStatus(null)} className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg text-slate-500 hover:bg-white transition-colors">
+                Cancel
               </button>
-            ))}
+              <button
+                onClick={() => { onStatusChange?.(po.id, pendingStatus); setPendingStatus(null) }}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${statusConfig[pendingStatus].pill}`}
+              >
+                Confirm
+              </button>
+            </div>
           </div>
         )}
 
