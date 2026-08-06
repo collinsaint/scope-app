@@ -61,6 +61,7 @@ export default function App() {
   const [syncing, setSyncing] = useState(false)
   const [navigating, setNavigating] = useState(false)
   const [recentlyViewedProjectId, setRecentlyViewedProjectId] = useState<string | null>(null)
+  const [adminRpcError, setAdminRpcError] = useState<string | null>(null)
 
   // Persist view to sessionStorage
   useEffect(() => {
@@ -78,8 +79,8 @@ export default function App() {
 
   // On login: load projects from Supabase
   const prevUserIdRef = useRef<string | null>(null)
-  const prevProjectsRef = useRef(projects)
-  const prevProjectIdsRef = useRef(new Set(projects.map(p => p.id)))
+  const prevProjectsRef = useRef<Project[]>([])
+  const prevProjectIdsRef = useRef(new Set<string>())
   const loadingFromSupabase = useRef(false)
 
   useEffect(() => {
@@ -107,18 +108,26 @@ export default function App() {
         // Clear local state first — prevents another user's localStorage data showing
         replaceProjects([])
         const isAdmin = user?.email === 'admin@proscope.app'
-        const [remoteProjects, remoteSettings] = await Promise.all([
-          isAdmin ? loadAllProjectsAsAdmin() : loadProjectsFromSupabase(),
+        setAdminRpcError(null)
+        const [projectsResult, remoteSettings] = await Promise.all([
+          isAdmin
+            ? loadAllProjectsAsAdmin()
+            : loadProjectsFromSupabase().then(p => ({ projects: p, rpcError: null as string | null })),
           loadSettingsFromSupabase(),
         ])
+        if (isAdmin && projectsResult.rpcError) setAdminRpcError(projectsResult.rpcError)
+        const remoteProjects = projectsResult.projects
         if (remoteProjects.length > 0) {
           replaceProjects(remoteProjects)
-          // Pre-seed refs so the sync effect sees no diff and skips re-uploading
           prevProjectsRef.current = remoteProjects
           prevProjectIdsRef.current = new Set(remoteProjects.map(p => p.id))
         } else {
           // No projects in Supabase yet — show demo so dashboard isn't empty
           seedDemoProject()
+          // Reset refs so the sync effect doesn't treat stale localStorage IDs as
+          // "deleted" projects and call deleteProjectFromSupabase on them.
+          prevProjectsRef.current = []
+          prevProjectIdsRef.current = new Set()
         }
         // Admin always sees the demo project
         if (isAdmin) seedDemoProject()
@@ -132,6 +141,8 @@ export default function App() {
       } catch (err) {
         console.error('Failed to load from Supabase:', err)
         seedDemoProject()
+        prevProjectsRef.current = []
+        prevProjectIdsRef.current = new Set()
       } finally {
         loadingFromSupabase.current = false
         setSyncing(false)
@@ -279,6 +290,17 @@ export default function App() {
         {(syncing || navigating) && <VerascopeLoader message={navigating ? 'Loading…' : 'Syncing your projects…'} />}
         <Sidebar view={view} onNavigate={navigate} onSignOut={signOut} userEmail={user?.email} isAppAdmin={isAppAdmin} isContractorAdmin={isContractorAdmin} isSubUser={isSubUser} isSubManager={isSubManager} />
         <main className={`flex-1 flex flex-col overflow-hidden ${isMobile ? 'pb-[60px]' : ''}`}>
+          {isAppAdmin && adminRpcError && (
+            <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border-b border-amber-200 text-sm">
+              <span className="text-amber-500 mt-0.5 shrink-0">⚠</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-amber-800">Admin RPC not found — projects cannot be loaded</p>
+                <p className="text-amber-700 mt-0.5">Run <code className="bg-amber-100 px-1 rounded text-xs">supabase/admin_get_all_projects.sql</code> in the Supabase SQL Editor, then refresh.</p>
+                <p className="text-amber-600 text-xs mt-1 font-mono break-all">{adminRpcError}</p>
+              </div>
+              <button onClick={() => setAdminRpcError(null)} className="text-amber-400 hover:text-amber-600 shrink-0 text-lg leading-none">×</button>
+            </div>
+          )}
           {view === 'dashboard' ? (
             <Dashboard
               onOpenProject={(id) => openProject(id, 'scope')}

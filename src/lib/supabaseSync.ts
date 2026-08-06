@@ -90,16 +90,16 @@ export async function loadProjectsFromSupabase(): Promise<Project[]> {
   }
 }
 
-export async function loadAllProjectsAsAdmin(): Promise<Project[]> {
+export async function loadAllProjectsAsAdmin(): Promise<{ projects: Project[]; rpcError: string | null }> {
   try {
     const { data, error } = await supabase.rpc('admin_get_all_projects')
     if (error) {
       console.error('admin_get_all_projects RPC failed:', error.message)
-      return []
+      return { projects: [], rpcError: error.message }
     }
-    return ((data as { data: Project }[]) ?? []).map(row => row.data)
-  } catch {
-    return []
+    return { projects: ((data as { data: Project }[]) ?? []).map(row => row.data), rpcError: null }
+  } catch (e) {
+    return { projects: [], rpcError: String(e) }
   }
 }
 
