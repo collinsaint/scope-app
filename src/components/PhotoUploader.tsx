@@ -13,6 +13,7 @@ export function PhotoUploader({ projectId, itemId, photos }: Props) {
   const { addPhoto, removePhoto } = useStore()
   const [uploading, setUploading] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const [confirmDeleteIndex, setConfirmDeleteIndex] = useState<number | null>(null)
 
   const onDrop = useCallback(async (accepted: File[]) => {
     setUploading(true)
@@ -56,14 +57,28 @@ export function PhotoUploader({ projectId, itemId, photos }: Props) {
                   src={src}
                   alt=""
                   className="h-16 w-16 object-cover rounded-md border border-slate-200 cursor-zoom-in hover:brightness-90 transition-[filter]"
-                  onClick={() => setLightboxIndex(i)}
+                  onClick={() => confirmDeleteIndex === null && setLightboxIndex(i)}
                 />
-                <button
-                  onClick={(e) => { e.stopPropagation(); removePhoto(projectId, itemId, i) }}
-                  className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  ×
-                </button>
+                {confirmDeleteIndex === i ? (
+                  <div className="absolute inset-0 rounded-md bg-black/70 flex flex-col items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <span className="text-white text-[9px] font-semibold leading-tight">Delete?</span>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => { removePhoto(projectId, itemId, i); setConfirmDeleteIndex(null) }}
+                        className="w-5 h-5 rounded bg-red-500 hover:bg-red-600 text-white text-[10px] flex items-center justify-center transition-colors"
+                      >✓</button>
+                      <button
+                        onClick={() => setConfirmDeleteIndex(null)}
+                        className="w-5 h-5 rounded bg-white/20 hover:bg-white/30 text-white text-[10px] flex items-center justify-center transition-colors"
+                      >×</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setConfirmDeleteIndex(i) }}
+                    className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >×</button>
+                )}
               </div>
             ))}
           </div>

@@ -189,6 +189,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
   const [subPickerItemId, setSubPickerItemId] = useState<string | null>(null)
   const [bulkSubId, setBulkSubId] = useState('')
   const [confirmUnassignIds, setConfirmUnassignIds] = useState<string[] | null>(null)
+  const [confirmToggleItem, setConfirmToggleItem] = useState<ScopeItem | null>(null)
   const [approvalModal, setApprovalModal] = useState<ScopeItem | null>(null)
   const [approvalComment, setApprovalComment] = useState('')
   const [submitConfirmItem, setSubmitConfirmItem] = useState<ScopeItem | null>(null)
@@ -838,7 +839,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                                     } else if (item.pendingApproval && canApprove) {
                                       setApprovalModal(item)
                                     } else {
-                                      toggleItem(projectId, item.id)
+                                      setConfirmToggleItem(item)
                                     }
                                   }}
                                   disabled={item.completed && isSubUser && !item.returned}
@@ -989,6 +990,51 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
           </div>
         )}
       </div>
+
+      {/* Confirm complete / uncomplete */}
+      {confirmToggleItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pb-[calc(env(safe-area-inset-bottom)+16px)]">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmToggleItem(null)} />
+          <div className="relative bg-white rounded-2xl shadow-xl p-5 w-full max-w-sm">
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${confirmToggleItem.completed ? 'bg-slate-100' : 'bg-green-100'}`}>
+                {confirmToggleItem.completed ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                )}
+              </div>
+              <h3 className="text-sm font-semibold text-slate-900">
+                {confirmToggleItem.completed ? 'Mark as incomplete?' : 'Mark as complete?'}
+              </h3>
+            </div>
+            <p className="text-sm text-slate-500 mb-5 pl-12 leading-relaxed">
+              <span className="font-medium text-slate-700">{confirmToggleItem.description}</span>
+              {confirmToggleItem.completed
+                ? ' will be reverted to incomplete and the completion date will be cleared.'
+                : ' will be marked as complete.'}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmToggleItem(null)}
+                className="flex-1 px-3 py-2.5 text-sm border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { toggleItem(projectId, confirmToggleItem.id); setConfirmToggleItem(null) }}
+                className={`flex-1 px-3 py-2.5 text-sm font-semibold text-white rounded-xl transition-colors ${confirmToggleItem.completed ? 'bg-slate-700 hover:bg-slate-800' : 'bg-green-600 hover:bg-green-700'}`}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Warn before unassigning items that are part of a PO */}
       {confirmUnassignIds && (
