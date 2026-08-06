@@ -6,6 +6,7 @@ CREATE OR REPLACE FUNCTION admin_get_all_projects()
 RETURNS TABLE (data jsonb)
 SECURITY DEFINER
 SET search_path = public
+SET statement_timeout = '30s'
 LANGUAGE plpgsql
 AS $$
 BEGIN
