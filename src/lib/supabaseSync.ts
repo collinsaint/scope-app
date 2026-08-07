@@ -103,7 +103,7 @@ export async function loadAllProjectsAsAdmin(): Promise<{ projects: Project[]; r
   }
 }
 
-export async function syncProjectToSupabase(project: Project, ownerId: string, orgId?: string): Promise<void> {
+export async function syncProjectToSupabase(project: Project, ownerId: string, orgId?: string): Promise<boolean> {
   // UPDATE first — preserves the original owner_id/org_id so sub users
   // can't overwrite contractor ownership when they save approval changes.
   const { data: updated, error: updateErr } = await supabase
@@ -119,7 +119,7 @@ export async function syncProjectToSupabase(project: Project, ownerId: string, o
 
   if (updateErr) {
     console.error('Failed to sync project (update):', updateErr.message)
-    return
+    return false
   }
 
   // No rows updated → project is new, insert with full ownership metadata.
@@ -138,8 +138,11 @@ export async function syncProjectToSupabase(project: Project, ownerId: string, o
       })
     if (insertErr) {
       console.error('Failed to sync project (insert):', insertErr.message)
+      return false
     }
   }
+
+  return true
 }
 
 export async function assignProjectSuperintendent(

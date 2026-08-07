@@ -62,6 +62,8 @@ export default function App() {
   const [navigating, setNavigating] = useState(false)
   const [recentlyViewedProjectId, setRecentlyViewedProjectId] = useState<string | null>(null)
   const [adminRpcError, setAdminRpcError] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Persist view to sessionStorage
   useEffect(() => {
@@ -156,6 +158,25 @@ export default function App() {
   const orgIdRef = useRef<string | undefined>(undefined)
   orgIdRef.current = currentUser?.contractorOrg?.id ?? currentUser?.subcontractorOrg?.id ?? undefined
 
+  // Track the active project ID for autosave/save status scoping
+  const activeProjectIdRef = useRef<string | null>(null)
+  activeProjectIdRef.current = activeProjectId
+
+  function markSaveStatus(status: 'saving' | 'saved' | 'error') {
+    if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current)
+    setSaveStatus(status)
+    if (status === 'saved') {
+      saveStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 3000)
+    }
+  }
+
+  async function syncWithStatus(project: Project) {
+    if (!user || user.email === 'admin@proscope.app') return
+    markSaveStatus('saving')
+    const ok = await syncProjectToSupabase(project, user.id, orgIdRef.current)
+    markSaveStatus(ok ? 'saved' : 'error')
+  }
+
   // Sync project changes to Supabase
   useEffect(() => {
     if (!user || loadingFromSupabase.current) return
@@ -175,15 +196,49 @@ export default function App() {
     })
 
     // Added or changed projects (skip demo)
+    const changed: Project[] = []
     projects.forEach(project => {
       if (project.isDemo) return
       const unchanged = prev.find(p => p.id === project.id && p === project)
-      if (!unchanged) syncProjectToSupabase(project, user.id, orgIdRef.current)
+      if (!unchanged) changed.push(project)
     })
+
+    if (changed.length > 0) {
+      const activeChanged = changed.find(p => p.id === activeProjectIdRef.current)
+      // Show save status only for the currently open project
+      if (activeChanged) {
+        syncWithStatus(activeChanged)
+        changed.filter(p => p.id !== activeChanged.id).forEach(p => syncProjectToSupabase(p, user.id, orgIdRef.current))
+      } else {
+        changed.forEach(p => syncProjectToSupabase(p, user.id, orgIdRef.current))
+      }
+    }
 
     prevProjectsRef.current = projects
     prevProjectIdsRef.current = currentIds
-  }, [projects, user])
+  }, [projects, user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Autosave: every 60 s re-sync the active project so a failed reactive sync
+  // doesn't silently lose data (e.g. large photo payloads that timeout once).
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!user || user.email === 'admin@proscope.app' || loadingFromSupabase.current) return
+      const pid = activeProjectIdRef.current
+      if (!pid) return
+      const project = useStore.getState().projects.find(p => p.id === pid)
+      if (!project || project.isDemo) return
+      syncWithStatus(project)
+    }, 60_000)
+    return () => clearInterval(interval)
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleManualSave() {
+    const pid = activeProjectIdRef.current
+    if (!pid || !user) return
+    const project = useStore.getState().projects.find(p => p.id === pid)
+    if (!project || project.isDemo) return
+    await syncWithStatus(project)
+  }
 
   // Sync user-level settings (walkPresets only — globalSubcontractors moved to org-level)
   useEffect(() => {
@@ -340,6 +395,8 @@ export default function App() {
               subOrgName={subOrgName}
               contractorOrgId={currentUser?.contractorOrg?.id ?? null}
               currentUserName={currentUserName}
+              saveStatus={saveStatus}
+              onManualSave={handleManualSave}
             />
           ) : view === 'project-financials' ? (() => {
             const proj = projects.find(p => p.id === activeProjectId)

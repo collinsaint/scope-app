@@ -47,9 +47,11 @@ interface Props {
   subOrgName?: string
   contractorOrgId?: string | null
   currentUserName?: string
+  saveStatus?: 'idle' | 'saving' | 'saved' | 'error'
+  onManualSave?: () => void
 }
 
-export function ProjectView({ projectId, onBack, initialView = 'scope', onSubViewChange, canManageProjectSubs = false, isContractorAdmin = false, isSubUser = false, canApprove = true, subOrgName, contractorOrgId, currentUserName }: Props) {
+export function ProjectView({ projectId, onBack, initialView = 'scope', onSubViewChange, canManageProjectSubs = false, isContractorAdmin = false, isSubUser = false, canApprove = true, subOrgName, contractorOrgId, currentUserName, saveStatus = 'idle', onManualSave }: Props) {
   const { isMobile } = useViewMode()
   const { projects, updateProjectItems, addWalk, addSketch, removeSketch, addWalkCustomRoom, addCommentNote, deleteCommentNote } = useStore()
   const project = projects.find(p => p.id === projectId)
@@ -293,6 +295,31 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                 Totals
               </button>
+              {onManualSave && !isSubUser && (
+                <button
+                  onClick={onManualSave}
+                  disabled={saveStatus === 'saving'}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-lg transition-colors ${
+                    saveStatus === 'error'
+                      ? 'border-red-300 text-red-600 bg-red-50 hover:bg-red-100'
+                      : saveStatus === 'saved'
+                      ? 'border-green-300 text-green-700 bg-green-50'
+                      : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                  }`}
+                  title="Save project"
+                >
+                  {saveStatus === 'saving' ? (
+                    <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/></svg>
+                  ) : saveStatus === 'saved' ? (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  ) : saveStatus === 'error' ? (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  ) : (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                  )}
+                  {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : saveStatus === 'error' ? 'Save failed' : 'Save'}
+                </button>
+              )}
               <button onClick={() => generateReport(project, { visibleItems: scopeItems.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV'), subPercentage: isSubUser ? subPercentage : undefined, spanishMode: project.spanishMode, translationCache: project.translationCache ?? {}, scopeTotal: isSubUser ? undefined : project.scopeTotal })} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Export report
@@ -361,6 +388,28 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
               </button>
+              {/* Save */}
+              {onManualSave && !isSubUser && (
+                <button
+                  onClick={onManualSave}
+                  disabled={saveStatus === 'saving'}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
+                  style={{
+                    border: '1px solid rgba(255,255,255,0.22)',
+                    background: saveStatus === 'saved' ? 'rgba(134,239,172,0.25)' : saveStatus === 'error' ? 'rgba(252,165,165,0.25)' : 'transparent',
+                    color: saveStatus === 'saved' ? '#86efac' : saveStatus === 'error' ? '#fca5a5' : 'rgba(206,203,246,0.65)',
+                  }}
+                  title={saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : saveStatus === 'error' ? 'Save failed — tap to retry' : 'Save'}
+                >
+                  {saveStatus === 'saving' ? (
+                    <svg className="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" opacity="0.25"/><path d="M21 12a9 9 0 00-9-9"/></svg>
+                  ) : saveStatus === 'saved' ? (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  ) : (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                  )}
+                </button>
+              )}
               {/* Export */}
               <button
                 onClick={() => generateReport(project, { visibleItems: scopeItems.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV'), subPercentage: isSubUser ? subPercentage : undefined, spanishMode: project.spanishMode, translationCache: project.translationCache ?? {}, scopeTotal: isSubUser ? undefined : project.scopeTotal })}
