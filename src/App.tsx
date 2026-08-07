@@ -173,8 +173,12 @@ export default function App() {
   async function syncWithStatus(project: Project) {
     if (!user || user.email === 'admin@proscope.app') return
     markSaveStatus('saving')
-    const ok = await syncProjectToSupabase(project, user.id, orgIdRef.current)
-    markSaveStatus(ok ? 'saved' : 'error')
+    try {
+      const ok = await syncProjectToSupabase(project, user.id, orgIdRef.current)
+      markSaveStatus(ok ? 'saved' : 'error')
+    } catch {
+      markSaveStatus('error')
+    }
   }
 
   // Sync project changes to Supabase
@@ -233,7 +237,7 @@ export default function App() {
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleManualSave() {
-    const pid = activeProjectIdRef.current
+    const pid = activeProjectId
     if (!pid || !user) return
     const project = useStore.getState().projects.find(p => p.id === pid)
     if (!project || project.isDemo) return
