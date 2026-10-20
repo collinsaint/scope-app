@@ -5,7 +5,6 @@ import { useStore } from '../store/useStore'
 import { SKETCH_LABELS } from '../types'
 import type { SketchLabel, PurchaseOrder } from '../types'
 import { parseExcelFile, mergeItems } from '../lib/parseExcel'
-import { generateReport } from '../lib/exportReport'
 import { SummaryCards } from './SummaryCards'
 import { ScopeTable } from './ScopeTable'
 import { SubcontractorManager } from './SubcontractorManager'
@@ -17,6 +16,10 @@ import { NewWalkModal } from './NewWalkModal'
 import { CreatePOModal } from './CreatePOModal'
 import { fetchPurchaseOrders, fetchMyContractorSubOrgs } from '../lib/supabaseSync'
 import type { SubOrg } from '../lib/supabaseSync'
+
+type ExportReport = typeof import('../lib/exportReport')
+// Lazy-loaded: keeps jsPDF/autotable out of the initial bundle.
+const generateReport = (...args: Parameters<ExportReport['generateReport']>) => import('../lib/exportReport').then(m => (m.generateReport as (...a: Parameters<ExportReport['generateReport']>) => ReturnType<ExportReport['generateReport']>)(...args)) as Promise<Awaited<ReturnType<ExportReport['generateReport']>>>
 
 const ROOM_SUGGESTIONS = [
   'Bedroom 1','Bedroom 2','Bedroom 3','Bedroom 4','Bedroom 5',

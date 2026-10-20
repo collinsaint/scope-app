@@ -2,12 +2,17 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { ScopeItem, Walk, WalkNote, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, WalkItemOverride } from '../types'
 import { useStore } from '../store/useStore'
-import { buildWalkReportPdfBlob, openWalkReportPdf } from '../lib/exportReport'
 import { downloadWalkPhotos, buildPhotosZipBlob, downloadSelectedPhotos } from '../lib/downloadPhotos'
 
 import { useViewMode } from '../hooks/useViewMode'
 import { CameraCapture } from './CameraCapture'
 import { translateTexts } from '../lib/translate'
+
+type ExportReport = typeof import('../lib/exportReport')
+// Lazy-loaded: keeps jsPDF/autotable out of the initial bundle.
+const buildWalkReportPdfBlob = (...args: Parameters<ExportReport['buildWalkReportPdfBlob']>) => import('../lib/exportReport').then(m => (m.buildWalkReportPdfBlob as (...a: Parameters<ExportReport['buildWalkReportPdfBlob']>) => ReturnType<ExportReport['buildWalkReportPdfBlob']>)(...args)) as Promise<Awaited<ReturnType<ExportReport['buildWalkReportPdfBlob']>>>
+// Lazy-loaded: keeps jsPDF/autotable out of the initial bundle.
+const openWalkReportPdf = (...args: Parameters<ExportReport['openWalkReportPdf']>) => import('../lib/exportReport').then(m => (m.openWalkReportPdf as (...a: Parameters<ExportReport['openWalkReportPdf']>) => ReturnType<ExportReport['openWalkReportPdf']>)(...args)) as Promise<Awaited<ReturnType<ExportReport['openWalkReportPdf']>>>
 
 const WALK_COL_COUNT = 7
 
