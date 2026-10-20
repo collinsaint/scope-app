@@ -133,6 +133,22 @@ export interface ScopeItem {
   comment?: string
   commentNotes?: CommentNote[]
   changeTag?: 'removed' | 'new'
+  /** Xactimate "Excluded" column was True — hidden and left out of totals (like DRV). */
+  excluded?: boolean
+  /** CO credit that matched no scope line — hidden from the scope, surfaced as a review warning. */
+  unmatchedCredit?: boolean
+}
+
+/** A line that was completed before a change order credited it out. */
+export interface CompletedThenCredited {
+  itemId: string
+  room: string
+  description: string
+  subcontractorId?: string
+  rcv: number
+  completedAt?: string
+  creditedAt: string
+  documentName?: string
 }
 
 export interface WalkNote {
@@ -224,6 +240,7 @@ export interface Project {
   roomPhotos?: Record<string, string[]>
   opPercentage?: number
   isDemo?: boolean
+  completedThenCredited?: CompletedThenCredited[]
   /** Exists only in this browser (e.g. created in read-only admin mode); never saved to Supabase. */
   localOnly?: boolean
   spanishMode?: boolean

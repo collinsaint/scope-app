@@ -2,56 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Project, ScopeItem, Subcontractor, GlobalSubcontractor, JobGroup, Superintendent, ProjectSketch, SketchLabel, Walk, WalkItemOverride, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, CommentNote, ProjectDocument } from '../types'
 import { markExplicitDelete } from '../lib/supabaseSync'
-import { mergeItems, cancelCreditedItems, diffAndMergeChangeOrder } from '../lib/parseExcel'
-
-// Ordered from base → most-recent; site-visit is excluded (it drives Walk View only).
-const SCOPE_ORDER = ['approved-sow', 'change-order-1', 'change-order-2', 'change-order-3'] as const
-
-function recomputeFromDocuments(documents: ProjectDocument[], currentItems: ScopeItem[]): { items: ScopeItem[]; walkSourceItems: ScopeItem[]; scopeTotal?: number } {
-  const siteVisitDoc = documents.find(d => d.designation === 'site-visit' && d.fileType === 'excel')
-  const walkSourceItems = siteVisitDoc?.parsedItems ?? []
-
-  // Collect scope docs in hierarchy order that have parsed Excel data.
-  const scopeDocs = SCOPE_ORDER
-    .map(desig => documents.find(d => d.designation === desig && d.fileType === 'excel'))
-    .filter((d): d is ProjectDocument => !!(d?.parsedItems?.length))
-
-  if (scopeDocs.length === 0) return { items: currentItems, walkSourceItems }
-
-  if (scopeDocs.length === 1) {
-    // Single base document — cancel any internal credit pairs before merging.
-    const items = mergeItems(currentItems, cancelCreditedItems(scopeDocs[0].parsedItems!))
-    return { items, walkSourceItems }
-  }
-
-  // For Full-SOW COs every document already contains all previous items, so
-  // concatenating earlier docs would duplicate them and corrupt cancellation.
-  // Use the penultimate document directly as the clean baseline instead.
-  const prevClean = cancelCreditedItems(scopeDocs[scopeDocs.length - 2].parsedItems!)
-
-  // Diff the clean previous state against the current (latest) document to
-  // produce REMOVED / NEW tags.
-  const currentDoc = scopeDocs[scopeDocs.length - 1]
-  const diffed = diffAndMergeChangeOrder(prevClean, currentDoc.parsedItems!)
-
-  // Restore completion state / photos from the live project items, then
-  // strip completion from anything tagged REMOVED (it's out of scope).
-  const merged = mergeItems(currentItems, diffed)
-  const items = merged.map(item =>
-    item.changeTag === 'removed'
-      ? { ...item, completed: false, completedAt: undefined, pendingApproval: undefined, pendingApprovalAt: undefined }
-      : item
-  )
-
-  // Compute scope total directly from the CO's raw parsedItems so it always
-  // matches the CO Excel exactly — sum of all non-header rows (positive items
-  // minus credits).  This bypasses any key-matching ambiguity in the merged list.
-  const scopeTotal = currentDoc.parsedItems!
-    .filter(i => !i.isHeader)
-    .reduce((s, i) => s + i.rcv, 0)
-
-  return { items, walkSourceItems, scopeTotal }
-}
+import { recomputeFromDocuments, accumulateCTC } from '../lib/recompute'
 
 interface StoreState {
   projects: Project[]
@@ -156,8 +107,8 @@ export const useStore = create<StoreState>()(
       replaceProjects: (incoming) => set(() => ({
         projects: incoming.map((p) => {
           if (!(p.documents ?? []).some(d => d.fileType === 'excel' && d.parsedItems?.length)) return p
-          const { items, walkSourceItems, scopeTotal } = recomputeFromDocuments(p.documents ?? [], p.items)
-          return { ...p, items, walkSourceItems, scopeTotal }
+          const { items, walkSourceItems, scopeTotal, completedThenCredited } = recomputeFromDocuments(p.documents ?? [], p.items)
+          return { ...p, items, walkSourceItems, scopeTotal, completedThenCredited: accumulateCTC(p.completedThenCredited, completedThenCredited) }
         }),
       })),
 
@@ -807,12 +758,12 @@ export const useStore = create<StoreState>()(
               ),
               doc,
             ]
-            const { items, walkSourceItems, scopeTotal } = recomputeFromDocuments(docs, p.items)
+            const { items, walkSourceItems, scopeTotal, completedThenCredited } = recomputeFromDocuments(docs, p.items)
             // Auto-create a "Site Visit" walk when the first site-visit Excel is uploaded
             const walks = (doc.designation === 'site-visit' && doc.fileType === 'excel' && !(p.walks ?? []).length)
               ? [{ id: Math.random().toString(36).slice(2, 10), name: 'Site Visit', createdAt: new Date().toISOString() }]
               : p.walks
-            return { ...p, documents: docs, items, walkSourceItems, scopeTotal, walks }
+            return { ...p, documents: docs, items, walkSourceItems, scopeTotal, walks, completedThenCredited: accumulateCTC(p.completedThenCredited, completedThenCredited) }
           }),
         })),
 
@@ -821,8 +772,8 @@ export const useStore = create<StoreState>()(
           projects: s.projects.map((p) => {
             if (p.id !== projectId) return p
             const docs = (p.documents ?? []).filter((d) => d.id !== docId)
-            const { items, walkSourceItems, scopeTotal } = recomputeFromDocuments(docs, p.items)
-            return { ...p, documents: docs, items, walkSourceItems, scopeTotal }
+            const { items, walkSourceItems, scopeTotal, completedThenCredited } = recomputeFromDocuments(docs, p.items)
+            return { ...p, documents: docs, items, walkSourceItems, scopeTotal, completedThenCredited: accumulateCTC(p.completedThenCredited, completedThenCredited) }
           }),
         })),
 
@@ -875,8 +826,8 @@ export const useStore = create<StoreState>()(
         if (!persisted) return currentState
         const projects = ((persisted.projects ?? []) as StoreState['projects']).map((p) => {
           if (!(p.documents ?? []).some(d => d.fileType === 'excel' && d.parsedItems?.length)) return p
-          const { items, walkSourceItems, scopeTotal } = recomputeFromDocuments(p.documents ?? [], p.items)
-          return { ...p, items, walkSourceItems, scopeTotal }
+          const { items, walkSourceItems, scopeTotal, completedThenCredited } = recomputeFromDocuments(p.documents ?? [], p.items)
+          return { ...p, items, walkSourceItems, scopeTotal, completedThenCredited: accumulateCTC(p.completedThenCredited, completedThenCredited) }
         })
         return { ...currentState, ...persisted, projects }
       },
