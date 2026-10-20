@@ -42,6 +42,12 @@ function itemKey(i: ScopeItem): string {
   return `${i.room}||${i.description}||${i.qty}||${i.activity}||${i.date}`
 }
 
+// Same identity without the date — used only as a fallback for matching
+// unchanged lines across documents whose dates were restamped.
+function looseKey(i: ScopeItem): string {
+  return `${i.room}||${i.description}||${i.qty}||${i.activity}`
+}
+
 // Remove paired line items where one credits out the other.
 export function cancelCreditedItems(items: ScopeItem[]): ScopeItem[] {
   const remove = new Set<string>()
@@ -309,6 +315,27 @@ export function diffAndMergeChangeOrder(
     }
   }
 
+  const restampedCreditKeys: string[] = []
+  // --- Step 1b: date-restamped removals ---
+  // A credit whose exact key matches nothing in prevClean, but whose date-less
+  // key matches a still-active previous line, is a removal of that line (the
+  // CO export restamped the date). Historical pairs (Step 2) are unaffected:
+  // their originals were already cancelled out of prevClean.
+  for (const credit of coCredits) {
+    if (matchedCreditIds.has(credit.id)) continue
+    const lk = looseKey(credit)
+    const match = prevNonHeaders.find(p =>
+      !removedPrevIds.has(p.id) && looseKey(p) === lk &&
+      Math.abs(Math.abs(p.rcv) - Math.abs(credit.rcv)) < 0.01
+    )
+    if (match) {
+      removedPrevIds.add(match.id)
+      creditByPrevId.set(match.id, credit)
+      matchedCreditIds.add(credit.id)
+      restampedCreditKeys.push(itemKey(credit))
+    }
+  }
+
   // --- Step 2: within-CO historical pairs ---
   // Credits that found no prevClean match are paired credit/debit rows that
   // already resolved in an earlier CO (e.g. ECR item credited by GC SCOPE
@@ -330,15 +357,34 @@ export function diffAndMergeChangeOrder(
   }
 
   // --- Step 3: new items ---
+  // Match CO lines to previous lines exactly first (5-field key incl. date).
+  // Then, for lines still unmatched, fall back to the same key WITHOUT the date,
+  // pairing one-to-one. Xactimate re-exports can restamp line dates; without
+  // this fallback every unchanged line was tagged NEW and shown twice (once as
+  // the original, once as the "new" CO copy).
   const prevKeySet = new Set(prevNonHeaders.map(itemKey))
-
-  const newItems = coPositive.filter(i =>
-    !prevKeySet.has(itemKey(i)) && !withinCoPairedIds.has(i.id)
-  )
-
-  // CO may recalculate O&P/overhead for every line, so use CO RCV for unchanged
-  // items rather than the stale SOW value.
   const coRcvByKey = new Map(coPositive.map(i => [itemKey(i), i.rcv]))
+  const coRcvByPrevId = new Map<string, number>()
+
+  const unmatchedPrevByLoose = new Map<string, ScopeItem[]>()
+  const coExactKeys = new Set(coPositive.map(itemKey))
+  for (const p of prevNonHeaders) {
+    if (removedPrevIds.has(p.id) || coExactKeys.has(itemKey(p))) continue
+    const lk = looseKey(p)
+    const bucket = unmatchedPrevByLoose.get(lk)
+    if (bucket) bucket.push(p)
+    else unmatchedPrevByLoose.set(lk, [p])
+  }
+
+  const newItems = coPositive.filter(i => {
+    if (withinCoPairedIds.has(i.id)) return false
+    if (prevKeySet.has(itemKey(i))) return false
+    const rk = restampedCreditKeys.indexOf(itemKey(i))
+    if (rk >= 0) { restampedCreditKeys.splice(rk, 1); return false } // CO's copy of a line it also credits
+    const prevMatch = unmatchedPrevByLoose.get(looseKey(i))?.shift()
+    if (prevMatch) { coRcvByPrevId.set(prevMatch.id, i.rcv); return false }
+    return true
+  })
 
   // --- bucket new items and within-CO pairs by room for inline insertion ---
   const newByRoom = new Map<string, ScopeItem[]>()
@@ -377,7 +423,7 @@ export function diffAndMergeChangeOrder(
       if (credit) result.push({ ...credit, changeTag: 'removed' as const })
     } else {
       // Use CO RCV if available; fall back to SOW value for items not in CO.
-      const rcv = coRcvByKey.get(itemKey(item)) ?? item.rcv
+      const rcv = coRcvByKey.get(itemKey(item)) ?? coRcvByPrevId.get(item.id) ?? item.rcv
       result.push({ ...item, rcv, changeTag: undefined })
     }
 
