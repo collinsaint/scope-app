@@ -301,7 +301,7 @@ export function mergeItems(existing: ScopeItem[], incoming: ScopeItem[]): ScopeI
  *  - CO credit cancelling a CO positive (full-SOW style) → both REMOVED; if the
  *    positive corresponds to a previous line, that line is the one removed.
  *  - CO credit matching a previous line directly (delta style) → both REMOVED.
- *  - CO credit matching nothing → kept but flagged `unmatchedCredit` (hidden,
+ *  - CO credit matching nothing → kept but flagged `unmatchedCredit` (shown locked/amber, in totals, not counted;
  *    surfaced as a warning).
  *  - Remaining CO positives → NEW (fresh state; includes Install-Only swaps).
  */
