@@ -109,6 +109,12 @@ export default function App() {
       loadingFromSupabase.current = true
       setSyncing(true)
       try {
+        const isAdminLogin = user?.email === 'admin@proscope.app'
+        // Admin never writes to Supabase, so anything it created exists ONLY in this
+        // browser. Keep those local-only projects instead of wiping them.
+        const adminLocalProjects = isAdminLogin
+          ? useStore.getState().projects.filter(p => !p.isDemo)
+          : []
         // Clear local state first — prevents another user's localStorage data showing
         replaceProjects([])
         resetProjectSync()
@@ -124,7 +130,17 @@ export default function App() {
           if (isAdmin) setAdminRpcError(projectsResult.rpcError)
           else setLoadError(projectsResult.rpcError)
         } else setLoadError(null)
-        const remoteProjects = projectsResult.projects
+        const remoteProjects = (projectsResult.projects ?? []).filter(p => p && typeof p === 'object' && p.id && Array.isArray(p.items))
+        const dropped = (projectsResult.projects?.length ?? 0) - remoteProjects.length
+        if (dropped > 0) {
+          const msg = `${dropped} project row(s) had missing/invalid data and were skipped`
+          console.error(msg)
+          if (isAdmin) setAdminRpcError(msg); else setLoadError(msg)
+        }
+        if (isAdmin) {
+          const remoteIds = new Set(remoteProjects.map(p => p.id))
+          remoteProjects.push(...adminLocalProjects.filter(p => !remoteIds.has(p.id)).map(p => ({ ...p, localOnly: true })))
+        }
         const versions = ('versions' in projectsResult ? projectsResult.versions : {}) as Record<string, string>
         if (remoteProjects.length > 0) {
           replaceProjects(remoteProjects)
@@ -153,6 +169,8 @@ export default function App() {
         if (orgSettings.superintendents) replaceSuperintendents(orgSettings.superintendents)
       } catch (err) {
         console.error('Failed to load from Supabase:', err)
+        const msg = `Loading projects failed: ${err instanceof Error ? err.message : String(err)}`
+        if (user?.email === 'admin@proscope.app') setAdminRpcError(msg); else setLoadError(msg)
         seedDemoProject()
         prevProjectsRef.current = []
         prevProjectIdsRef.current = new Set()
@@ -368,12 +386,20 @@ export default function App() {
         {(syncing || navigating) && <VerascopeLoader message={navigating ? 'Loading…' : 'Syncing your projects…'} />}
         <Sidebar view={view} onNavigate={navigate} onSignOut={signOut} userEmail={user?.email} isAppAdmin={isAppAdmin} isContractorAdmin={isContractorAdmin} isSubUser={isSubUser} isSubManager={isSubManager} />
         <main className={`flex-1 flex flex-col overflow-hidden ${isMobile ? 'pb-[60px]' : ''}`}>
+          {isAppAdmin && (
+            <div className="flex items-start gap-3 px-4 py-2 bg-amber-100 border-b border-amber-300 text-sm">
+              <span className="text-amber-600 shrink-0">🔒</span>
+              <p className="flex-1 min-w-0 text-amber-900">
+                <span className="font-semibold">Admin view is read-only.</span> Changes you make here (new projects, uploads, check-offs, photos) are <span className="font-semibold">not saved to the server</span> and live only in this browser. Sign in with a contractor account to do real work.
+              </p>
+            </div>
+          )}
           {isAppAdmin && adminRpcError && (
             <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border-b border-amber-200 text-sm">
               <span className="text-amber-500 mt-0.5 shrink-0">⚠</span>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-amber-800">Admin RPC not found — projects cannot be loaded</p>
-                <p className="text-amber-700 mt-0.5">Run <code className="bg-amber-100 px-1 rounded text-xs">supabase/admin_get_all_projects.sql</code> in the Supabase SQL Editor, then refresh.</p>
+                <p className="font-semibold text-amber-800">Admin project load problem</p>
+                <p className="text-amber-700 mt-0.5">If the RPC is missing, run <code className="bg-amber-100 px-1 rounded text-xs">supabase/admin_get_all_projects.sql</code> in the Supabase SQL Editor, then refresh.</p>
                 <p className="text-amber-600 text-xs mt-1 font-mono break-all">{adminRpcError}</p>
               </div>
               <button onClick={() => setAdminRpcError(null)} className="text-amber-400 hover:text-amber-600 shrink-0 text-lg leading-none">×</button>

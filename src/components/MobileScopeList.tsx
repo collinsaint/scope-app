@@ -3,6 +3,7 @@ import type { ScopeItem, Subcontractor } from '../types'
 import { useStore } from '../store/useStore'
 import { CameraCapture } from './CameraCapture'
 import { translateTexts } from '../lib/translate'
+import { isScopeViewRow } from '../lib/visibleItems'
 
 interface Props {
   projectId: string
@@ -240,9 +241,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
 
   const roomFiltered = items.filter(i => {
     if (roomFilter !== 'all' && i.room !== roomFilter) return false
-    if (!i.isHeader && i.coverage?.toUpperCase() === 'DRV') return false
-    if (mySubId !== null && !i.isHeader && i.subcontractorId !== mySubId) return false
-    return true
+    return isScopeViewRow(i, mySubId)
   })
   const dataItems = roomFiltered.filter(i => !i.isHeader)
   const billableItems = dataItems.filter(i => i.changeTag !== 'removed')

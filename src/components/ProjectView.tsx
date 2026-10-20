@@ -16,6 +16,7 @@ import { NewWalkModal } from './NewWalkModal'
 import { CreatePOModal } from './CreatePOModal'
 import { fetchPurchaseOrders, fetchMyContractorSubOrgs } from '../lib/supabaseSync'
 import type { SubOrg } from '../lib/supabaseSync'
+import { visibleScopeLines } from '../lib/visibleItems'
 
 type ExportReport = typeof import('../lib/exportReport')
 // Lazy-loaded: keeps jsPDF/autotable out of the initial bundle.
@@ -239,7 +240,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
               <>
                 <h1 className="text-sm font-semibold text-slate-900 truncate">{project.name}</h1>
                 <p className="text-xs text-slate-400 truncate">
-                  {project.address || 'No address'} &nbsp;·&nbsp; {dataItems.length} items &nbsp;·&nbsp; {project.fileName}
+                  {project.address || 'No address'} &nbsp;·&nbsp; {visibleScopeLines(scopeItems).length} items &nbsp;·&nbsp; {project.fileName}
                 </p>
               </>
             )}

@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import type { Project } from '../types'
+import { mergeProjects } from './projectMerge'
 
 /**
  * Project sync engine.
@@ -134,7 +135,9 @@ async function flush(projectId: string): Promise<boolean> {
 
 async function writeLatest(projectId: string): Promise<boolean> {
   const e = entry(projectId)
-  if (!ctx) return false
+  // No signed-in writer yet (auth/org still resolving): keep the change dirty so
+  // the 60 s retry picks it up instead of silently dropping it.
+  if (!ctx) { e.dirty = true; return false }
   emit(projectId, 'saving')
   try {
     for (let attempt = 0; attempt <= MAX_CONFLICT_RETRIES; attempt++) {
@@ -212,63 +215,4 @@ async function fetchRemote(id: string): Promise<{ data: Project; version: string
   return { data: data.data as Project, version: data.updated_at as string }
 }
 
-// ─── Three-way merge ─────────────────────────────────────────────────────────
-// Zustand updates are immutable, so "did I change this?" is a reference check
-// against the base snapshot. Arrays of objects with `id` are merged per element.
-
-function isIdArray(v: unknown): v is { id: string }[] {
-  return Array.isArray(v) && v.length > 0 && v.every(x => x && typeof x === 'object' && typeof (x as { id?: unknown }).id === 'string')
-}
-
-function mergeValue(base: unknown, local: unknown, remote: unknown): unknown {
-  if (local === base) return remote
-  if (remote === undefined || JSON.stringify(remote) === JSON.stringify(base)) return local
-  if ((isIdArray(local) || isIdArray(remote) || isIdArray(base)) && Array.isArray(local) && Array.isArray(remote)) {
-    return mergeIdArrays((Array.isArray(base) ? base : []) as { id: string }[], local as { id: string }[], remote as { id: string }[])
-  }
-  if (isPlainObject(local) && isPlainObject(remote)) {
-    return mergeObjects(isPlainObject(base) ? base : {}, local, remote)
-  }
-  return local // both changed a scalar: local (the user in front of the screen) wins
-}
-
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === 'object' && !Array.isArray(v)
-}
-
-function mergeObjects(base: Record<string, unknown>, local: Record<string, unknown>, remote: Record<string, unknown>) {
-  const out: Record<string, unknown> = {}
-  const keys = new Set([...Object.keys(local), ...Object.keys(remote)])
-  for (const k of keys) {
-    const v = mergeValue(base[k], local[k], remote[k])
-    if (v !== undefined) out[k] = v
-  }
-  return out
-}
-
-function mergeIdArrays(base: { id: string }[], local: { id: string }[], remote: { id: string }[]) {
-  const b = new Map(base.map(x => [x.id, x]))
-  const l = new Map(local.map(x => [x.id, x]))
-  const r = new Map(remote.map(x => [x.id, x]))
-  const out: { id: string }[] = []
-  const seen = new Set<string>()
-  // Local order first (what the user sees), then remote-only additions.
-  for (const item of [...local, ...remote]) {
-    if (seen.has(item.id)) continue
-    seen.add(item.id)
-    const bi = b.get(item.id), li = l.get(item.id), ri = r.get(item.id)
-    if (li && ri) { out.push(mergeValue(bi, li, ri) as { id: string }); continue }
-    if (li && !ri) { if (!bi || li !== bi) out.push(li); continue }        // remote deleted unchanged item → drop
-    if (ri && !li) { if (!bi || JSON.stringify(ri) !== JSON.stringify(bi)) out.push(ri) } // local deleted unchanged → drop
-  }
-  return out
-}
-
-export function mergeProjects(base: Project | null, local: Project, remote: Project): Project {
-  if (!base) return local
-  return mergeObjects(
-    base as unknown as Record<string, unknown>,
-    local as unknown as Record<string, unknown>,
-    remote as unknown as Record<string, unknown>,
-  ) as unknown as Project
-}
+export { mergeProjects } from './projectMerge'
