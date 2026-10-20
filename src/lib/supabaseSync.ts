@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { saveNow } from './projectSync'
 import type { Project, GlobalSubcontractor, JobGroup, Superintendent, PurchaseOrder, PODocument, POStatus } from '../types'
 
 // User-level settings (personal, per-user)
@@ -90,6 +91,31 @@ export async function loadProjectsFromSupabase(): Promise<Project[]> {
   }
 }
 
+/** Like loadProjectsFromSupabase but returns server versions and surfaces errors. */
+export async function loadProjectsWithVersions(): Promise<{ projects: Project[]; versions: Record<string, string>; error: string | null }> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30_000)
+  try {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('data, updated_at')
+      .order('created_at', { ascending: true })
+      .abortSignal(controller.signal)
+    if (error) return { projects: [], versions: {}, error: error.message }
+    const versions: Record<string, string> = {}
+    const projects = (data ?? []).map(row => {
+      const p = row.data as Project
+      if (p?.id) versions[p.id] = row.updated_at as string
+      return p
+    }).filter(p => p?.id)
+    return { projects, versions, error: null }
+  } catch (e) {
+    return { projects: [], versions: {}, error: String(e) }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export async function loadAllProjectsAsAdmin(): Promise<{ projects: Project[]; rpcError: string | null }> {
   try {
     const { data, error } = await supabase.rpc('admin_get_all_projects')
@@ -103,46 +129,24 @@ export async function loadAllProjectsAsAdmin(): Promise<{ projects: Project[]; r
   }
 }
 
-export async function syncProjectToSupabase(project: Project, ownerId: string, orgId?: string): Promise<boolean> {
-  // UPDATE first — preserves the original owner_id/org_id so sub users
-  // can't overwrite contractor ownership when they save approval changes.
-  const { data: updated, error: updateErr } = await supabase
-    .from('projects')
-    .update({
-      name: project.name,
-      address: project.address,
-      updated_at: new Date().toISOString(),
-      data: project,
-    })
-    .eq('id', project.id)
-    .select('id')
+/**
+ * Save a project through the sync engine (debounce-free, conflict-aware).
+ * Kept for backwards compatibility with existing callers; ownerId/orgId are
+ * taken from the sync context configured in App.
+ */
+export async function syncProjectToSupabase(project: Project, _ownerId?: string, _orgId?: string): Promise<boolean> {
+  return saveNow(project.id)
+}
 
-  if (updateErr) {
-    console.error('Failed to sync project (update):', updateErr.message)
-    return false
-  }
-
-  // No rows updated → project is new, insert with full ownership metadata.
-  if (!updated || updated.length === 0) {
-    const { error: insertErr } = await supabase
-      .from('projects')
-      .insert({
-        id: project.id,
-        owner_id: ownerId,
-        org_id: orgId ?? null,
-        name: project.name,
-        address: project.address,
-        created_at: project.createdAt,
-        updated_at: new Date().toISOString(),
-        data: project,
-      })
-    if (insertErr) {
-      console.error('Failed to sync project (insert):', insertErr.message)
-      return false
-    }
-  }
-
-  return true
+// Projects deleted by an explicit user action. The App sync effect only issues a
+// server DELETE for ids in this set — a project merely disappearing from local
+// state (lost access, partial load, state reset) must never delete server data.
+const explicitDeletes = new Set<string>()
+export function markExplicitDelete(projectId: string) { explicitDeletes.add(projectId) }
+export function consumeExplicitDeletes(currentIds: Set<string>): string[] {
+  const out = [...explicitDeletes].filter(id => !currentIds.has(id))
+  out.forEach(id => explicitDeletes.delete(id))
+  return out
 }
 
 export async function assignProjectSuperintendent(
@@ -170,6 +174,7 @@ export async function deleteProjectFromSupabase(projectId: string): Promise<void
     console.error('Failed to delete project:', error.message)
   }
 }
+
 
 export async function grantProjectAccess(projectId: string, userId: string, grantedBy: string): Promise<{ error: string | null }> {
   const { error } = await supabase

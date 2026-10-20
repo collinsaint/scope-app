@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { configureProjectSync, setSyncContext, resetProjectSync, recordRemote, isBase, scheduleSave, saveNow, onSyncStatus, hasLocalChanges, hasPendingSaves, mergeProjects, getBase } from './lib/projectSync'
 import { useStore } from './store/useStore'
 import { useViewMode } from './hooks/useViewMode'
 import { useAuth } from './hooks/useAuth'
@@ -17,7 +18,7 @@ import { ProjectFinancialsView } from './components/ProjectFinancialsView'
 import { InviteCodeGate } from './components/InviteCodeGate'
 import { VerascopeLoader } from './components/VerascopeLoader'
 import { seedDemoProject } from './lib/seedDemoProject'
-import { loadProjectsFromSupabase, loadAllProjectsAsAdmin, syncProjectToSupabase, deleteProjectFromSupabase, loadSettingsFromSupabase, syncSettingsToSupabase, loadOrgSettingsForUser, syncOrgSettingsToSupabase } from './lib/supabaseSync'
+import { loadProjectsWithVersions, loadAllProjectsAsAdmin, deleteProjectFromSupabase, consumeExplicitDeletes, loadSettingsFromSupabase, syncSettingsToSupabase, loadOrgSettingsForUser, syncOrgSettingsToSupabase } from './lib/supabaseSync'
 import { supabase } from './lib/supabase'
 import type { Project } from './types'
 
@@ -62,6 +63,7 @@ export default function App() {
   const [navigating, setNavigating] = useState(false)
   const [recentlyViewedProjectId, setRecentlyViewedProjectId] = useState<string | null>(null)
   const [adminRpcError, setAdminRpcError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -109,20 +111,29 @@ export default function App() {
       try {
         // Clear local state first — prevents another user's localStorage data showing
         replaceProjects([])
+        resetProjectSync()
         const isAdmin = user?.email === 'admin@proscope.app'
         setAdminRpcError(null)
         const [projectsResult, remoteSettings] = await Promise.all([
           isAdmin
             ? loadAllProjectsAsAdmin()
-            : loadProjectsFromSupabase().then(p => ({ projects: p, rpcError: null as string | null })),
+            : loadProjectsWithVersions().then(r => ({ projects: r.projects, versions: r.versions, rpcError: r.error })),
           loadSettingsFromSupabase(),
         ])
-        if (isAdmin && projectsResult.rpcError) setAdminRpcError(projectsResult.rpcError)
+        if (projectsResult.rpcError) {
+          if (isAdmin) setAdminRpcError(projectsResult.rpcError)
+          else setLoadError(projectsResult.rpcError)
+        } else setLoadError(null)
         const remoteProjects = projectsResult.projects
+        const versions = ('versions' in projectsResult ? projectsResult.versions : {}) as Record<string, string>
         if (remoteProjects.length > 0) {
           replaceProjects(remoteProjects)
-          prevProjectsRef.current = remoteProjects
-          prevProjectIdsRef.current = new Set(remoteProjects.map(p => p.id))
+          // Record the post-hydration store objects as the sync base so the
+          // sync effect doesn't immediately write every project back.
+          const hydrated = useStore.getState().projects
+          hydrated.forEach(p => recordRemote(p, versions[p.id] ?? null))
+          prevProjectsRef.current = hydrated
+          prevProjectIdsRef.current = new Set(hydrated.map(p => p.id))
         } else {
           // No projects in Supabase yet — show demo so dashboard isn't empty
           seedDemoProject()
@@ -162,7 +173,7 @@ export default function App() {
   const activeProjectIdRef = useRef<string | null>(null)
   activeProjectIdRef.current = activeProjectId
 
-  function markSaveStatus(status: 'saving' | 'saved' | 'error') {
+  function markSaveStatus(status: 'idle' | 'saving' | 'saved' | 'error') {
     if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current)
     setSaveStatus(status)
     if (status === 'saved') {
@@ -170,78 +181,76 @@ export default function App() {
     }
   }
 
-  async function syncWithStatus(project: Project) {
-    if (!user || user.email === 'admin@proscope.app') return
-    markSaveStatus('saving')
-    try {
-      const ok = await syncProjectToSupabase(project, user.id, orgIdRef.current)
-      markSaveStatus(ok ? 'saved' : 'error')
-    } catch {
-      markSaveStatus('error')
-    }
-  }
+  // Wire the sync engine to the store once.
+  useEffect(() => {
+    configureProjectSync({
+      getLatest: id => useStore.getState().projects.find(p => p.id === id),
+      applyMerged: merged => useStore.getState().replaceProject(merged),
+    })
+    return onSyncStatus((pid, status) => {
+      if (pid === activeProjectIdRef.current) markSaveStatus(status)
+    })
+  }, [])
+
+  const isAppAdminUser = user?.email === 'admin@proscope.app'
+  useEffect(() => {
+    setSyncContext(user && !isAppAdminUser ? { ownerId: user.id, orgId: orgIdRef.current } : null)
+  })
 
   // Sync project changes to Supabase
   useEffect(() => {
     if (!user || loadingFromSupabase.current) return
     // Admin is read-only — never write back to Supabase on their behalf
-    if (user.email === 'admin@proscope.app') {
+    if (isAppAdminUser) {
       prevProjectsRef.current = projects
       prevProjectIdsRef.current = new Set(projects.map(p => p.id))
       return
     }
     const prev = prevProjectsRef.current
-    const prevIds = prevProjectIdsRef.current
     const currentIds = new Set(projects.map(p => p.id))
 
-    // Deleted projects
-    prevIds.forEach(id => {
-      if (!currentIds.has(id)) deleteProjectFromSupabase(id)
-    })
+    // Only projects the user explicitly deleted are deleted on the server.
+    consumeExplicitDeletes(currentIds).forEach(id => { deleteProjectFromSupabase(id) })
 
-    // Added or changed projects (skip demo)
-    const changed: Project[] = []
+    const prevById = new Map(prev.map(p => [p.id, p]))
     projects.forEach(project => {
       if (project.isDemo) return
-      const unchanged = prev.find(p => p.id === project.id && p === project)
-      if (!unchanged) changed.push(project)
+      if (prevById.get(project.id) === project) return
+      if (isBase(project)) return // came from the server (load/realtime) — don't echo it back
+      scheduleSave(project.id)
     })
-
-    if (changed.length > 0) {
-      const activeChanged = changed.find(p => p.id === activeProjectIdRef.current)
-      // Show save status only for the currently open project
-      if (activeChanged) {
-        syncWithStatus(activeChanged)
-        changed.filter(p => p.id !== activeChanged.id).forEach(p => syncProjectToSupabase(p, user.id, orgIdRef.current))
-      } else {
-        changed.forEach(p => syncProjectToSupabase(p, user.id, orgIdRef.current))
-      }
-    }
 
     prevProjectsRef.current = projects
     prevProjectIdsRef.current = currentIds
   }, [projects, user]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Autosave: every 60 s re-sync the active project so a failed reactive sync
-  // doesn't silently lose data (e.g. large photo payloads that timeout once).
+  // Safety net: every 60 s retry any project whose last save failed or that
+  // still differs from what the server has.
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!user || user.email === 'admin@proscope.app' || loadingFromSupabase.current) return
-      const pid = activeProjectIdRef.current
-      if (!pid) return
-      const project = useStore.getState().projects.find(p => p.id === pid)
-      if (!project || project.isDemo) return
-      syncWithStatus(project)
+      if (!user || isAppAdminUser || loadingFromSupabase.current) return
+      useStore.getState().projects.forEach(p => {
+        if (!p.isDemo && hasLocalChanges(p.id)) scheduleSave(p.id, true)
+      })
     }, 60_000)
     return () => clearInterval(interval)
-  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, isAppAdminUser])
+
+  // Warn before closing the tab while edits are unsaved.
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (hasPendingSaves()) { e.preventDefault(); e.returnValue = '' }
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [])
 
   async function handleManualSave() {
     const pid = activeProjectId
     if (!pid || !user) return
     const project = useStore.getState().projects.find(p => p.id === pid)
     if (!project || project.isDemo) return
-    await syncWithStatus(project)
+    await saveNow(pid)
   }
 
   // Sync user-level settings (walkPresets only — globalSubcontractors moved to org-level)
@@ -275,8 +284,18 @@ export default function App() {
         { event: 'UPDATE', schema: 'public', table: 'projects' },
         (payload) => {
           if (loadingFromSupabase.current) return
-          const updated = (payload.new as { data: Project }).data
-          if (updated?.id) replaceProject(updated)
+          const row = payload.new as { data?: Project; updated_at?: string }
+          const updated = row.data
+          if (!updated?.id) return
+          const local = useStore.getState().projects.find(p => p.id === updated.id)
+          if (!local) return
+          // Ignore our own echo / stale events.
+          const base = getBase(updated.id)
+          if (base && JSON.stringify(base) === JSON.stringify(updated)) { recordRemote(base, row.updated_at ?? null); return }
+          const next = hasLocalChanges(updated.id) ? mergeProjects(base, local, updated) : updated
+          replaceProject(next)
+          const stored = useStore.getState().projects.find(p => p.id === updated.id)
+          if (stored) recordRemote(next === updated ? stored : updated, row.updated_at ?? null)
         }
       )
       .subscribe()
@@ -358,6 +377,17 @@ export default function App() {
                 <p className="text-amber-600 text-xs mt-1 font-mono break-all">{adminRpcError}</p>
               </div>
               <button onClick={() => setAdminRpcError(null)} className="text-amber-400 hover:text-amber-600 shrink-0 text-lg leading-none">×</button>
+            </div>
+          )}
+          {!isAppAdmin && loadError && (
+            <div className="flex items-start gap-3 px-4 py-3 bg-red-50 border-b border-red-200 text-sm">
+              <span className="text-red-500 mt-0.5 shrink-0">⚠</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-red-800">Couldn't load your projects from the server</p>
+                <p className="text-red-700 mt-0.5">Your data is safe. Check your connection and refresh the page.</p>
+                <p className="text-red-600 text-xs mt-1 font-mono break-all">{loadError}</p>
+              </div>
+              <button onClick={() => setLoadError(null)} className="text-red-400 hover:text-red-600 shrink-0 text-lg leading-none">×</button>
             </div>
           )}
           {view === 'dashboard' ? (

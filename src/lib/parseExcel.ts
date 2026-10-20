@@ -225,11 +225,21 @@ export function parseExcelFile(buffer: ArrayBuffer): ParseResult {
 }
 
 export function mergeItems(existing: ScopeItem[], incoming: ScopeItem[]): ScopeItem[] {
-  const existingByKey = new Map(existing.filter(i => !i.isHeader).map(item => [itemKey(item), item]))
+  // Bucket by key and consume in order: duplicate lines (same room/desc/qty/
+  // activity/date) each keep their own completion/photo state instead of all
+  // inheriting the state of the last duplicate.
+  const existingByKey = new Map<string, ScopeItem[]>()
+  for (const item of existing) {
+    if (item.isHeader) continue
+    const k = itemKey(item)
+    const bucket = existingByKey.get(k)
+    if (bucket) bucket.push(item)
+    else existingByKey.set(k, [item])
+  }
 
   return incoming.map(item => {
     if (item.isHeader) return item
-    const prev = existingByKey.get(itemKey(item))
+    const prev = existingByKey.get(itemKey(item))?.shift()
     if (prev) {
       // Spread fresh parsed data first, then restore all user-generated state
       return {

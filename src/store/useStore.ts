@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Project, ScopeItem, Subcontractor, GlobalSubcontractor, JobGroup, Superintendent, ProjectSketch, SketchLabel, Walk, WalkItemOverride, WalkGroupNote, WalkRoomPhoto, WalkGeneralNote, CommentNote, ProjectDocument } from '../types'
+import { markExplicitDelete } from '../lib/supabaseSync'
 import { mergeItems, cancelCreditedItems, diffAndMergeChangeOrder } from '../lib/parseExcel'
 
 // Ordered from base → most-recent; site-visit is excluded (it drives Walk View only).
@@ -257,11 +258,13 @@ export const useStore = create<StoreState>()(
           ),
         })),
 
-      deleteProject: (projectId) =>
+      deleteProject: (projectId) => {
+        markExplicitDelete(projectId)
         set((s) => ({
           projects: s.projects.filter((p) => p.id !== projectId),
           activeProjectId: s.activeProjectId === projectId ? null : s.activeProjectId,
-        })),
+        }))
+      },
 
       addSubcontractor: (projectId, sub) =>
         set((s) => ({
