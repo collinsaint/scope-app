@@ -739,6 +739,9 @@ function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelet
             {project.isDemo && (
               <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 tracking-wide uppercase">Demo</span>
             )}
+            {project.localOnly && (
+              <span title="Only in this browser — not saved to the server" className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-600 tracking-wide uppercase">Local only</span>
+            )}
           </div>
           {statusCfg && (
             <span className={`mt-1 inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${statusCfg.pill}`}>

@@ -224,6 +224,8 @@ export interface Project {
   roomPhotos?: Record<string, string[]>
   opPercentage?: number
   isDemo?: boolean
+  /** Exists only in this browser (e.g. created in read-only admin mode); never saved to Supabase. */
+  localOnly?: boolean
   spanishMode?: boolean
   translationCache?: Record<string, string>
   documents?: ProjectDocument[]
