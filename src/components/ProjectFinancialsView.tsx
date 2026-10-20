@@ -14,6 +14,7 @@ import {
   type SubOrg,
 } from '../lib/supabaseSync'
 import { POCard } from './POCard'
+import { isHiddenLine } from '../lib/visibleItems'
 
 function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -130,7 +131,7 @@ export function ProjectFinancialsView({ project, onBack, contractorOrgId, subOrg
   }
 
   // Financial summary — mirrors SummaryCards: exclude headers, removed items, and DRV coverage
-  const billable = project.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+  const billable = project.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && !isHiddenLine(i))
 
   // For sub users: filter to only their assigned items at their percentage
   const mySubEntry = isSubUser && subOrgName

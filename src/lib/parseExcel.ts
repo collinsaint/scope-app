@@ -20,55 +20,87 @@ function toNumber(val: unknown): number {
   return parseFloat(String(val).replace(/[$,\s]/g, '')) || 0
 }
 
-// XLSX serial dates (days since 1899-12-30) or ISO strings → YYYY-MM-DD.
+// XLSX serial dates (days since 1899-12-30), numeric strings, or ISO-ish strings → YYYY-MM-DD.
 function parseExcelDate(val: unknown): string {
-  if (!val) return ''
-  if (typeof val === 'number') {
-    // Excel serial date
-    const ms = (val - 25569) * 86400 * 1000
-    const d = new Date(ms)
-    return d.toISOString().slice(0, 10)
-  }
+  if (val === null || val === undefined || val === '') return ''
+  const fromSerial = (n: number) => new Date(Math.round((n - 25569) * 86400 * 1000)).toISOString().slice(0, 10)
+  if (typeof val === 'number') return fromSerial(val)
   const s = String(val).trim()
   if (!s) return ''
-  // Already ISO or "YYYY-MM-DD HH:mm:ss"
+  if (/^\d+(\.\d+)?$/.test(s)) return fromSerial(parseFloat(s)) // text-typed serial
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)        // M/D/YYYY
+  if (m) return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`
   return s.slice(0, 10)
 }
 
-// Stable 5-field identity key used for credit detection and cross-document matching.
-// RCV is intentionally excluded — it changes between COs due to O&P recalculation.
-// Date disambiguates items with the same description added at different points in time.
-function itemKey(i: ScopeItem): string {
-  return `${i.room}||${i.description}||${i.qty}||${i.activity}||${i.date}`
+function isTrue(val: unknown): boolean {
+  return val === true || /^(true|yes|y|1)$/i.test(String(val ?? '').trim())
 }
 
-// Same identity without the date — used only as a fallback for matching
-// unchanged lines across documents whose dates were restamped.
-function looseKey(i: ScopeItem): string {
-  return `${i.room}||${i.description}||${i.qty}||${i.activity}`
+const r2 = (n: number) => Math.round(n * 100) / 100
+
+// ─── Line identity ───────────────────────────────────────────────────────────
+// Matching ignores Activity, coverage, line number and notes (they differ
+// between export formats / are rewritten by COs). Identity is
+//   room + description + qty(2dp) + unit + |RCV|(2dp) + date
+// with fallbacks that progressively drop RCV, then date. All matching is
+// one-to-one so legitimate duplicate lines pair up correctly.
+type KeyLevel = 0 | 1 | 2
+function lineKey(i: ScopeItem, level: KeyLevel = 0): string {
+  const base = `${i.room.trim().toLowerCase()}||${i.description.trim().toLowerCase()}||${r2(i.qty)}||${(i.unit ?? '').trim().toUpperCase()}`
+  if (level === 2) return base
+  if (level === 1) return `${base}||${i.date}`
+  return `${base}||${i.date}||${r2(Math.abs(i.rcv))}`
 }
 
-// Remove paired line items where one credits out the other.
+/**
+ * One-to-one matcher. `take(item)` returns the best unused candidate for item,
+ * trying the exact key first, then the fallbacks. Candidates are consumed.
+ */
+function makeMatcher(candidates: ScopeItem[], maxLevel: KeyLevel = 2) {
+  const used = new Set<string>()
+  const maps: Map<string, ScopeItem[]>[] = []
+  for (let lvl = 0; lvl <= maxLevel; lvl++) {
+    const m = new Map<string, ScopeItem[]>()
+    for (const c of candidates) {
+      const k = lineKey(c, lvl as KeyLevel)
+      const b = m.get(k)
+      if (b) b.push(c); else m.set(k, [c])
+    }
+    maps.push(m)
+  }
+  return {
+    take(item: ScopeItem, upTo: KeyLevel = maxLevel): ScopeItem | undefined {
+      for (let lvl = 0; lvl <= Math.min(upTo, maxLevel); lvl++) {
+        const bucket = maps[lvl].get(lineKey(item, lvl as KeyLevel))
+        const hit = bucket?.find(c => !used.has(c.id))
+        if (hit) { used.add(hit.id); return hit }
+      }
+      return undefined
+    },
+    isUsed: (id: string) => used.has(id),
+    markUsed: (id: string) => { used.add(id) },
+  }
+}
+
+// Remove paired line items where one credits out the other (same identity,
+// opposite RCV). Requires the exact amount; falls back to ignoring the date.
 export function cancelCreditedItems(items: ScopeItem[]): ScopeItem[] {
-  const remove = new Set<string>()
   const nonHeaders = items.filter(i => !i.isHeader)
-  const positives = nonHeaders.filter(i => i.rcv >= 0)
-
+  const positives = nonHeaders.filter(i => i.rcv > 0)
+  const remove = new Set<string>()
+  const match = makeMatcher(positives, 0)
   for (const neg of nonHeaders) {
     if (neg.rcv >= 0) continue
-    if (remove.has(neg.id)) continue
-    const k = itemKey(neg)
-    const match = positives.find(p =>
-      !remove.has(p.id) &&
-      itemKey(p) === k &&
-      Math.abs(Math.abs(p.rcv) - Math.abs(neg.rcv)) < 0.01
-    )
-    if (match) {
-      remove.add(neg.id)
-      remove.add(match.id)
+    let hit = match.take(neg, 0)
+    if (!hit) {
+      // date-less fallback, same amount
+      hit = positives.find(p => !remove.has(p.id) && !match.isUsed(p.id) &&
+        lineKey(p, 2) === lineKey(neg, 2) && r2(p.rcv) === r2(-neg.rcv))
+      if (hit) match.markUsed(hit.id)
     }
+    if (hit) { remove.add(neg.id); remove.add(hit.id) }
   }
-
   return items.filter(item => !remove.has(item.id))
 }
 
@@ -107,6 +139,7 @@ interface ColMap {
   rcv: number
   date: number
   note: number
+  excluded: number
 }
 
 // Find column indices by searching the header row for known Xactimate column names.
@@ -140,6 +173,7 @@ function tryBuildColMap(row: unknown[]): ColMap | null {
     rcv,
     date:        find('date'),
     note:        find('note 1', 'notes'),
+    excluded:    find('excluded'),
   }
 }
 
@@ -169,7 +203,7 @@ export function parseExcelFile(buffer: ArrayBuffer): ParseResult {
 
   // Fall back to the known Xactimate Desktop column positions if header detection fails
   if (!cols || headerRowIdx < 0) {
-    cols = { room: 2, description: 3, qty: 6, unit: 10, coverage: 11, activity: 12, rcv: 21, date: 33, note: 35 }
+    cols = { room: 2, description: 3, qty: 6, unit: 10, coverage: 11, activity: 12, rcv: 21, date: 33, note: 35, excluded: -1 }
     headerRowIdx = 0
   }
 
@@ -212,11 +246,12 @@ export function parseExcelFile(buffer: ArrayBuffer): ParseResult {
       rowNum: typeof row[0] === 'number' ? row[0] : i,
       room,
       description: String(desc).trim(),
-      qty:      cols.qty >= 0      ? toNumber(row[cols.qty])                  : 0,
+      qty:      cols.qty >= 0      ? r2(toNumber(row[cols.qty]))              : 0,
       unit:     cols.unit >= 0     ? String(row[cols.unit]     ?? '').trim()  : '',
       coverage: cols.coverage >= 0 ? String(row[cols.coverage] ?? '').trim()  : '',
       activity: cols.activity !== null ? String(row[cols.activity] ?? '').trim() : '',
-      rcv:      toNumber(row[cols.rcv]),
+      rcv:      r2(toNumber(row[cols.rcv])),
+      ...(cols.excluded >= 0 && isTrue(row[cols.excluded]) ? { excluded: true } : {}),
       date:     cols.date >= 0     ? parseExcelDate(row[cols.date])           : '',
       note:     cols.note >= 0     ? String(row[cols.note]     ?? '').trim()  : '',
       completed: false,
@@ -230,245 +265,141 @@ export function parseExcelFile(buffer: ArrayBuffer): ParseResult {
   }
 }
 
-export function mergeItems(existing: ScopeItem[], incoming: ScopeItem[]): ScopeItem[] {
-  // Bucket by key and consume in order: duplicate lines (same room/desc/qty/
-  // activity/date) each keep their own completion/photo state instead of all
-  // inheriting the state of the last duplicate.
-  const existingByKey = new Map<string, ScopeItem[]>()
-  for (const item of existing) {
-    if (item.isHeader) continue
-    const k = itemKey(item)
-    const bucket = existingByKey.get(k)
-    if (bucket) bucket.push(item)
-    else existingByKey.set(k, [item])
-  }
+const USER_STATE_FIELDS = [
+  'completed', 'completedAt', 'pendingApproval', 'pendingApprovalAt', 'returned', 'returnedAt',
+  'returnComment', 'returnCommentBy', 'approvalComment', 'approvalCommentBy', 'photos',
+  'subcontractorId', 'purchaseOrderId', 'comment', 'commentNotes',
+] as const
 
+/**
+ * Carry user state (completion, photos, subs, POs, comments) from `existing`
+ * onto the freshly derived `incoming` list. Matches by id first (ids are stable
+ * across recomputes of the same documents), then by line identity one-to-one.
+ */
+export function mergeItems(existing: ScopeItem[], incoming: ScopeItem[]): ScopeItem[] {
+  const prevLines = existing.filter(i => !i.isHeader)
+  const byId = new Map(prevLines.map(i => [i.id, i]))
+  const matcher = makeMatcher(prevLines, 1) // never carry state across a qty-only match
+  // Reserve id matches first so key matching can't steal them.
+  incoming.forEach(i => { if (!i.isHeader && byId.has(i.id)) matcher.markUsed(i.id) })
   return incoming.map(item => {
     if (item.isHeader) return item
-    const prev = existingByKey.get(itemKey(item))?.shift()
-    if (prev) {
-      // Spread fresh parsed data first, then restore all user-generated state
-      return {
-        ...item,
-        completed: prev.completed,
-        completedAt: prev.completedAt,
-        pendingApproval: prev.pendingApproval,
-        pendingApprovalAt: prev.pendingApprovalAt,
-        returned: prev.returned,
-        returnedAt: prev.returnedAt,
-        returnComment: prev.returnComment,
-        returnCommentBy: prev.returnCommentBy,
-        approvalComment: prev.approvalComment,
-        approvalCommentBy: prev.approvalCommentBy,
-        photos: prev.photos,
-        subcontractorId: prev.subcontractorId,
-        purchaseOrderId: prev.purchaseOrderId,
-        comment: prev.comment,
-        commentNotes: prev.commentNotes,
-      }
-    }
-    return item
+    const prev = byId.get(item.id) ?? matcher.take(item)
+    if (!prev) return item
+    const out: ScopeItem = { ...item }
+    for (const f of USER_STATE_FIELDS) (out as unknown as Record<string, unknown>)[f] = (prev as unknown as Record<string, unknown>)[f]
+    return out
   })
 }
 
 /**
- * Compare a previous scope state against a new change-order delta and produce
- * a merged list with REMOVED / NEW change tags.
+ * Diff the previous clean scope against the latest change order.
  *
- * A REMOVED pair is detected when a credit item in coItems (negative RCV)
- * matches a line in prevItems on room + description + qty with matching
- * absolute RCV.  Both the original and the credit are kept in-place, tagged
- * 'removed' and greyed out in the UI.
- *
- * A NEW item is any positive-RCV item in coItems that has no counterpart in
- * prevItems by room + description + qty.
- *
- * Unchanged items carry no tag.  The result preserves prevItems ordering,
- * inserting each credit immediately after its matched original.  New items
- * are appended at the end, preceded by room headers for any rooms that are
- * entirely new.
+ * Works for Full-SOW COs (every prior line repeated) and delta COs.
+ *  - CO positive matched to a previous line → that previous line, unchanged
+ *    (same id, so completion carries over), with the CO's RCV.
+ *  - CO credit cancelling a CO positive (full-SOW style) → both REMOVED; if the
+ *    positive corresponds to a previous line, that line is the one removed.
+ *  - CO credit matching a previous line directly (delta style) → both REMOVED.
+ *  - CO credit matching nothing → kept but flagged `unmatchedCredit` (hidden,
+ *    surfaced as a warning).
+ *  - Remaining CO positives → NEW (fresh state; includes Install-Only swaps).
  */
-export function diffAndMergeChangeOrder(
-  prevItems: ScopeItem[],
-  coItems: ScopeItem[]
-): ScopeItem[] {
-  const prevNonHeaders = prevItems.filter(i => !i.isHeader)
-  const coNonHeaders   = coItems.filter(i => !i.isHeader)
-  const coCredits      = coNonHeaders.filter(i => i.rcv < 0)
-  const coPositive     = coNonHeaders.filter(i => i.rcv >= 0)
+export function diffAndMergeChangeOrder(prevItems: ScopeItem[], coItems: ScopeItem[]): ScopeItem[] {
+  const prevLines = prevItems.filter(i => !i.isHeader)
+  const coLines = coItems.filter(i => !i.isHeader)
+  const coPos = coLines.filter(i => i.rcv >= 0)
+  const coNeg = coLines.filter(i => i.rcv < 0)
 
-  // --- Step 1: cross-document removals ---
-  // Credits in the CO that match a positive item in prevClean → both 'removed'.
-  const removedPrevIds  = new Set<string>()
-  const creditByPrevId  = new Map<string, ScopeItem>()
-  const matchedCreditIds = new Set<string>()
+  // 1. Pair CO credits with CO positives (same identity, same |amount|).
+  const coPosMatcher = makeMatcher(coPos, 1)
+  const creditPairs: Array<{ credit: ScopeItem; pos: ScopeItem }> = []
+  const loneCredits: ScopeItem[] = []
+  const pairedPosIds = new Set<string>()
+  for (const credit of coNeg) {
+    const pos = coPosMatcher.take(credit, 1)
+    if (pos) { creditPairs.push({ credit, pos }); pairedPosIds.add(pos.id) }
+    else loneCredits.push(credit)
+  }
 
-  for (const credit of coCredits) {
-    const k = itemKey(credit)
-    const match = prevNonHeaders.find(p =>
-      !removedPrevIds.has(p.id) && itemKey(p) === k
-    )
-    if (match) {
-      removedPrevIds.add(match.id)
-      creditByPrevId.set(match.id, credit)
-      matchedCreditIds.add(credit.id)
+  // 2. Map CO positives to previous lines, one-to-one. Exact pass for all lines
+  //    first, then fallbacks. Credited positives may only match strictly
+  //    (exact / date-less) so a historical pair can't grab an unrelated line.
+  const prevMatcher = makeMatcher(prevLines, 2)
+  const prevForCo = new Map<string, ScopeItem>() // coPos.id → prev line
+  for (const lvl of [0, 1, 2] as KeyLevel[]) {
+    for (const c of coPos) {
+      if (prevForCo.has(c.id)) continue
+      if (pairedPosIds.has(c.id) && lvl > 1) continue
+      const hit = prevMatcher.take(c, lvl)
+      if (hit) prevForCo.set(c.id, hit)
     }
   }
 
-  const restampedCreditKeys: string[] = []
-  // --- Step 1b: date-restamped removals ---
-  // A credit whose exact key matches nothing in prevClean, but whose date-less
-  // key matches a still-active previous line, is a removal of that line (the
-  // CO export restamped the date). Historical pairs (Step 2) are unaffected:
-  // their originals were already cancelled out of prevClean.
-  for (const credit of coCredits) {
-    if (matchedCreditIds.has(credit.id)) continue
-    const lk = looseKey(credit)
-    const match = prevNonHeaders.find(p =>
-      !removedPrevIds.has(p.id) && looseKey(p) === lk &&
-      Math.abs(Math.abs(p.rcv) - Math.abs(credit.rcv)) < 0.01
-    )
-    if (match) {
-      removedPrevIds.add(match.id)
-      creditByPrevId.set(match.id, credit)
-      matchedCreditIds.add(credit.id)
-      restampedCreditKeys.push(itemKey(credit))
-    }
+  // 3. Credits without a CO partner: match a previous line directly (delta CO),
+  //    else flag as unmatched.
+  const directRemovals: Array<{ credit: ScopeItem; prev: ScopeItem }> = []
+  const unmatched: ScopeItem[] = []
+  const removedPrevIds = new Set<string>()
+  const claimed = new Set([...prevForCo.values()].map(p => p.id))
+  const directMatcher = makeMatcher(prevLines.filter(p => !claimed.has(p.id)), 1)
+  for (const credit of loneCredits) {
+    const prev = directMatcher.take(credit, 1)
+    if (prev) { directRemovals.push({ credit, prev }); removedPrevIds.add(prev.id) }
+    else unmatched.push(credit)
   }
 
-  // --- Step 2: within-CO historical pairs ---
-  // Credits that found no prevClean match are paired credit/debit rows that
-  // already resolved in an earlier CO (e.g. ECR item credited by GC SCOPE
-  // ALIGNMENT). cancelCreditedItems removed them from prevClean, so they
-  // appear fresh in the latest Full-SOW CO. Pair them with their coPositive
-  // counterpart so neither gets tagged 'new'.
-  const withinCoPairedIds = new Set<string>()
-  const withinCoPositives: ScopeItem[] = []
-
-  for (const credit of coCredits) {
-    if (matchedCreditIds.has(credit.id)) continue
-    const k = itemKey(credit)
-    const match = coPositive.find(p => !withinCoPairedIds.has(p.id) && itemKey(p) === k)
-    if (match) {
-      withinCoPairedIds.add(credit.id)
-      withinCoPairedIds.add(match.id)
-      withinCoPositives.push(match)
-    }
+  const coRcvByPrev = new Map<string, number>()
+  const pairByPrev = new Map<string, ScopeItem>() // prev id → credit
+  const historicalPairs: Array<{ pos: ScopeItem; credit: ScopeItem }> = []
+  for (const { credit, pos } of creditPairs) {
+    const prev = prevForCo.get(pos.id)
+    if (prev) { removedPrevIds.add(prev.id); pairByPrev.set(prev.id, credit); coRcvByPrev.set(prev.id, pos.rcv) }
+    else historicalPairs.push({ pos, credit }) // pair already resolved before (not in prev clean scope)
   }
-
-  // --- Step 3: new items ---
-  // Match CO lines to previous lines exactly first (5-field key incl. date).
-  // Then, for lines still unmatched, fall back to the same key WITHOUT the date,
-  // pairing one-to-one. Xactimate re-exports can restamp line dates; without
-  // this fallback every unchanged line was tagged NEW and shown twice (once as
-  // the original, once as the "new" CO copy).
-  const prevKeySet = new Set(prevNonHeaders.map(itemKey))
-  const coRcvByKey = new Map(coPositive.map(i => [itemKey(i), i.rcv]))
-  const coRcvByPrevId = new Map<string, number>()
-
-  const unmatchedPrevByLoose = new Map<string, ScopeItem[]>()
-  const coExactKeys = new Set(coPositive.map(itemKey))
-  for (const p of prevNonHeaders) {
-    if (removedPrevIds.has(p.id) || coExactKeys.has(itemKey(p))) continue
-    const lk = looseKey(p)
-    const bucket = unmatchedPrevByLoose.get(lk)
-    if (bucket) bucket.push(p)
-    else unmatchedPrevByLoose.set(lk, [p])
+  for (const [coId, prev] of prevForCo) {
+    if (!pairedPosIds.has(coId)) coRcvByPrev.set(prev.id, coPos.find(c => c.id === coId)!.rcv)
   }
+  for (const { credit, prev } of directRemovals) pairByPrev.set(prev.id, credit)
 
-  const newItems = coPositive.filter(i => {
-    if (withinCoPairedIds.has(i.id)) return false
-    if (prevKeySet.has(itemKey(i))) return false
-    const rk = restampedCreditKeys.indexOf(itemKey(i))
-    if (rk >= 0) { restampedCreditKeys.splice(rk, 1); return false } // CO's copy of a line it also credits
-    const prevMatch = unmatchedPrevByLoose.get(looseKey(i))?.shift()
-    if (prevMatch) { coRcvByPrevId.set(prevMatch.id, i.rcv); return false }
-    return true
-  })
+  const matchedCoPosIds = new Set(prevForCo.keys())
+  const newItems = coPos.filter(c => !matchedCoPosIds.has(c.id) && !pairedPosIds.has(c.id))
 
-  // --- bucket new items and within-CO pairs by room for inline insertion ---
-  const newByRoom = new Map<string, ScopeItem[]>()
-  for (const item of newItems) {
-    if (!newByRoom.has(item.room)) newByRoom.set(item.room, [])
-    newByRoom.get(item.room)!.push(item)
+  // 3. Build output in previous order; inject per-room extras after each room.
+  const extrasByRoom = new Map<string, ScopeItem[]>()
+  const pushExtra = (room: string, it: ScopeItem) => {
+    const b = extrasByRoom.get(room); if (b) b.push(it); else extrasByRoom.set(room, [it])
   }
-
-  // Within-CO pairs: positive → its credit (for insertion as 'removed' pairs)
-  const withinCoByRoom = new Map<string, Array<{ pos: ScopeItem; credit: ScopeItem }>>()
-  for (const pos of withinCoPositives) {
-    const k = itemKey(pos)
-    const credit = coCredits.find(c => withinCoPairedIds.has(c.id) && itemKey(c) === k)!
-    if (!withinCoByRoom.has(pos.room)) withinCoByRoom.set(pos.room, [])
-    withinCoByRoom.get(pos.room)!.push({ pos, credit })
+  for (const { pos, credit } of historicalPairs) {
+    pushExtra(pos.room, { ...pos, changeTag: 'removed' })
+    pushExtra(pos.room, { ...credit, changeTag: 'removed' })
   }
+  for (const n of newItems) pushExtra(n.room, { ...n, changeTag: 'new' })
+  for (const u of unmatched) pushExtra(u.room, { ...u, changeTag: undefined, unmatchedCredit: true })
 
-  const prevRooms = new Set(prevItems.map(i => i.room))
-
-  // --- build result in prevItems order ---
   const result: ScopeItem[] = []
-
   for (let i = 0; i < prevItems.length; i++) {
     const item = prevItems[i]
-
-    if (item.isHeader) {
-      result.push({ ...item, changeTag: undefined })
-      continue
-    }
-
+    if (item.isHeader) { result.push({ ...item, changeTag: undefined }); continue }
     if (removedPrevIds.has(item.id)) {
-      const credit = creditByPrevId.get(item.id)
-      // Use credit's absolute RCV — CO is authoritative over SOW when O&P differs.
-      const rcv = credit ? Math.abs(credit.rcv) : item.rcv
-      result.push({ ...item, rcv, changeTag: 'removed' as const })
-      if (credit) result.push({ ...credit, changeTag: 'removed' as const })
+      const credit = pairByPrev.get(item.id)
+      result.push({ ...item, rcv: credit ? Math.abs(credit.rcv) : item.rcv, changeTag: 'removed' })
+      if (credit) result.push({ ...credit, changeTag: 'removed' })
     } else {
-      // Use CO RCV if available; fall back to SOW value for items not in CO.
-      const rcv = coRcvByKey.get(itemKey(item)) ?? coRcvByPrevId.get(item.id) ?? item.rcv
-      result.push({ ...item, rcv, changeTag: undefined })
+      result.push({ ...item, rcv: coRcvByPrev.get(item.id) ?? item.rcv, changeTag: undefined })
     }
-
-    // After the last non-header item in this room, inject within-CO pairs
-    // (as 'removed') then new items.
-    const nextNonHeader = prevItems.slice(i + 1).find(j => !j.isHeader)
-    const isLastInRoom  = !nextNonHeader || nextNonHeader.room !== item.room
-
-    if (isLastInRoom) {
-      if (withinCoByRoom.has(item.room)) {
-        for (const { pos, credit } of withinCoByRoom.get(item.room)!) {
-          result.push({ ...pos,    changeTag: 'removed' as const })
-          result.push({ ...credit, changeTag: 'removed' as const })
-        }
-        withinCoByRoom.delete(item.room)
-      }
-      if (newByRoom.has(item.room)) {
-        for (const ni of newByRoom.get(item.room)!) {
-          result.push({ ...ni, changeTag: 'new' as const })
-        }
-        newByRoom.delete(item.room)
-      }
+    const next = prevItems.slice(i + 1).find(j => !j.isHeader)
+    if (!next || next.room !== item.room) {
+      const extras = extrasByRoom.get(item.room)
+      if (extras) { result.push(...extras); extrasByRoom.delete(item.room) }
     }
   }
-
-  // --- append items for rooms not present in prevItems ---
-  for (const [room, roomItems] of newByRoom) {
-    if (!prevRooms.has(room)) {
+  for (const [room, extras] of extrasByRoom) {
+    {
       const header = coItems.find(h => h.isHeader && h.room === room)
-      if (header) result.push({ ...header, changeTag: 'new' as const })
-      for (const ni of roomItems) {
-        result.push({ ...ni, changeTag: 'new' as const })
-      }
+      if (header) result.push({ ...header, changeTag: extras.some(e => e.changeTag === 'new') ? 'new' : undefined })
+      result.push(...extras)
     }
   }
-  for (const [room, pairs] of withinCoByRoom) {
-    if (!prevRooms.has(room)) {
-      const header = coItems.find(h => h.isHeader && h.room === room)
-      if (header) result.push({ ...header, changeTag: undefined })
-      for (const { pos, credit } of pairs) {
-        result.push({ ...pos,    changeTag: 'removed' as const })
-        result.push({ ...credit, changeTag: 'removed' as const })
-      }
-    }
-  }
-
   return result
 }

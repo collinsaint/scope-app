@@ -6,6 +6,7 @@ import { SKETCH_LABELS } from '../types'
 import type { SketchLabel, PurchaseOrder } from '../types'
 import { parseExcelFile, mergeItems } from '../lib/parseExcel'
 import { SummaryCards } from './SummaryCards'
+import { ScopeReviewPanel } from './ScopeReviewPanel'
 import { ScopeTable } from './ScopeTable'
 import { SubcontractorManager } from './SubcontractorManager'
 import { CommentsView } from './CommentsView'
@@ -16,7 +17,7 @@ import { NewWalkModal } from './NewWalkModal'
 import { CreatePOModal } from './CreatePOModal'
 import { fetchPurchaseOrders, fetchMyContractorSubOrgs } from '../lib/supabaseSync'
 import type { SubOrg } from '../lib/supabaseSync'
-import { visibleScopeLines } from '../lib/visibleItems'
+import { activeScopeLines, isHiddenLine } from '../lib/visibleItems'
 
 type ExportReport = typeof import('../lib/exportReport')
 // Lazy-loaded: keeps jsPDF/autotable out of the initial bundle.
@@ -182,7 +183,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
     ? project.items.filter(i => i.isHeader || i.subcontractorId === mySubId)
     : project.items
 
-  const dataItems = scopeItems.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+  const dataItems = scopeItems.filter(i => !i.isHeader && i.changeTag !== 'removed' && !isHiddenLine(i))
   const activeWalk = (project.walks ?? []).find(w => w.id === activeWalkId)
   const baseRooms = Array.from(new Set(scopeItems.map(i => i.room)))
   const walkCustomRooms = activeWalkId ? (activeWalk?.customRooms ?? []) : []
@@ -195,7 +196,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
 
   function roomProgress(r: string) {
     const its = (r === 'all' ? scopeItems : scopeItems.filter(i => i.room === r))
-      .filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+      .filter(i => !i.isHeader && i.changeTag !== 'removed' && !isHiddenLine(i))
     if (!its.length) return { pct: 0, pctCompleted: 0, pctPending: 0, count: 0 }
     const done = its.filter(i => i.completed).length
     const pending = its.filter(i => i.pendingApproval && !i.completed).length
@@ -240,7 +241,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
               <>
                 <h1 className="text-sm font-semibold text-slate-900 truncate">{project.name}</h1>
                 <p className="text-xs text-slate-400 truncate">
-                  {project.address || 'No address'} &nbsp;·&nbsp; {visibleScopeLines(scopeItems).length} items &nbsp;·&nbsp; {project.fileName}
+                  {project.address || 'No address'} &nbsp;·&nbsp; {activeScopeLines(scopeItems).length} items &nbsp;·&nbsp; {project.fileName}
                 </p>
               </>
             )}
@@ -324,7 +325,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
                   {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : saveStatus === 'error' ? 'Save failed' : 'Save'}
                 </button>
               )}
-              <button onClick={() => generateReport(project, { visibleItems: scopeItems.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV'), subPercentage: isSubUser ? subPercentage : undefined, spanishMode: project.spanishMode, translationCache: project.translationCache ?? {}, scopeTotal: isSubUser ? undefined : project.scopeTotal })} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              <button onClick={() => generateReport(project, { visibleItems: scopeItems.filter(i => !i.isHeader && i.changeTag !== 'removed' && !isHiddenLine(i)), subPercentage: isSubUser ? subPercentage : undefined, spanishMode: project.spanishMode, translationCache: project.translationCache ?? {}, scopeTotal: isSubUser ? undefined : project.scopeTotal })} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Export report
               </button>
@@ -416,7 +417,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
               )}
               {/* Export */}
               <button
-                onClick={() => generateReport(project, { visibleItems: scopeItems.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV'), subPercentage: isSubUser ? subPercentage : undefined, spanishMode: project.spanishMode, translationCache: project.translationCache ?? {}, scopeTotal: isSubUser ? undefined : project.scopeTotal })}
+                onClick={() => generateReport(project, { visibleItems: scopeItems.filter(i => !i.isHeader && i.changeTag !== 'removed' && !isHiddenLine(i)), subPercentage: isSubUser ? subPercentage : undefined, spanishMode: project.spanishMode, translationCache: project.translationCache ?? {}, scopeTotal: isSubUser ? undefined : project.scopeTotal })}
                 className="w-8 h-8 flex items-center justify-center rounded-lg text-white transition-colors"
                 style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.22)' }}
                 title="Export"
@@ -625,6 +626,8 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
           <EmptyScopeState projectId={projectId} canUpload={isContractorAdmin} />
 
         ) : activeView === 'scope' ? (
+          <>
+          {!isSubUser && <ScopeReviewPanel project={project} />}
           <ScopeTable
             projectId={projectId}
             items={scopeItems}
@@ -639,6 +642,7 @@ export function ProjectView({ projectId, onBack, initialView = 'scope', onSubVie
             currentUserName={currentUserName}
             onCreatePO={!isSubUser ? (ids) => { setPendingPoItemIds(ids); setShowCreatePO(true) } : undefined}
           />
+          </>
         ) : activeView === 'comments' ? (
           <CommentsView
             items={project.items}

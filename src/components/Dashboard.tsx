@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore'
 import { useViewMode } from '../hooks/useViewMode'
 import { NewProjectModal } from './NewProjectModal'
 import type { Project, ScopeItem } from '../types'
+import { isHiddenLine } from '../lib/visibleItems'
 
 function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -350,7 +351,7 @@ export function Dashboard({ onOpenProject, onOpenProjectDetails, onOpenProjectFi
                     const subEntry = isSubUser && subOrgName ? (p.subcontractors ?? []).find(s => s.name.toLowerCase() === subOrgName.toLowerCase()) ?? null : null
                     const subId = subEntry?.id ?? null
                     const subPct = subEntry?.percentage ?? 100
-                    const billableAll = p.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+                    const billableAll = p.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && !isHiddenLine(i))
                     const billable = isSubUser && subId ? billableAll.filter(i => i.subcontractorId === subId) : billableAll
                     const totalRcv = isSubUser
                       ? billable.reduce((s, i) => s + i.rcv, 0) * subPct / 100
@@ -713,7 +714,7 @@ function ProjectCard({ project, onOpen, onOpenDetails, onOpenFinancials, onDelet
   const subEntry = isSubUser && subOrgName ? (project.subcontractors ?? []).find(s => s.name.toLowerCase() === subOrgName.toLowerCase()) ?? null : null
   const subId = subEntry?.id ?? null
   const subPct = subEntry?.percentage ?? 100
-  const billableAll = project.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+  const billableAll = project.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && !isHiddenLine(i))
   const billable = isSubUser && subId ? billableAll.filter(i => i.subcontractorId === subId) : billableAll
   const completed = billable.filter(i => i.completed).length
   const total = billable.length

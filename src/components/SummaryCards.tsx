@@ -1,6 +1,6 @@
 import { useViewMode } from '../hooks/useViewMode'
 import type { ScopeItem } from '../types'
-import { visibleScopeLines } from '../lib/visibleItems'
+import { activeScopeLines, isHiddenLine } from '../lib/visibleItems'
 
 function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -16,7 +16,7 @@ export function SummaryCards({ items, scopeTotal, opMultiplier = 1 }: Props) {
   const { isMobile } = useViewMode()
   // Removed items (both the credited-out SOW line and its credit) are excluded —
   // they net to zero and are out of scope. DRV coverage items are also excluded.
-  const billable = items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+  const billable = items.filter(i => !i.isHeader && i.changeTag !== 'removed' && !isHiddenLine(i))
   const completed = billable.filter(i => i.completed)
   const pending = billable.filter(i => i.pendingApproval && !i.completed)
   // Use scopeTotal from the CO's raw parsedItems when available — it matches the
@@ -42,7 +42,7 @@ export function SummaryCards({ items, scopeTotal, opMultiplier = 1 }: Props) {
   if (isMobile) {
     return (
       <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide">
-        <Card compact label="Total Amount" value={fmt(totalRcv)} sub={`${visibleScopeLines(items).length} items`} />
+        <Card compact label="Total Amount" value={fmt(totalRcv)} sub={`${activeScopeLines(items).length} items`} />
         <Card compact label="Completed" value={fmt(completedRcv)} sub={`${pctTotal}% done`} valueColor="text-green-600" />
         <Card
           compact
@@ -57,7 +57,7 @@ export function SummaryCards({ items, scopeTotal, opMultiplier = 1 }: Props) {
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-6 py-4">
-      <Card label="Total Amount" value={fmt(totalRcv)} sub={`${visibleScopeLines(items).length} items`} />
+      <Card label="Total Amount" value={fmt(totalRcv)} sub={`${activeScopeLines(items).length} items`} />
       <Card label="Completed Amount" value={fmt(completedRcv)} sub={`${pctTotal}% done`} valueColor="text-green-600" />
       <Card
         label="Progress"
