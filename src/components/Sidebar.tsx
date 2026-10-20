@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { useViewMode } from '../hooks/useViewMode'
+import { activeScopeLines } from '../lib/visibleItems'
 
 type AppView = 'dashboard' | 'project' | 'contractor-settings' | 'subcontractor-settings' | 'user-settings' | 'admin-portal' | 'financials' | 'project-financials'
 
@@ -144,8 +145,9 @@ export function Sidebar({ view, onNavigate, onSignOut, userEmail, isAppAdmin, is
           </p>
           <div className="space-y-0.5">
             {projects.map((p) => {
-              const completed = p.items.filter(i => i.completed).length
-              const pct = p.items.length ? Math.round(completed / p.items.length * 100) : 0
+              const active = activeScopeLines(p.items)
+              const completed = active.filter(i => i.completed).length
+              const pct = active.length ? Math.round(completed / active.length * 100) : 0
               const isActive = view === 'project' && activeProjectId === p.id
               return (
                 <button

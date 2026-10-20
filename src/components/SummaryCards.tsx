@@ -1,5 +1,6 @@
 import { useViewMode } from '../hooks/useViewMode'
 import type { ScopeItem } from '../types'
+import { visibleScopeLines } from '../lib/visibleItems'
 
 function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -41,7 +42,7 @@ export function SummaryCards({ items, scopeTotal, opMultiplier = 1 }: Props) {
   if (isMobile) {
     return (
       <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide">
-        <Card compact label="Total Amount" value={fmt(totalRcv)} sub={`${billable.length} items`} />
+        <Card compact label="Total Amount" value={fmt(totalRcv)} sub={`${visibleScopeLines(items).length} items`} />
         <Card compact label="Completed" value={fmt(completedRcv)} sub={`${pctTotal}% done`} valueColor="text-green-600" />
         <Card
           compact
@@ -56,7 +57,7 @@ export function SummaryCards({ items, scopeTotal, opMultiplier = 1 }: Props) {
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-6 py-4">
-      <Card label="Total Amount" value={fmt(totalRcv)} sub={`${billable.length} items`} />
+      <Card label="Total Amount" value={fmt(totalRcv)} sub={`${visibleScopeLines(items).length} items`} />
       <Card label="Completed Amount" value={fmt(completedRcv)} sub={`${pctTotal}% done`} valueColor="text-green-600" />
       <Card
         label="Progress"

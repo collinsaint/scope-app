@@ -5,6 +5,7 @@ import { PhotoUploader } from './PhotoUploader'
 import { MobileScopeList } from './MobileScopeList'
 import { useViewMode } from '../hooks/useViewMode'
 import { translateTexts } from '../lib/translate'
+import { isScopeViewRow } from '../lib/visibleItems'
 
 const COL_COUNT = 12
 
@@ -150,9 +151,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
   // DRV coverage items are excluded from display and totals everywhere
   const roomFiltered = items.filter(item => {
     if (roomFilter !== 'all' && item.room !== roomFilter) return false
-    if (!item.isHeader && item.coverage?.toUpperCase() === 'DRV') return false
-    if (mySubId !== null && !item.isHeader && item.subcontractorId !== mySubId) return false
-    return true
+    return isScopeViewRow(item, mySubId)
   })
   const dataItems = roomFiltered.filter(i => !i.isHeader && i.changeTag !== 'removed')
   const coverageOptions = [...new Set(dataItems.map(i => i.coverage).filter(Boolean))] as string[]

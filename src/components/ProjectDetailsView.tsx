@@ -6,6 +6,7 @@ import { useStore } from '../store/useStore'
 import { resetDemoProject } from '../lib/seedDemoProject'
 import { grantProjectAccessToSubOrg, revokeProjectAccessForSubOrg, assignProjectSuperintendent } from '../lib/supabaseSync'
 import { supabase } from '../lib/supabase'
+import { visibleScopeLines } from '../lib/visibleItems'
 
 
 interface Props {
@@ -365,7 +366,7 @@ export function ProjectDetailsView({ project, canManage = false, canManageDocs =
           <div className="grid grid-cols-2 gap-y-4 gap-x-8">
             <Detail label="Source File" value={project.fileName} />
             <Detail label="Created" value={new Date(project.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} />
-            <Detail label="Line Items" value={`${dataItems.length} items across ${rooms.length} room${rooms.length !== 1 ? 's' : ''}`} />
+            <Detail label="Line Items" value={`${visibleScopeLines(project.items).length} items across ${rooms.length} room${rooms.length !== 1 ? 's' : ''}`} />
             <Detail label="Subcontractors" value={subcontractors.length > 0 ? subcontractors.map(s => s.name).join(', ') : 'None assigned'} />
             <Detail label="Comments" value={commentCount > 0 ? `${commentCount} item${commentCount !== 1 ? 's' : ''} with comments` : 'No comments'} />
             <Detail label="Photos" value={(() => { const n = dataItems.reduce((s, i) => s + i.photos.length, 0); return n > 0 ? `${n} photo${n !== 1 ? 's' : ''} uploaded` : 'No photos' })()} />
