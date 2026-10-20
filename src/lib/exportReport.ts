@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { Project, ScopeItem, Walk, WalkGeneralNote } from '../types'
+import { isHiddenLine } from './visibleItems'
 
 const JSZIP_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
 
@@ -34,7 +35,7 @@ export function generateReport(
   // Items the user can see: non-header, non-removed, non-DRV (pre-filtered by caller)
   const allItems = options.visibleItems.length > 0
     ? options.visibleItems
-    : project.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && i.coverage?.toUpperCase() !== 'DRV')
+    : project.items.filter(i => !i.isHeader && i.changeTag !== 'removed' && !isHiddenLine(i))
 
   function displayRcv(rcv: number) {
     return subPercentage != null ? rcv * subPercentage / 100 : rcv
@@ -160,7 +161,7 @@ function buildWalkReportHtml(
 ): string {
   const { includePhotos = true, adjustedOnly = false } = options
   const overrides = walk.itemOverrides ?? []
-  const allDataItems = items.filter(i => !i.isHeader && i.coverage?.toUpperCase() !== 'DRV')
+  const allDataItems = items.filter(i => !i.isHeader && !isHiddenLine(i))
   const dataItems = adjustedOnly
     ? allDataItems.filter(i => {
         const ov = overrides.find(o => o.itemId === i.id)
@@ -485,7 +486,7 @@ function buildWalkReportPdfDoc(
     return overrides.find(o => o.itemId === itemId)
   }
 
-  const allDataItems = items.filter(i => !i.isHeader && i.coverage?.toUpperCase() !== 'DRV')
+  const allDataItems = items.filter(i => !i.isHeader && !isHiddenLine(i))
   const dataItems = adjustedOnly
     ? allDataItems.filter(i => {
         const ov = getOverride(i.id)

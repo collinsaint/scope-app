@@ -9,11 +9,16 @@ import type { ScopeItem } from '../types'
  * Displayed: every non-header line, including REMOVED lines (shown greyed /
  * struck through) and NEW lines.
  * Hidden: header rows (rendered as section labels, not counted), DRV-coverage
- * lines, and — for sub users — lines not assigned to their sub.
+ * lines, Excluded=True lines, unmatched CO credits (shown as a warning instead), and — for sub users — lines not assigned to their sub.
  */
+/** Lines never shown and never totalled: DRV coverage, Excluded=True, and unmatched CO credits. */
+export function isHiddenLine(item: ScopeItem): boolean {
+  return item.coverage?.toUpperCase() === 'DRV' || !!item.excluded || !!item.unmatchedCredit
+}
+
 export function isDisplayedScopeLine(item: ScopeItem, subId: string | null = null): boolean {
   if (item.isHeader) return false
-  if (item.coverage?.toUpperCase() === 'DRV') return false
+  if (isHiddenLine(item)) return false
   if (subId !== null && item.subcontractorId !== subId) return false
   return true
 }
