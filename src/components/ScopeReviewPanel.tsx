@@ -7,7 +7,7 @@ function fmt(n: number) {
 
 /**
  * Change-order review notices shown above the scope (contractor only):
- *  - CO credits that matched no scope line (hidden from the scope, need review)
+ *  - CO credits that matched no scope line (shown as flagged rows, included in the total, not counted)
  *  - Lines that were completed before a CO credited them out
  */
 export function ScopeReviewPanel({ project }: { project: Project }) {
@@ -24,7 +24,7 @@ export function ScopeReviewPanel({ project }: { project: Project }) {
           <button className="w-full flex items-center gap-2 text-left" onClick={() => setOpen(open === 'unmatched' ? null : 'unmatched')}>
             <span className="text-amber-500">⚠</span>
             <span className="font-semibold text-amber-800 flex-1">
-              {unmatched.length} change-order credit{unmatched.length !== 1 ? 's' : ''} didn't match any scope line — review with the estimator
+              {unmatched.length} change-order credit{unmatched.length !== 1 ? 's' : ''} didn't match any scope line ({fmt(unmatched.reduce((s, i) => s + i.rcv, 0))}) — shown in amber in its room and included in the total so it matches Xactimate. Not counted as an item. Review with CM
             </span>
             <span className="text-amber-600 text-xs">{open === 'unmatched' ? 'Hide' : 'Show'}</span>
           </button>

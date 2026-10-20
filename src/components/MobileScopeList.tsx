@@ -3,7 +3,7 @@ import type { ScopeItem, Subcontractor } from '../types'
 import { useStore } from '../store/useStore'
 import { CameraCapture } from './CameraCapture'
 import { translateTexts } from '../lib/translate'
-import { isScopeViewRow } from '../lib/visibleItems'
+import { isScopeViewRow, isLockedLine } from '../lib/visibleItems'
 
 interface Props {
   projectId: string
@@ -244,11 +244,12 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
     return isScopeViewRow(i, mySubId)
   })
   const dataItems = roomFiltered.filter(i => !i.isHeader)
-  const billableItems = dataItems.filter(i => i.changeTag !== 'removed')
+  const billableItems = dataItems.filter(i => !isLockedLine(i))
   const coverageOptions = [...new Set(billableItems.map(i => i.coverage).filter(Boolean))] as string[]
 
   const filtered = dataItems.filter(item => {
     if (coverageFilter !== 'all' && item.coverage !== coverageFilter) return false
+    if (item.unmatchedCredit) return true // flagged credit: always shown, included in total
     if (item.changeTag === 'removed') return true // always show removed items (strikethrough), but still respect coverage filter
     if (statusFilter === 'pending' && item.completed) return false
     if (statusFilter === 'complete' && !item.completed) return false
@@ -702,9 +703,10 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                 <div key={`${group.room}-${groupIdx}`}>
                   {/* Sticky room header */}
                   {(() => {
-                    const allCompleted = group.roomItems.length > 0 && group.roomItems.every(i => i.completed)
+                    const workItems = group.roomItems.filter(i => !isLockedLine(i))
+                    const allCompleted = workItems.length > 0 && workItems.every(i => i.completed)
                     const allPendingOrDone = isSubUser
-                      ? group.roomItems.length > 0 && group.roomItems.every(i => i.completed || i.pendingApproval)
+                      ? workItems.length > 0 && workItems.every(i => i.completed || i.pendingApproval)
                       : allCompleted
                     const headerDone = allCompleted
                     return (
@@ -717,7 +719,7 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                         }
                       >
                         {bulkSelectMode && (() => {
-                          const roomIds = group.roomItems.filter(i => i.changeTag !== 'removed').map(i => i.id)
+                          const roomIds = group.roomItems.filter(i => !isLockedLine(i)).map(i => i.id)
                           const allSel = roomIds.length > 0 && roomIds.every(id => selectedIds.has(id))
                           const someSel = !allSel && roomIds.some(id => selectedIds.has(id))
                           return (
@@ -809,6 +811,18 @@ export function MobileScopeList({ projectId, items, subcontractors, roomFilter, 
                       const displayRcv = subPercentage != null ? item.rcv * subPercentage / 100 : item.rcv * opMultiplier
                       const isRemoved = item.changeTag === 'removed'
                       const isNew     = item.changeTag === 'new'
+                      if (item.unmatchedCredit) return (
+                        <div key={item.id} className="bg-amber-50 border-l-4 border-amber-400 px-4 py-3">
+                          <div className="flex items-start gap-3">
+                            <span className="text-amber-500 mt-0.5">⚠</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-slate-800 leading-snug">{item.description}</p>
+                              <p className="text-[11px] font-semibold text-amber-700 mt-0.5">Unmatched credit — review with CM · included in total, not counted</p>
+                            </div>
+                            <span className="text-sm font-mono text-amber-800 whitespace-nowrap">{displayRcv.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}</span>
+                          </div>
+                        </div>
+                      )
                       return (
                         <div key={item.id} className={`${isRemoved ? 'bg-slate-100/80 opacity-75' : item.completed ? 'bg-green-50/40' : item.pendingApproval ? 'bg-amber-50/60' : item.returned ? 'bg-red-50/60' : 'bg-white'} ${selectedIds.has(item.id) ? 'ring-1 ring-inset ring-blue-400' : ''}`}>
                           {/* Card row */}

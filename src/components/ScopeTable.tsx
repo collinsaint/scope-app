@@ -5,7 +5,7 @@ import { PhotoUploader } from './PhotoUploader'
 import { MobileScopeList } from './MobileScopeList'
 import { useViewMode } from '../hooks/useViewMode'
 import { translateTexts } from '../lib/translate'
-import { isScopeViewRow } from '../lib/visibleItems'
+import { isScopeViewRow, isLockedLine } from '../lib/visibleItems'
 
 const COL_COUNT = 12
 
@@ -153,7 +153,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
     if (roomFilter !== 'all' && item.room !== roomFilter) return false
     return isScopeViewRow(item, mySubId)
   })
-  const dataItems = roomFiltered.filter(i => !i.isHeader && i.changeTag !== 'removed')
+  const dataItems = roomFiltered.filter(i => !i.isHeader && !isLockedLine(i))
   const coverageOptions = [...new Set(dataItems.map(i => i.coverage).filter(Boolean))] as string[]
   const completedCount = dataItems.filter(i => i.completed).length
   const pendingCount = dataItems.length - completedCount
@@ -170,7 +170,7 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
 
   const visible = pruneOrphanedHeaders(afterFilter)
   const visibleData = visible.filter(i => !i.isHeader)
-  const selectableData = visibleData.filter(i => i.changeTag !== 'removed')
+  const selectableData = visibleData.filter(i => !isLockedLine(i))
   const selectableIds = new Set(selectableData.map(i => i.id))
   const effectiveSelected = new Set([...selectedIds].filter(id => selectableIds.has(id)))
   const allSelected = selectableData.length > 0 && selectableData.every(i => effectiveSelected.has(i.id))
@@ -584,14 +584,14 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                     key={row.id}
                     room={row.room}
                     onCompleteAll={(() => {
-                      const incompleteIds = visibleData.filter(i => i.room === row.room && !i.completed && !i.pendingApproval && i.changeTag !== 'removed').map(i => i.id)
+                      const incompleteIds = visibleData.filter(i => i.room === row.room && !i.completed && !i.pendingApproval && !isLockedLine(i)).map(i => i.id)
                       return incompleteIds.length > 0
                         ? () => isSubUser ? bulkSetPending(projectId, incompleteIds) : bulkComplete(projectId, incompleteIds)
                         : undefined
                     })()}
                     isSubUser={isSubUser}
                     onSelectAll={!isSubUser ? (() => {
-                      const roomIds = visibleData.filter(i => i.room === row.room && i.changeTag !== 'removed').map(i => i.id)
+                      const roomIds = visibleData.filter(i => i.room === row.room && !isLockedLine(i)).map(i => i.id)
                       const allSel = roomIds.every(id => effectiveSelected.has(id))
                       setSelectedIds(prev => {
                         const next = new Set(prev)
@@ -600,11 +600,13 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
                         return next
                       })
                     }) : undefined}
-                    roomAllSelected={!isSubUser && visibleData.filter(i => i.room === row.room && i.changeTag !== 'removed').length > 0 && visibleData.filter(i => i.room === row.room && i.changeTag !== 'removed').every(i => effectiveSelected.has(i.id))}
-                    roomSomeSelected={!isSubUser && !visibleData.filter(i => i.room === row.room && i.changeTag !== 'removed').every(i => effectiveSelected.has(i.id)) && visibleData.filter(i => i.room === row.room && i.changeTag !== 'removed').some(i => effectiveSelected.has(i.id))}
+                    roomAllSelected={!isSubUser && visibleData.filter(i => i.room === row.room && !isLockedLine(i)).length > 0 && visibleData.filter(i => i.room === row.room && !isLockedLine(i)).every(i => effectiveSelected.has(i.id))}
+                    roomSomeSelected={!isSubUser && !visibleData.filter(i => i.room === row.room && !isLockedLine(i)).every(i => effectiveSelected.has(i.id)) && visibleData.filter(i => i.room === row.room && !isLockedLine(i)).some(i => effectiveSelected.has(i.id))}
                   />
                 ) : row.isHeader ? (
                   <HeaderRow key={row.id} label={row.description} />
+                ) : row.unmatchedCredit ? (
+                  <UnmatchedCreditRow key={row.id} item={row} opMultiplier={opMultiplier} />
                 ) : (
                   <ScopeRow
                     key={row.id}
@@ -634,6 +636,25 @@ export function ScopeTable({ projectId, items, subcontractors, roomFilter, onOpe
       </div>
 
     </div>
+  )
+}
+
+function UnmatchedCreditRow({ item, opMultiplier = 1 }: { item: ScopeItem; opMultiplier?: number }) {
+  const amt = (item.rcv * opMultiplier).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+  return (
+    <tr className="border-b border-amber-200 bg-amber-50" title="This change-order credit didn't match any scope line. It's included in the total. Review with CM.">
+      <td className="px-3 py-3 text-amber-500">⚠</td>
+      <td className="px-3 py-3 text-xs text-slate-400">{item.rowNum}</td>
+      <td className="px-3 py-3">
+        <span className="text-[13px] text-slate-800">{item.description}</span>
+        <div className="mt-0.5 text-[11px] font-semibold text-amber-700">Unmatched credit — review with CM · included in total, not counted as an item</div>
+      </td>
+      <td className="px-3 py-3 text-xs text-slate-500">{item.activity ?? ''}</td>
+      <td className="px-3 py-3 text-xs text-slate-500 whitespace-nowrap">{item.qty} {item.unit}</td>
+      <td className="px-3 py-3 text-[13px] font-mono text-amber-800 whitespace-nowrap">{amt}</td>
+      <td className="px-3 py-3 text-xs text-slate-500">{item.coverage ?? ''}</td>
+      <td colSpan={COL_COUNT - 7} className="px-3 py-3 text-xs text-amber-700">Locked</td>
+    </tr>
   )
 }
 
